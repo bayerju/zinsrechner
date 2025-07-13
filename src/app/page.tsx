@@ -131,6 +131,9 @@ export default function Home() {
     kannAbgezahltWerden = false;
   }
 
+  // Calculate total interest paid after chosen years
+  const bezahlteZinsen = rate * n - (nettodarlehensbetrag - restschuld);
+
   // Handlers for formatted input fields
   function handleInputChange(setter: (v: string) => void) {
     return (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -252,6 +255,12 @@ export default function Home() {
                   ? `${vollständigeAbzahlungJahre} Jahren, ${vollständigeAbzahlungMonate} Monaten`
                   : "nie (Rate zu niedrig)"}
               </span>
+            </div>
+            <div className="flex w-full justify-between py-2 text-sm">
+              <span className="flex items-center gap-1">
+                Bezahlte Zinsen nach {years} Jahren <span title="Info">ⓘ</span>
+              </span>
+              <span>{formatNumber(bezahlteZinsen)} €</span>
             </div>
           </div>
         </CardContent>
