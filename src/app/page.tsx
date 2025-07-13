@@ -29,7 +29,7 @@ export default function Home() {
   const [kaufnebenkostenProzent, setKaufnebenkostenProzent] = useState("12,07");
   const [sollzinsbindung, setSollzinsbindung] = useState("10 Jahre");
   const [tilgungssatz, setTilgungssatz] = useState("2,00 %");
-  const [sollzins, setSollzins] = useState("5,04");
+  const [sollzins, setSollzins] = useState("3,74");
 
   // Helper to parse German number string to number
   function parseGermanNumber(str: string) {
@@ -114,6 +114,21 @@ export default function Home() {
   if (r > 0) {
     restschuld = D * Math.pow(1 + r, n) - (rate / r) * (Math.pow(1 + r, n) - 1);
     restschuld = Math.max(0, restschuld); // No negative values
+  }
+
+  // Calculate when loan is fully paid off
+  let vollständigeAbzahlungJahre = 0;
+  let vollständigeAbzahlungMonate = 0;
+  let kannAbgezahltWerden = true;
+
+  if (r > 0 && rate > D * r) {
+    // Loan can be fully paid off
+    const nVollständig = Math.log(rate / (rate - D * r)) / Math.log(1 + r);
+    vollständigeAbzahlungJahre = Math.floor(nVollständig / 12);
+    vollständigeAbzahlungMonate = Math.ceil(nVollständig % 12);
+  } else {
+    // Loan cannot be fully paid off with current rate
+    kannAbgezahltWerden = false;
   }
 
   // Handlers for formatted input fields
@@ -229,6 +244,14 @@ export default function Home() {
                 Restschuld nach {years} Jahren <span title="Info">ⓘ</span>
               </span>
               <span>{formatNumber(restschuld)} €</span>
+            </div>
+            <div className="flex w-full justify-between py-2 text-sm">
+              <span className="flex items-center gap-1">
+                Kredit vollständig abbezahlt nach{" "}
+                {kannAbgezahltWerden
+                  ? `${vollständigeAbzahlungJahre} Jahren, ${vollständigeAbzahlungMonate} Monaten`
+                  : "nie (Rate zu niedrig)"}
+              </span>
             </div>
           </div>
         </CardContent>
@@ -368,6 +391,7 @@ export default function Home() {
                 value={sollzinsbindung}
                 onChange={(e) => setSollzinsbindung(e.target.value)}
               >
+                <option>5 Jahre</option>
                 <option>10 Jahre</option>
                 <option>15 Jahre</option>
                 <option>20 Jahre</option>
