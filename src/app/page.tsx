@@ -2,80 +2,135 @@
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { useState, useEffect } from "react";
+import {
+  formatNumber,
+  parseGermanNumber,
+  parseGermanPercent,
+  formatGermanNumberInput,
+  calculateNettodarlehensbetrag,
+  calculateMonthlyRate,
+  calculateRestschuld,
+  calculateFullPaymentTime,
+  calculateTotalInterest,
+} from "~/lib/calculations";
+import { saveFormData, loadFormData, type FormData } from "~/lib/cookies";
 
 // import { LatestPost } from "~/app/_components/post";
 // import { api, HydrateClient } from "~/trpc/server";
 
-function parseNumber(str: string) {
-  // Remove dots and replace comma with dot for German number format
-  return Number(str.replace(/\./g, "").replace(",", "."));
-}
-
-function formatNumber(num: number) {
-  // Format number as German currency (e.g. 123456.78 => 123.456,78)
-  return num.toLocaleString("de-DE", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-}
+// Default values
+const DEFAULT_FORM_DATA: FormData = {
+  kaufpreis: "300000",
+  modernisierungskosten: "0",
+  eigenkapital: "0",
+  kaufnebenkosten: "30000",
+  kaufnebenkostenManuell: false,
+  kaufnebenkostenProzent: "12,07",
+  sollzinsbindung: "10 Jahre",
+  tilgungssatz: "2,00 %",
+  sollzins: "3,74",
+};
 
 export default function Home() {
-  // Store raw values for editing
-  const [kaufpreis, setKaufpreis] = useState("300000");
-  const [modernisierungskosten, setModernisierungskosten] = useState("0");
-  const [eigenkapital, setEigenkapital] = useState("0");
-  const [kaufnebenkosten, setKaufnebenkosten] = useState("30000"); // default 12,07% of kaufpreis
-  const [kaufnebenkostenManuell, setKaufnebenkostenManuell] = useState(false);
-  const [kaufnebenkostenProzent, setKaufnebenkostenProzent] = useState("12,07");
-  const [sollzinsbindung, setSollzinsbindung] = useState("10 Jahre");
-  const [tilgungssatz, setTilgungssatz] = useState("2,00 %");
-  const [sollzins, setSollzins] = useState("3,74");
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Helper to parse German number string to number
-  function parseGermanNumber(str: string) {
-    return Number(str.replace(/\./g, "").replace(",", "."));
-  }
-  // Helper to format number as German string (for input fields)
-  function formatGermanNumberInput(str: string) {
-    // Remove all non-digit except comma and dot
-    let cleaned = str.replace(/[^\d.,]/g, "");
-    // Remove all dots (user might type them)
-    cleaned = cleaned.replace(/\./g, "");
-    // Only allow one comma
-    const firstComma = cleaned.indexOf(",");
-    if (firstComma !== -1) {
-      // Keep only the first comma
-      cleaned =
-        cleaned.slice(0, firstComma + 1) +
-        cleaned.slice(firstComma + 1).replace(/,/g, "");
-    }
-    // Remove leading zeros (except for '0' itself)
-    cleaned = cleaned.replace(/^0+(?!$)/, "");
-    // Add thousands separator (dot)
-    const [intPart, decPart] = cleaned.split(",");
-    const intWithDots =
-      intPart && intPart.length > 0
-        ? Number(intPart).toLocaleString("de-DE")
-        : "";
-    return decPart !== undefined ? `${intWithDots},${decPart}` : intWithDots;
-  }
+  // Initialize state with default values (no cookie loading here)
+  const [kaufpreis, setKaufpreis] = useState(DEFAULT_FORM_DATA.kaufpreis);
+  const [modernisierungskosten, setModernisierungskosten] = useState(
+    DEFAULT_FORM_DATA.modernisierungskosten,
+  );
+  const [eigenkapital, setEigenkapital] = useState(
+    DEFAULT_FORM_DATA.eigenkapital,
+  );
+  const [kaufnebenkosten, setKaufnebenkosten] = useState(
+    DEFAULT_FORM_DATA.kaufnebenkosten,
+  );
+  const [kaufnebenkostenManuell, setKaufnebenkostenManuell] = useState(
+    DEFAULT_FORM_DATA.kaufnebenkostenManuell,
+  );
+  const [kaufnebenkostenProzent, setKaufnebenkostenProzent] = useState(
+    DEFAULT_FORM_DATA.kaufnebenkostenProzent,
+  );
+  const [sollzinsbindung, setSollzinsbindung] = useState(
+    DEFAULT_FORM_DATA.sollzinsbindung,
+  );
+  const [tilgungssatz, setTilgungssatz] = useState(
+    DEFAULT_FORM_DATA.tilgungssatz,
+  );
+  const [sollzins, setSollzins] = useState(DEFAULT_FORM_DATA.sollzins);
 
-  // Helper to parse German percent string to number
-  function parseGermanPercent(str: string) {
-    return Number(str.replace(/%/g, "").replace(/\./g, "").replace(",", "."));
-  }
-
-  // Format default values on mount
+  // Load data from cookies on mount (client-side only)
   useEffect(() => {
-    setKaufpreis(formatGermanNumberInput(kaufpreis));
-    setModernisierungskosten(formatGermanNumberInput(modernisierungskosten));
-    setEigenkapital(formatGermanNumberInput(eigenkapital));
-    setKaufnebenkosten(formatGermanNumberInput(kaufnebenkosten));
-    setKaufnebenkostenProzent(formatGermanNumberInput(kaufnebenkostenProzent));
-    // eslint-disable-next-line
+    const savedData = loadFormData();
+    if (savedData) {
+      // Load saved data from cookies
+      setKaufpreis(savedData.kaufpreis);
+      setModernisierungskosten(savedData.modernisierungskosten);
+      setEigenkapital(savedData.eigenkapital);
+      setKaufnebenkosten(savedData.kaufnebenkosten);
+      setKaufnebenkostenManuell(savedData.kaufnebenkostenManuell);
+      setKaufnebenkostenProzent(savedData.kaufnebenkostenProzent);
+      setSollzinsbindung(savedData.sollzinsbindung);
+      setTilgungssatz(savedData.tilgungssatz);
+      setSollzins(savedData.sollzins);
+    } else {
+      // Only format default values if no saved data exists
+      setKaufpreis(formatGermanNumberInput(DEFAULT_FORM_DATA.kaufpreis));
+      setModernisierungskosten(
+        formatGermanNumberInput(DEFAULT_FORM_DATA.modernisierungskosten),
+      );
+      setEigenkapital(formatGermanNumberInput(DEFAULT_FORM_DATA.eigenkapital));
+      setKaufnebenkosten(
+        formatGermanNumberInput(DEFAULT_FORM_DATA.kaufnebenkosten),
+      );
+      setKaufnebenkostenProzent(
+        formatGermanNumberInput(DEFAULT_FORM_DATA.kaufnebenkostenProzent),
+      );
+    }
+    setIsLoading(false);
   }, []);
 
-  // Dynamisch berechnen, falls nicht manuell überschrieben
+  // Save data to cookies whenever any value changes
+  useEffect(() => {
+    if (isLoading) return; // Don't save during initial load
+
+    const formData: FormData = {
+      kaufpreis,
+      modernisierungskosten,
+      eigenkapital,
+      kaufnebenkosten,
+      kaufnebenkostenManuell,
+      kaufnebenkostenProzent,
+      sollzinsbindung,
+      tilgungssatz,
+      sollzins,
+    };
+    saveFormData(formData);
+  }, [
+    isLoading,
+    kaufpreis,
+    modernisierungskosten,
+    eigenkapital,
+    kaufnebenkosten,
+    kaufnebenkostenManuell,
+    kaufnebenkostenProzent,
+    sollzinsbindung,
+    tilgungssatz,
+    sollzins,
+  ]);
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <main className="flex min-h-screen w-full flex-col items-center bg-neutral-900 py-2">
+        <div className="flex items-center justify-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-neutral-600 border-t-green-300"></div>
+        </div>
+      </main>
+    );
+  }
+
+  // Parse input values
   const kaufpreisNum = parseGermanNumber(kaufpreis);
   const modernisierungskostenNum = parseGermanNumber(modernisierungskosten);
   const eigenkapitalNum = parseGermanNumber(eigenkapital);
@@ -88,51 +143,42 @@ export default function Home() {
     ? kaufnebenkostenNum
     : berechneteKaufnebenkosten;
 
-  // Nettodarlehensbetrag Formel
-  const nettodarlehensbetrag =
-    kaufpreisNum +
-    modernisierungskostenNum +
-    kaufnebenkostenFinal -
-    eigenkapitalNum;
+  // Calculate loan values
+  const nettodarlehensbetrag = calculateNettodarlehensbetrag(
+    kaufpreisNum,
+    modernisierungskostenNum,
+    kaufnebenkostenFinal,
+    eigenkapitalNum,
+  );
 
-  // Calculate monthly rate
-  const sollzinsNum = parseGermanPercent(sollzins); // e.g. 5.04
-  const tilgungssatzNum = parseGermanPercent(tilgungssatz); // e.g. 2.00
-  const rate =
-    nettodarlehensbetrag *
-    (sollzinsNum / 100 / 12 + tilgungssatzNum / 100 / 12);
+  const sollzinsNum = parseGermanPercent(sollzins);
+  const tilgungssatzNum = parseGermanPercent(tilgungssatz);
+  const rate = calculateMonthlyRate(
+    nettodarlehensbetrag,
+    sollzinsNum,
+    tilgungssatzNum,
+  );
 
-  // Parse years from Sollzinsbindung (e.g., "10 Jahre" -> 10)
   const years = parseInt(sollzinsbindung);
-  // Calculate Restschuld after 'years' years
-  const D = nettodarlehensbetrag;
-  const r = sollzinsNum / 100 / 12;
-  const n = years * 12;
-  // Annuität (rate) is already calculated
-  // Restschuld formula: D * (1 + r)^n - (rate / r) * ((1 + r)^n - 1)
-  let restschuld = 0;
-  if (r > 0) {
-    restschuld = D * Math.pow(1 + r, n) - (rate / r) * (Math.pow(1 + r, n) - 1);
-    restschuld = Math.max(0, restschuld); // No negative values
-  }
+  const restschuld = calculateRestschuld(
+    nettodarlehensbetrag,
+    rate,
+    sollzinsNum,
+    years,
+  );
 
-  // Calculate when loan is fully paid off
-  let vollständigeAbzahlungJahre = 0;
-  let vollständigeAbzahlungMonate = 0;
-  let kannAbgezahltWerden = true;
+  const fullPayment = calculateFullPaymentTime(
+    nettodarlehensbetrag,
+    rate,
+    sollzinsNum,
+  );
 
-  if (r > 0 && rate > D * r) {
-    // Loan can be fully paid off
-    const nVollständig = Math.log(rate / (rate - D * r)) / Math.log(1 + r);
-    vollständigeAbzahlungJahre = Math.floor(nVollständig / 12);
-    vollständigeAbzahlungMonate = Math.ceil(nVollständig % 12);
-  } else {
-    // Loan cannot be fully paid off with current rate
-    kannAbgezahltWerden = false;
-  }
-
-  // Calculate total interest paid after chosen years
-  const bezahlteZinsen = rate * n - (nettodarlehensbetrag - restschuld);
+  const bezahlteZinsen = calculateTotalInterest(
+    rate,
+    years * 12,
+    nettodarlehensbetrag,
+    restschuld,
+  );
 
   // Handlers for formatted input fields
   function handleInputChange(setter: (v: string) => void) {
@@ -202,7 +248,10 @@ export default function Home() {
   }
 
   return (
-    <main className="flex min-h-screen w-full flex-col items-center bg-neutral-900 py-2">
+    <main
+      className="flex min-h-screen w-full flex-col items-center bg-neutral-900 py-2"
+      suppressHydrationWarning
+    >
       {/* Ihre Kondition Card */}
       <Card className="mb-4 w-full max-w-xl">
         <CardHeader>
@@ -251,8 +300,8 @@ export default function Home() {
             <div className="flex w-full justify-between py-2 text-sm">
               <span className="flex items-center gap-1">
                 Kredit vollständig abbezahlt nach{" "}
-                {kannAbgezahltWerden
-                  ? `${vollständigeAbzahlungJahre} Jahren, ${vollständigeAbzahlungMonate} Monaten`
+                {fullPayment.canBePaidOff
+                  ? `${fullPayment.years} Jahren, ${fullPayment.months} Monaten`
                   : "nie (Rate zu niedrig)"}
               </span>
             </div>
