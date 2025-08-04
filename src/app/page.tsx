@@ -12,6 +12,8 @@ import {
   calculateRestschuld,
   calculateFullPaymentTime,
   calculateTotalInterest,
+  calculateAllRates,
+  calculateTotalRatesByTimeframe,
 } from "~/lib/calculations";
 import { saveFormData, loadFormData, type FormData } from "~/lib/cookies";
 
@@ -22,6 +24,10 @@ import { saveFormData, loadFormData, type FormData } from "~/lib/cookies";
 const DEFAULT_FORM_DATA: FormData = {
   kaufpreis: "300000",
   modernisierungskosten: "0",
+  tilgungsfreierKredit: "0",
+  tilgungsFreieZeit: "0",
+  RückzahlungsfreieZeit: "0",
+  elternkredit: "0",
   eigenkapital: "0",
   kaufnebenkosten: "30000",
   kaufnebenkostenManuell: false,
@@ -29,6 +35,8 @@ const DEFAULT_FORM_DATA: FormData = {
   sollzinsbindung: "10 Jahre",
   tilgungssatz: "2,00 %",
   sollzins: "3,74",
+  überbrückungskredit: "0",
+  laufZeitÜberbrückungskredit: "0",
 };
 
 export default function Home() {
@@ -39,6 +47,13 @@ export default function Home() {
   const [modernisierungskosten, setModernisierungskosten] = useState(
     DEFAULT_FORM_DATA.modernisierungskosten,
   );
+  const [tilgungsfreierKredit, setTilgungsfreierKredit] = useState(
+    DEFAULT_FORM_DATA.tilgungsfreierKredit,
+  );
+  const [tilgungsFreieZeit, setTilgungsFreieZeit] = useState(
+    DEFAULT_FORM_DATA.tilgungsFreieZeit,
+  );
+
   const [eigenkapital, setEigenkapital] = useState(
     DEFAULT_FORM_DATA.eigenkapital,
   );
@@ -58,7 +73,17 @@ export default function Home() {
     DEFAULT_FORM_DATA.tilgungssatz,
   );
   const [sollzins, setSollzins] = useState(DEFAULT_FORM_DATA.sollzins);
-
+  const [elternkredit, setElternkredit] = useState(
+    DEFAULT_FORM_DATA.elternkredit,
+  );
+  const [RückzahlungsfreieZeit, setRückzahlungsfreieZeit] = useState(
+    DEFAULT_FORM_DATA.RückzahlungsfreieZeit,
+  );
+  const [überbrückungskredit, setÜberbrückungskredit] = useState(
+    DEFAULT_FORM_DATA.überbrückungskredit,
+  );
+  const [laufZeitÜberbrückungskredit, setLaufZeitÜberbrückungskredit] =
+    useState(DEFAULT_FORM_DATA.laufZeitÜberbrückungskredit);
   // Load data from cookies on mount (client-side only)
   useEffect(() => {
     const savedData = loadFormData();
@@ -73,6 +98,12 @@ export default function Home() {
       setSollzinsbindung(savedData.sollzinsbindung);
       setTilgungssatz(savedData.tilgungssatz);
       setSollzins(savedData.sollzins);
+      setElternkredit(savedData.elternkredit);
+      setRückzahlungsfreieZeit(savedData.RückzahlungsfreieZeit);
+      setÜberbrückungskredit(savedData.überbrückungskredit);
+      setLaufZeitÜberbrückungskredit(savedData.laufZeitÜberbrückungskredit);
+      setTilgungsfreierKredit(savedData.tilgungsfreierKredit);
+      setTilgungsFreieZeit(savedData.tilgungsFreieZeit);
     } else {
       // Only format default values if no saved data exists
       setKaufpreis(formatGermanNumberInput(DEFAULT_FORM_DATA.kaufpreis));
@@ -86,6 +117,28 @@ export default function Home() {
       setKaufnebenkostenProzent(
         formatGermanNumberInput(DEFAULT_FORM_DATA.kaufnebenkostenProzent),
       );
+      setTilgungsfreierKredit(
+        formatGermanNumberInput(DEFAULT_FORM_DATA.tilgungsfreierKredit),
+      );
+      setTilgungsFreieZeit(
+        formatGermanNumberInput(DEFAULT_FORM_DATA.tilgungsFreieZeit),
+      );
+      setElternkredit(formatGermanNumberInput(DEFAULT_FORM_DATA.elternkredit));
+      setRückzahlungsfreieZeit(
+        formatGermanNumberInput(DEFAULT_FORM_DATA.RückzahlungsfreieZeit),
+      );
+      setÜberbrückungskredit(
+        formatGermanNumberInput(DEFAULT_FORM_DATA.überbrückungskredit),
+      );
+      setLaufZeitÜberbrückungskredit(
+        formatGermanNumberInput(DEFAULT_FORM_DATA.laufZeitÜberbrückungskredit),
+      );
+      setTilgungsfreierKredit(
+        formatGermanNumberInput(DEFAULT_FORM_DATA.tilgungsfreierKredit),
+      );
+      setTilgungsFreieZeit(
+        formatGermanNumberInput(DEFAULT_FORM_DATA.tilgungsFreieZeit),
+      );
     }
     setIsLoading(false);
   }, []);
@@ -97,6 +150,10 @@ export default function Home() {
     const formData: FormData = {
       kaufpreis,
       modernisierungskosten,
+      tilgungsfreierKredit,
+      tilgungsFreieZeit,
+      RückzahlungsfreieZeit,
+      elternkredit,
       eigenkapital,
       kaufnebenkosten,
       kaufnebenkostenManuell,
@@ -104,12 +161,18 @@ export default function Home() {
       sollzinsbindung,
       tilgungssatz,
       sollzins,
+      überbrückungskredit,
+      laufZeitÜberbrückungskredit,
     };
     saveFormData(formData);
   }, [
     isLoading,
     kaufpreis,
     modernisierungskosten,
+    tilgungsfreierKredit,
+    tilgungsFreieZeit,
+    RückzahlungsfreieZeit,
+    elternkredit,
     eigenkapital,
     kaufnebenkosten,
     kaufnebenkostenManuell,
@@ -117,6 +180,8 @@ export default function Home() {
     sollzinsbindung,
     tilgungssatz,
     sollzins,
+    überbrückungskredit,
+    laufZeitÜberbrückungskredit,
   ]);
 
   // Show loading state
@@ -143,16 +208,27 @@ export default function Home() {
     ? kaufnebenkostenNum
     : berechneteKaufnebenkosten;
 
+  const sollzinsNum = parseGermanPercent(sollzins);
+  const tilgungssatzNum = parseGermanPercent(tilgungssatz);
+
+  const tilgungsfreierKreditNum = parseGermanNumber(tilgungsfreierKredit);
+  const tilgungsFreieZeitNum = parseGermanNumber(tilgungsFreieZeit);
+  const elternkreditNum = parseGermanNumber(elternkredit);
+  const RückzahlungsfreieZeitNum = parseGermanNumber(RückzahlungsfreieZeit);
+  const überbrückungskreditNum = parseGermanNumber(überbrückungskredit);
+  const laufZeitÜberbrückungskreditNum = parseGermanNumber(
+    laufZeitÜberbrückungskredit,
+  );
   // Calculate loan values
   const nettodarlehensbetrag = calculateNettodarlehensbetrag(
     kaufpreisNum,
     modernisierungskostenNum,
     kaufnebenkostenFinal,
     eigenkapitalNum,
+    tilgungsfreierKreditNum,
+    elternkreditNum,
+    überbrückungskreditNum,
   );
-
-  const sollzinsNum = parseGermanPercent(sollzins);
-  const tilgungssatzNum = parseGermanPercent(tilgungssatz);
   const rate = calculateMonthlyRate(
     nettodarlehensbetrag,
     sollzinsNum,
@@ -160,7 +236,25 @@ export default function Home() {
   );
 
   const years = parseInt(sollzinsbindung);
-  const restschuld = calculateRestschuld(
+  const rates = calculateAllRates(
+    kaufpreisNum,
+    modernisierungskostenNum,
+    kaufnebenkostenFinal,
+    eigenkapitalNum,
+    tilgungsfreierKreditNum,
+    tilgungsFreieZeitNum,
+    elternkreditNum,
+    RückzahlungsfreieZeitNum,
+    überbrückungskreditNum,
+    laufZeitÜberbrückungskreditNum,
+    sollzinsNum,
+    tilgungssatzNum,
+    years,
+  );
+  console.log(rates);
+  const rateByTime = calculateTotalRatesByTimeframe(rates);
+  console.log(rateByTime);
+  const restschuldBank = calculateRestschuld(
     nettodarlehensbetrag,
     rate,
     sollzinsNum,
@@ -173,11 +267,21 @@ export default function Home() {
     sollzinsNum,
   );
 
+  const kfwRate = rates.find((r) => r.key === "kfwRateTilgung")?.rate ?? 0;
+  const restschuldKfw = calculateRestschuld(
+    tilgungsfreierKreditNum,
+    kfwRate,
+    4,
+    years - tilgungsFreieZeitNum,
+  );
+
+  const restschuld = restschuldBank + restschuldKfw;
+
   const bezahlteZinsen = calculateTotalInterest(
     rate,
     years * 12,
     nettodarlehensbetrag,
-    restschuld,
+    restschuldBank,
   );
 
   // Handlers for formatted input fields
@@ -259,12 +363,21 @@ export default function Home() {
         </CardHeader>
         <CardContent>
           <div className="flex flex-col items-center py-2">
-            <span className="mb-2 text-4xl font-semibold text-green-300">
-              {formatNumber(rate)} €
-            </span>
-            <span className="text-muted-foreground mb-6 text-base">
-              Ihre monatliche Rate
-            </span>
+            <div className="flex flex-row flex-wrap justify-center gap-2">
+              {rateByTime.map((iRate, index) => (
+                <div
+                  key={iRate.key + index}
+                  className="flex min-w-fit flex-col items-center"
+                >
+                  <span className="text-base font-semibold text-green-300 sm:text-2xl">
+                    {formatNumber(iRate.rate)}€
+                  </span>
+                  <span className="text-muted-foreground text-sm">
+                    {iRate.startYear} - {iRate.endYear} Jahre
+                  </span>
+                </div>
+              ))}
+            </div>
             <div className="my-2 w-full border-t border-neutral-700" />
             <div className="flex w-full justify-between py-2 text-sm">
               <span className="flex items-center gap-1">
@@ -466,9 +579,95 @@ export default function Home() {
                 onChange={(e) => setTilgungssatz(e.target.value)}
               >
                 <option>1,00 %</option>
+                <option>1,50 %</option>
                 <option>2,00 %</option>
+                <option>2,50 %</option>
                 <option>3,00 %</option>
               </select>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <div className="col-span-2">
+                <label className="mb-1 block text-sm font-medium">
+                  Tilgungsfreier Kredit <span title="Info">ⓘ</span>
+                </label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  className="w-full rounded-md border border-neutral-700 bg-neutral-800 px-3 py-1 text-white"
+                  value={tilgungsfreierKredit}
+                  onChange={handleInputChange(setTilgungsfreierKredit)}
+                  onBlur={() =>
+                    handleInputBlur(
+                      tilgungsfreierKredit,
+                      setTilgungsfreierKredit,
+                    )
+                  }
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium">
+                  Tilgungsfreie Zeit <span title="Info">ⓘ</span>
+                </label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  className="w-full rounded-md border border-neutral-700 bg-neutral-800 px-3 py-1 text-white"
+                  value={tilgungsFreieZeit}
+                  onChange={handleInputChange(setTilgungsFreieZeit)}
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <div className="col-span-2">
+                <label className="mb-1 block text-sm font-medium">
+                  Elternkredit<span title="Info">ⓘ</span>
+                </label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  className="w-full rounded-md border border-neutral-700 bg-neutral-800 px-3 py-1 text-white"
+                  value={elternkredit}
+                  onChange={handleInputChange(setElternkredit)}
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium">
+                  Rückzahlungsfreie Zeit <span title="Info">ⓘ</span>
+                </label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  className="w-full rounded-md border border-neutral-700 bg-neutral-800 px-3 py-1 text-white"
+                  value={RückzahlungsfreieZeit}
+                  onChange={handleInputChange(setRückzahlungsfreieZeit)}
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <div className="col-span-2">
+                <label className="mb-1 block text-sm font-medium">
+                  Überbrückungskredit<span title="Info">ⓘ</span>
+                </label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  className="w-full rounded-md border border-neutral-700 bg-neutral-800 px-3 py-1 text-white"
+                  value={überbrückungskredit}
+                  onChange={handleInputChange(setÜberbrückungskredit)}
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium">
+                  Laufzeit <span title="Info">ⓘ</span>
+                </label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  className="w-full rounded-md border border-neutral-700 bg-neutral-800 px-3 py-1 text-white"
+                  value={laufZeitÜberbrückungskredit}
+                  onChange={handleInputChange(setLaufZeitÜberbrückungskredit)}
+                />
+              </div>
             </div>
           </form>
         </CardContent>

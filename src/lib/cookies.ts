@@ -7,6 +7,10 @@ const COOKIE_EXPIRY_DAYS = 365; // 1 year
 export interface FormData {
   kaufpreis: string;
   modernisierungskosten: string;
+  tilgungsfreierKredit: string;
+  tilgungsFreieZeit: string;
+  RückzahlungsfreieZeit: string;
+  elternkredit: string;
   eigenkapital: string;
   kaufnebenkosten: string;
   kaufnebenkostenManuell: boolean;
@@ -14,6 +18,8 @@ export interface FormData {
   sollzinsbindung: string;
   tilgungssatz: string;
   sollzins: string;
+  überbrückungskredit: string;
+  laufZeitÜberbrückungskredit: string;
 }
 
 export function saveFormData(data: FormData): void {
