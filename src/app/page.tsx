@@ -87,58 +87,85 @@ export default function Home() {
   // Load data from cookies on mount (client-side only)
   useEffect(() => {
     const savedData = loadFormData();
-    if (savedData) {
-      // Load saved data from cookies
+    if (savedData?.kaufpreis) {
       setKaufpreis(savedData.kaufpreis);
+    } else {
+      setKaufpreis(DEFAULT_FORM_DATA.kaufpreis);
+    }
+    if (savedData?.modernisierungskosten) {
       setModernisierungskosten(savedData.modernisierungskosten);
+    } else {
+      setModernisierungskosten(DEFAULT_FORM_DATA.modernisierungskosten);
+    }
+    if (savedData?.eigenkapital) {
       setEigenkapital(savedData.eigenkapital);
+    } else {
+      setEigenkapital(DEFAULT_FORM_DATA.eigenkapital);
+    }
+    if (savedData?.kaufnebenkosten) {
       setKaufnebenkosten(savedData.kaufnebenkosten);
+    } else {
+      setKaufnebenkosten(DEFAULT_FORM_DATA.kaufnebenkosten);
+    }
+    if (savedData?.kaufnebenkostenManuell) {
       setKaufnebenkostenManuell(savedData.kaufnebenkostenManuell);
+    } else {
+      setKaufnebenkostenManuell(DEFAULT_FORM_DATA.kaufnebenkostenManuell);
+    }
+    if (savedData?.kaufnebenkostenProzent) {
       setKaufnebenkostenProzent(savedData.kaufnebenkostenProzent);
+    } else {
+      setKaufnebenkostenProzent(DEFAULT_FORM_DATA.kaufnebenkostenProzent);
+    }
+    if (savedData?.sollzinsbindung) {
       setSollzinsbindung(savedData.sollzinsbindung);
-      setTilgungssatz(savedData.tilgungssatz);
-      setSollzins(savedData.sollzins);
-      setElternkredit(savedData.elternkredit);
+    } else {
+      setSollzinsbindung(DEFAULT_FORM_DATA.sollzinsbindung);
+    }
+    if (savedData?.RückzahlungsfreieZeit) {
       setRückzahlungsfreieZeit(savedData.RückzahlungsfreieZeit);
-      setÜberbrückungskredit(savedData.überbrückungskredit);
-      setLaufZeitÜberbrückungskredit(savedData.laufZeitÜberbrückungskredit);
-      setTilgungsfreierKredit(savedData.tilgungsfreierKredit);
+    } else {
+      setRückzahlungsfreieZeit(DEFAULT_FORM_DATA.RückzahlungsfreieZeit);
+    }
+    if (savedData?.tilgungsFreieZeit) {
       setTilgungsFreieZeit(savedData.tilgungsFreieZeit);
     } else {
-      // Only format default values if no saved data exists
-      setKaufpreis(formatGermanNumberInput(DEFAULT_FORM_DATA.kaufpreis));
-      setModernisierungskosten(
-        formatGermanNumberInput(DEFAULT_FORM_DATA.modernisierungskosten),
-      );
-      setEigenkapital(formatGermanNumberInput(DEFAULT_FORM_DATA.eigenkapital));
-      setKaufnebenkosten(
-        formatGermanNumberInput(DEFAULT_FORM_DATA.kaufnebenkosten),
-      );
-      setKaufnebenkostenProzent(
-        formatGermanNumberInput(DEFAULT_FORM_DATA.kaufnebenkostenProzent),
-      );
-      setTilgungsfreierKredit(
-        formatGermanNumberInput(DEFAULT_FORM_DATA.tilgungsfreierKredit),
-      );
-      setTilgungsFreieZeit(
-        formatGermanNumberInput(DEFAULT_FORM_DATA.tilgungsFreieZeit),
-      );
-      setElternkredit(formatGermanNumberInput(DEFAULT_FORM_DATA.elternkredit));
-      setRückzahlungsfreieZeit(
-        formatGermanNumberInput(DEFAULT_FORM_DATA.RückzahlungsfreieZeit),
-      );
-      setÜberbrückungskredit(
-        formatGermanNumberInput(DEFAULT_FORM_DATA.überbrückungskredit),
-      );
-      setLaufZeitÜberbrückungskredit(
-        formatGermanNumberInput(DEFAULT_FORM_DATA.laufZeitÜberbrückungskredit),
-      );
-      setTilgungsfreierKredit(
-        formatGermanNumberInput(DEFAULT_FORM_DATA.tilgungsfreierKredit),
-      );
-      setTilgungsFreieZeit(
-        formatGermanNumberInput(DEFAULT_FORM_DATA.tilgungsFreieZeit),
-      );
+      setTilgungsFreieZeit(DEFAULT_FORM_DATA.tilgungsFreieZeit);
+    }
+    if (savedData?.tilgungsfreierKredit) {
+      setTilgungsfreierKredit(savedData.tilgungsfreierKredit);
+    } else {
+      setTilgungsfreierKredit(DEFAULT_FORM_DATA.tilgungsfreierKredit);
+    }
+    if (savedData?.überbrückungskredit) {
+      setÜberbrückungskredit(savedData.überbrückungskredit);
+    } else {
+      setÜberbrückungskredit(DEFAULT_FORM_DATA.überbrückungskredit);
+    }
+    if (savedData?.laufZeitÜberbrückungskredit) {
+      setLaufZeitÜberbrückungskredit(savedData.laufZeitÜberbrückungskredit);
+    } else {
+      setLaufZeitÜberbrückungskredit(DEFAULT_FORM_DATA.laufZeitÜberbrückungskredit);
+    }
+    if (savedData?.elternkredit) {
+      setElternkredit(savedData.elternkredit);
+    } else {
+      setElternkredit(DEFAULT_FORM_DATA.elternkredit);
+    }
+    if (savedData?.sollzinsbindung) {
+      setSollzinsbindung(savedData.sollzinsbindung);
+    } else {
+      setSollzinsbindung(DEFAULT_FORM_DATA.sollzinsbindung);
+    }
+    if (savedData?.tilgungssatz) {
+      setTilgungssatz(savedData.tilgungssatz);
+    } else {
+      setTilgungssatz(DEFAULT_FORM_DATA.tilgungssatz);
+    }
+    if (savedData?.sollzins) {
+      setSollzins(savedData.sollzins);
+    } else {
+      setSollzins(DEFAULT_FORM_DATA.sollzins);
     }
     setIsLoading(false);
   }, []);

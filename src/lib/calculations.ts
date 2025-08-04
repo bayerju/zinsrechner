@@ -8,6 +8,10 @@ export function formatNumber(num: number) {
 }
 
 export function parseGermanNumber(str: string) {
+  if (typeof str !== "string") {
+    console.error("parseGermanNumber: str is not a string", str);
+    return 0;
+  }
   return Number(str.replace(/\./g, "").replace(",", "."));
 }
 
