@@ -4,6 +4,8 @@ import { type Metadata } from "next";
 import { Geist } from "next/font/google";
 
 import { TRPCReactProvider } from "~/trpc/react";
+import JotaiProvider from "~/state/jotai_provider";
+// import { DevTools } from "jotai-devtools";
 
 export const metadata: Metadata = {
   title: "JRZinsrechner",
@@ -22,7 +24,12 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${geist.variable}`}>
       <body>
-        <TRPCReactProvider>{children}</TRPCReactProvider>
+        <TRPCReactProvider>
+          <JotaiProvider>
+            {children}
+            {/* <DevTools /> */}
+          </JotaiProvider>
+          </TRPCReactProvider>
       </body>
     </html>
   );
