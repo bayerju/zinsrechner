@@ -3,11 +3,7 @@ import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { useState, useEffect } from "react";
 import {
-  formatNumber,
-  parseGermanNumber,
-  parseGermanPercent,
-  formatGermanNumberInput,
-  calculateNettodarlehensbetrag,
+  calculateNettodarlehensbetragBank,
   calculateMonthlyRate,
   calculateRestschuld,
   calculateFullPaymentTime,
@@ -16,6 +12,16 @@ import {
   calculateTotalRatesByTimeframe,
 } from "~/lib/calculations";
 import { saveFormData, loadFormData, type FormData } from "~/lib/cookies";
+import {
+  formatNumber,
+  parseGermanNumber,
+  parseGermanPercent,
+  formatGermanNumberInput,
+} from "~/lib/number_fromat";
+import InfosHeader from "~/components/infos_header";
+import Conditions from "~/components/conditions";
+import Credits from "~/components/credits";
+import { Credit, type RatesByTime } from "~/lib/credit";
 
 // import { LatestPost } from "~/app/_components/post";
 // import { api, HydrateClient } from "~/trpc/server";
@@ -145,7 +151,9 @@ export default function Home() {
     if (savedData?.laufZeitÜberbrückungskredit) {
       setLaufZeitÜberbrückungskredit(savedData.laufZeitÜberbrückungskredit);
     } else {
-      setLaufZeitÜberbrückungskredit(DEFAULT_FORM_DATA.laufZeitÜberbrückungskredit);
+      setLaufZeitÜberbrückungskredit(
+        DEFAULT_FORM_DATA.laufZeitÜberbrückungskredit,
+      );
     }
     if (savedData?.elternkredit) {
       setElternkredit(savedData.elternkredit);
@@ -247,7 +255,7 @@ export default function Home() {
     laufZeitÜberbrückungskredit,
   );
   // Calculate loan values
-  const nettodarlehensbetrag = calculateNettodarlehensbetrag(
+  const nettodarlehensbetrag = calculateNettodarlehensbetragBank(
     kaufpreisNum,
     modernisierungskostenNum,
     kaufnebenkostenFinal,
@@ -384,76 +392,7 @@ export default function Home() {
       suppressHydrationWarning
     >
       {/* Ihre Kondition Card */}
-      <Card className="mb-4 w-full max-w-xl">
-        <CardHeader>
-          <CardTitle>Ihre Kondition</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col items-center py-2">
-            <div className="flex flex-row flex-wrap justify-center gap-2">
-              {rateByTime.map((iRate, index) => (
-                <div
-                  key={iRate.key + index}
-                  className="flex min-w-fit flex-col items-center"
-                >
-                  <span className="text-base font-semibold text-green-300 sm:text-2xl">
-                    {formatNumber(iRate.rate)}€
-                  </span>
-                  <span className="text-muted-foreground text-sm">
-                    {iRate.startYear} - {iRate.endYear} Jahre
-                  </span>
-                </div>
-              ))}
-            </div>
-            <div className="my-2 w-full border-t border-neutral-700" />
-            <div className="flex w-full justify-between py-2 text-sm">
-              <span className="flex items-center gap-1">
-                Nettodarlehensbetrag <span title="Info">ⓘ</span>
-              </span>
-              <span>{formatNumber(nettodarlehensbetrag)} €</span>
-            </div>
-            <div className="flex w-full justify-between py-2 text-sm">
-              <span className="flex items-center gap-1">
-                Gebundener Sollzins p.a. <span title="Info">ⓘ</span>
-              </span>
-              <span className="flex items-center gap-2">
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  className="w-20 rounded-md border border-neutral-700 bg-neutral-800 px-2 py-1 text-right text-white"
-                  value={sollzins}
-                  onChange={handleInputChange(setSollzins)}
-                  onBlur={() => handlePercentInputBlur(sollzins, setSollzins)}
-                  style={{ minWidth: 60 }}
-                />
-                %
-              </span>
-            </div>
-            <div className="my-2 w-full border-t border-neutral-700" />
-            {/* Restschuld nach x Jahren */}
-            <div className="flex w-full justify-between py-2 text-sm">
-              <span className="flex items-center gap-1">
-                Restschuld nach {years} Jahren <span title="Info">ⓘ</span>
-              </span>
-              <span>{formatNumber(restschuld)} €</span>
-            </div>
-            <div className="flex w-full justify-between py-2 text-sm">
-              <span className="flex items-center gap-1">
-                Kredit vollständig abbezahlt nach{" "}
-                {fullPayment.canBePaidOff
-                  ? `${fullPayment.years} Jahren, ${fullPayment.months} Monaten`
-                  : "nie (Rate zu niedrig)"}
-              </span>
-            </div>
-            <div className="flex w-full justify-between py-2 text-sm">
-              <span className="flex items-center gap-1">
-                Bezahlte Zinsen nach {years} Jahren <span title="Info">ⓘ</span>
-              </span>
-              <span>{formatNumber(bezahlteZinsen)} €</span>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <InfosHeader rateByTime={rateByTime} />
 
       {/* Wie kommt Ihre Kondition zustande? Card */}
       <Card className="w-full max-w-xl">
@@ -467,184 +406,9 @@ export default function Home() {
         </CardHeader>
         <CardContent>
           <form className="space-y-2">
-            {/* Kaufpreis */}
-            <div>
-              <label className="mb-1 block text-sm font-medium">
-                Kaufpreis <span title="Info">ⓘ</span>
-              </label>
-              <input
-                type="text"
-                inputMode="numeric"
-                className="w-full rounded-md border border-neutral-700 bg-neutral-800 px-3 py-1 text-white"
-                value={kaufpreis}
-                onChange={handleInputChange(setKaufpreis)}
-                onBlur={() => handleInputBlur(kaufpreis, setKaufpreis)}
-              />
-            </div>
-            {/* Modernisierungskosten */}
-            <div>
-              <label className="mb-1 block text-sm font-medium">
-                Modernisierungskosten{" "}
-                <span className="text-muted-foreground text-xs">
-                  (optional)
-                </span>{" "}
-                <span title="Info">ⓘ</span>
-              </label>
-              <input
-                type="text"
-                inputMode="numeric"
-                className="w-full rounded-md border border-neutral-700 bg-neutral-800 px-3 py-1 text-white"
-                value={modernisierungskosten}
-                onChange={handleInputChange(setModernisierungskosten)}
-                onBlur={() =>
-                  handleInputBlur(
-                    modernisierungskosten,
-                    setModernisierungskosten,
-                  )
-                }
-              />
-            </div>
-            {/* Kaufnebenkosten */}
-            <div>
-              <label className="mb-1 block text-sm font-medium">
-                Kaufnebenkosten (Standard: 12,07% vom Kaufpreis)
-                <input
-                  type="checkbox"
-                  className="ml-2 align-middle"
-                  checked={kaufnebenkostenManuell}
-                  onChange={handleKaufnebenkostenManuellChange}
-                />
-                <span className="text-muted-foreground ml-2 text-xs">
-                  manuell eingeben
-                </span>
-              </label>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  className="w-full rounded-md border border-neutral-700 bg-neutral-800 px-3 py-1 text-white"
-                  value={
-                    kaufnebenkostenManuell
-                      ? kaufnebenkosten
-                      : formatGermanNumberInput(
-                          berechneteKaufnebenkosten.toString(),
-                        )
-                  }
-                  disabled={!kaufnebenkostenManuell}
-                  onChange={handleValueInputChange(
-                    setKaufnebenkosten,
-                    setKaufnebenkostenProzent,
-                    kaufpreisNum,
-                  )}
-                  onBlur={() =>
-                    handleInputBlur(kaufnebenkosten, setKaufnebenkosten)
-                  }
-                />
-                {kaufnebenkostenManuell && (
-                  <>
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      className="w-20 rounded-md border border-neutral-700 bg-neutral-800 px-2 py-1 text-right text-white"
-                      value={kaufnebenkostenProzent}
-                      onChange={handlePercentInputChange(
-                        setKaufnebenkostenProzent,
-                        setKaufnebenkosten,
-                        kaufpreisNum,
-                      )}
-                      onBlur={() =>
-                        handlePercentInputBlur(
-                          kaufnebenkostenProzent,
-                          setKaufnebenkostenProzent,
-                        )
-                      }
-                      style={{ minWidth: 60 }}
-                    />
-                    <span className="text-white">%</span>
-                  </>
-                )}
-              </div>
-            </div>
-            {/* Eigenkapital */}
-            <div>
-              <label className="mb-1 block text-sm font-medium">
-                Eigenkapital <span title="Info">ⓘ</span>
-              </label>
-              <input
-                type="text"
-                inputMode="numeric"
-                className="w-full rounded-md border border-neutral-700 bg-neutral-800 px-3 py-1 text-white"
-                value={eigenkapital}
-                onChange={handleInputChange(setEigenkapital)}
-                onBlur={() => handleInputBlur(eigenkapital, setEigenkapital)}
-              />
-            </div>
-            {/* Sollzinsbindung */}
-            <div>
-              <label className="mb-1 block text-sm font-medium">
-                Sollzinsbindung <span title="Info">ⓘ</span>
-              </label>
-              <select
-                className="w-full rounded-md border border-neutral-700 bg-neutral-800 px-3 py-1 text-white"
-                value={sollzinsbindung}
-                onChange={(e) => setSollzinsbindung(e.target.value)}
-              >
-                <option>5 Jahre</option>
-                <option>10 Jahre</option>
-                <option>15 Jahre</option>
-                <option>20 Jahre</option>
-              </select>
-            </div>
-            {/* Tilgungssatz */}
-            <div>
-              <label className="mb-1 block text-sm font-medium">
-                Tilgungssatz <span title="Info">ⓘ</span>
-              </label>
-              <select
-                className="w-full rounded-md border border-neutral-700 bg-neutral-800 px-3 py-1 text-white"
-                value={tilgungssatz}
-                onChange={(e) => setTilgungssatz(e.target.value)}
-              >
-                <option>1,00 %</option>
-                <option>1,50 %</option>
-                <option>2,00 %</option>
-                <option>2,50 %</option>
-                <option>3,00 %</option>
-              </select>
-            </div>
-            <div className="grid grid-cols-3 gap-2">
-              <div className="col-span-2">
-                <label className="mb-1 block text-sm font-medium">
-                  Tilgungsfreier Kredit <span title="Info">ⓘ</span>
-                </label>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  className="w-full rounded-md border border-neutral-700 bg-neutral-800 px-3 py-1 text-white"
-                  value={tilgungsfreierKredit}
-                  onChange={handleInputChange(setTilgungsfreierKredit)}
-                  onBlur={() =>
-                    handleInputBlur(
-                      tilgungsfreierKredit,
-                      setTilgungsfreierKredit,
-                    )
-                  }
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-sm font-medium">
-                  Tilgungsfreie Zeit <span title="Info">ⓘ</span>
-                </label>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  className="w-full rounded-md border border-neutral-700 bg-neutral-800 px-3 py-1 text-white"
-                  value={tilgungsFreieZeit}
-                  onChange={handleInputChange(setTilgungsFreieZeit)}
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-3 gap-2">
+            <Conditions />
+            <Credits />
+            {/* <div className="grid grid-cols-3 gap-2">
               <div className="col-span-2">
                 <label className="mb-1 block text-sm font-medium">
                   Elternkredit<span title="Info">ⓘ</span>
@@ -695,7 +459,7 @@ export default function Home() {
                   onChange={handleInputChange(setLaufZeitÜberbrückungskredit)}
                 />
               </div>
-            </div>
+            </div> */}
           </form>
         </CardContent>
       </Card>
