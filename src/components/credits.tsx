@@ -4,20 +4,25 @@ import { useAtom } from "jotai";
 import { creditsAtom } from "~/state/credits_atom";
 import { Button } from "./ui/button";
 import { Dialog, DialogContent, DialogTrigger, DialogTitle } from "./ui/dialog";
-import {
-  createCredit,
-  type CreditCreate,
-  type RatesByTime,
-} from "~/lib/credit";
+import { createCredit, type CreditCreate } from "~/lib/credit";
 import { Input } from "./ui/input";
 import { useState } from "react";
-import { map } from "lodash";
 import { NumberInput } from "./ui/number_input";
-import { calculateMonthlyRate } from "~/lib/calculations";
 import { Trash2, Edit } from "lucide-react";
 
 export default function Credits() {
   const [credits, setCredits] = useAtom(creditsAtom);
+  const [openCreditDialog, setOpenCreditDialog] = useState(false);
+  const [creditToEdit, setCreditToEdit] = useState<CreditCreate | undefined>(
+    undefined,
+  );
+
+  function OnOpenChange(open: boolean) {
+    if (!open) {
+      setCreditToEdit(undefined);
+    }
+    setOpenCreditDialog(open);
+  }
 
   return (
     <div>
@@ -25,7 +30,18 @@ export default function Credits() {
       {Object.entries(credits).map(([key, credit]) => (
         <div key={key} className="flex flex-row gap-2">
           <p>{credit.name}</p>
+          {credit.rates.map((rate) => (
+            <p key={rate.key + key}>{Number(rate.rate).toFixed(2)} €</p>
+          ))}
+          <Edit
+            className="cursor-pointer"
+            onClick={() => {
+              setCreditToEdit(credit);
+              setOpenCreditDialog(true);
+            }}
+          />
           <Trash2
+            className="cursor-pointer"
             onClick={() =>
               setCredits((prev) => {
                 const newCredits = { ...prev };
@@ -34,17 +50,27 @@ export default function Credits() {
               })
             }
           />
-          {credit.rates.map((rate) => (
-            <p key={rate.key + key}>{rate.rate} €</p>
-          ))}
         </div>
       ))}
-      <NewCreditDialog />
+      <NewCreditDialog
+        key={creditToEdit?.name ?? "new"}
+        open={openCreditDialog}
+        setOpen={OnOpenChange}
+        credit={creditToEdit}
+      />
     </div>
   );
 }
 
-function NewCreditDialog({ credit }: { credit?: CreditCreate }) {
+function NewCreditDialog({
+  credit,
+  open,
+  setOpen,
+}: {
+  credit?: CreditCreate;
+  open: boolean;
+  setOpen: (open: boolean) => void;
+}) {
   const [creditName, setCreditName] = useState(credit?.name ?? "");
   const [creditSummeDarlehen, setCreditSummeDarlehen] = useState(
     credit?.summeDarlehen ?? 0,
@@ -55,21 +81,54 @@ function NewCreditDialog({ credit }: { credit?: CreditCreate }) {
   const [creditTilgungssatz, setCreditTilgungssatz] = useState(
     credit?.tilgungssatz ?? 0,
   );
-  const [open, setOpen] = useState(false);
   const [credits, setCredits] = useAtom(creditsAtom);
+  const [nameError, setNameError] = useState<string | null>(null);
+
+  // Validation function to check for duplicate names
+  const validateName = (name: string) => {
+    if (!name.trim()) {
+      setNameError("Kreditname ist erforderlich");
+      return false;
+    }
+
+    // Check if name is already taken by a different credit
+    const isNameTaken = credits[name] && (!credit || credit.name !== name);
+    if (isNameTaken) {
+      setNameError("Ein Kredit mit diesem Namen existiert bereits");
+      return false;
+    }
+
+    setNameError(null);
+    return true;
+  };
+
+  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newName = e.target.value;
+    setCreditName(newName);
+    validateName(newName);
+  };
+
+  const canSave = creditName.trim() && !nameError;
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
+      <DialogTitle>{credit ? "Kredit bearbeiten" : "Neuer Kredit"}</DialogTitle>
+      <DialogTrigger asChild onClick={() => setOpen(true)}>
         <Button>Neuer Kredit</Button>
       </DialogTrigger>
       <DialogContent>
-        <DialogTitle>Neuer Kredit</DialogTitle>
-        <Input
-          type="text"
-          placeholder="Kreditname"
-          value={creditName}
-          onChange={(e) => setCreditName(e.target.value)}
-        />
+        <div>
+          <Input
+            type="text"
+            placeholder="Kreditname"
+            value={creditName}
+            onChange={handleNameChange}
+            className={nameError ? "border-red-500" : ""}
+          />
+          {nameError && (
+            <p className="mt-1 text-sm text-red-500">{nameError}</p>
+          )}
+        </div>
         <NumberInput
           value={creditSummeDarlehen}
           onChange={setCreditSummeDarlehen}
@@ -86,20 +145,35 @@ function NewCreditDialog({ credit }: { credit?: CreditCreate }) {
           label="Tilgungssatz"
         />
         <Button
+          disabled={!canSave}
           onClick={() => {
-            setCredits((prev) => ({
-              ...prev,
-              [creditName]: createCredit({
+            // Final validation before saving
+            if (!validateName(creditName)) {
+              return;
+            }
+
+            setCredits((prev) => {
+              const newCredits = { ...prev };
+
+              // If we're editing an existing credit and the name changed, remove the old entry
+              if (credit && credit.name !== creditName) {
+                delete newCredits[credit.name];
+              }
+
+              // Add/update the credit with the current values
+              newCredits[creditName] = createCredit({
                 name: creditName,
                 summeDarlehen: creditSummeDarlehen,
                 effektiverZinssatz: creditEffektiverZinssatz,
                 tilgungssatz: creditTilgungssatz,
-              }),
-            }));
+              });
+
+              return newCredits;
+            });
             setOpen(false);
           }}
         >
-          Speichern
+          {credit ? "Aktualisieren" : "Speichern"}
         </Button>
       </DialogContent>
     </Dialog>
