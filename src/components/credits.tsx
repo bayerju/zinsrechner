@@ -9,6 +9,7 @@ import { Input } from "./ui/input";
 import { useState } from "react";
 import { NumberInput } from "./ui/number_input";
 import { Trash2, Edit } from "lucide-react";
+import { Switch } from "./ui/switch";
 
 export default function Credits() {
   const [credits, setCredits] = useAtom(creditsAtom);
@@ -16,11 +17,13 @@ export default function Credits() {
   const [creditToEdit, setCreditToEdit] = useState<CreditCreate | undefined>(
     undefined,
   );
+  const [forceRemountCreditDialog, setForceRemountCreditDialog] = useState(0);
 
   function OnOpenChange(open: boolean) {
     if (!open) {
       setCreditToEdit(undefined);
     }
+    setForceRemountCreditDialog((prev) => prev + 1);
     setOpenCreditDialog(open);
   }
 
@@ -37,7 +40,7 @@ export default function Credits() {
             className="cursor-pointer"
             onClick={() => {
               setCreditToEdit(credit);
-              setOpenCreditDialog(true);
+              OnOpenChange(true);
             }}
           />
           <Trash2
@@ -53,7 +56,7 @@ export default function Credits() {
         </div>
       ))}
       <NewCreditDialog
-        key={creditToEdit?.name ?? "new"}
+        key={(creditToEdit?.name ?? "new") + forceRemountCreditDialog}
         open={openCreditDialog}
         setOpen={OnOpenChange}
         credit={creditToEdit}
@@ -83,7 +86,12 @@ function NewCreditDialog({
   );
   const [credits, setCredits] = useAtom(creditsAtom);
   const [nameError, setNameError] = useState<string | null>(null);
-
+  const [creditTilgungsfreieZeit, setCreditTilgungsfreieZeit] = useState(
+    credit?.tilgungsFreieZeit ?? 0,
+  );
+  const [creditRückzahlungsfreieZeit, setCreditRückzahlungsfreieZeit] = useState(
+    credit?.rückzahlungsfreieZeit ?? 0,
+  );
   // Validation function to check for duplicate names
   const validateName = (name: string) => {
     if (!name.trim()) {
@@ -112,11 +120,13 @@ function NewCreditDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTitle>{credit ? "Kredit bearbeiten" : "Neuer Kredit"}</DialogTitle>
       <DialogTrigger asChild onClick={() => setOpen(true)}>
         <Button>Neuer Kredit</Button>
       </DialogTrigger>
       <DialogContent>
+        <DialogTitle>
+          {credit ? "Kredit bearbeiten" : "Neuer Kredit"}
+        </DialogTitle>
         <div>
           <Input
             type="text"
@@ -144,6 +154,16 @@ function NewCreditDialog({
           onChange={setCreditTilgungssatz}
           label="Tilgungssatz"
         />
+        <SwitchInput
+          label="Tilgungsfreie Zeitraum"
+          onChange={setCreditTilgungsfreieZeit}
+          value={creditTilgungsfreieZeit}
+        />
+        <SwitchInput
+          label="Rückzahlungsfreier Zeitraum"
+          onChange={setCreditRückzahlungsfreieZeit}
+          value={creditRückzahlungsfreieZeit}
+        />
         <Button
           disabled={!canSave}
           onClick={() => {
@@ -166,6 +186,8 @@ function NewCreditDialog({
                 summeDarlehen: creditSummeDarlehen,
                 effektiverZinssatz: creditEffektiverZinssatz,
                 tilgungssatz: creditTilgungssatz,
+                tilgungsFreieZeit: creditTilgungsfreieZeit,
+                rückzahlungsfreieZeit: creditRückzahlungsfreieZeit,
               });
 
               return newCredits;
@@ -177,5 +199,16 @@ function NewCreditDialog({
         </Button>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function SwitchInput({ label, onChange, value}: { label: string, onChange: (value: number) => void, value: number }) {
+  const [checked, setChecked] = useState(value !== 0);
+  return (
+    <div>
+      <label>{label}</label>
+      <Switch checked={checked} onCheckedChange={setChecked} />
+      {checked && <NumberInput value={value} onChange={onChange} label={label} />}
+    </div>
   );
 }
