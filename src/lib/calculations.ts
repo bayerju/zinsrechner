@@ -1,23 +1,25 @@
 import type { Credit, RatesByTime } from "./credit";
 
 // Loan calculation functions
-export function calculateNettodarlehensbetragBank(
-  kaufpreis: number,
-  modernisierungskosten: number,
-  kaufnebenkosten: number,
-  eigenkapital: number,
-  tilgungsfreierKredit: number,
-  elternkredit: number,
-  überbrückungskredit: number,
-) {
+export function calculateNettodarlehensbetragBank({
+  kaufpreis,
+  modernisierungskosten,
+  kaufnebenkosten,
+  eigenkapital,
+  credits,
+}: {
+  kaufpreis: number;
+  modernisierungskosten: number;
+  kaufnebenkosten: number;
+  eigenkapital: number;
+  credits: Credit[];
+}) {
   return (
     kaufpreis +
     modernisierungskosten +
     kaufnebenkosten -
     eigenkapital -
-    tilgungsfreierKredit -
-    elternkredit -
-    überbrückungskredit
+    credits.reduce((acc, credit) => acc + credit.summeDarlehen, 0)
   );
 }
 
@@ -29,13 +31,18 @@ export function calculateMonthlyRate(
   return darlehensbetrag * (effzins / 100 / 12 + tilgungssatz / 100 / 12);
 }
 
-export function calculateRestschuld(
-  nettodarlehensbetrag: number,
-  monthlyRate: number,
-  sollzins: number,
-  years: number,
-) {
-  const r = sollzins / 100 / 12;
+export function calculateRestschuld({
+  nettodarlehensbetrag,
+  monthlyRate,
+  effZins,
+  years,
+}: {
+  nettodarlehensbetrag: number;
+  monthlyRate: number;
+  effZins: number;
+  years: number;
+}) {
+  const r = effZins / 100 / 12;
   const n = years * 12;
 
   if (r <= 0) return 0;
@@ -47,24 +54,66 @@ export function calculateRestschuld(
   return Math.max(0, restschuld);
 }
 
-export function calculateFullPaymentTime(
-  darlehensbetrag: number,
-  monthlyRate: number,
-  effzins: number,
-) {
-  const r = effzins / 100 / 12;
+export function calculateTilgungssatz({
+  effzins,
+  kreditdauer,
+  tilgungsfreieZeit = 0,
+  rückzahlungsfreieZeit = 0,
+}: {
+  effzins: number;
+  kreditdauer: number;
+  tilgungsfreieZeit?: number;
+  rückzahlungsfreieZeit?: number;
+}) {
+  return (
+    (effzins /
+      100 /
+      ((1 + effzins / 100) **
+        (kreditdauer - tilgungsfreieZeit - rückzahlungsfreieZeit) -
+        1)) *
+    100
+  );
+}
 
-  if (r <= 0 || monthlyRate <= darlehensbetrag * r) {
-    return { canBePaidOff: false, years: 0, months: 0 };
+export function calculateFullPaymentTime({
+  darlehensbetrag,
+  monthlyRate,
+  effzins,
+  tilgungsfreieZeit = 0,
+  rückzahlungsfreieZeit = 0,
+}: {
+  darlehensbetrag: number;
+  monthlyRate: number;
+  effzins: number;
+  tilgungsfreieZeit?: number;
+  rückzahlungsfreieZeit?: number;
+}) {
+  const darlehensbetragNeu =
+    rückzahlungsfreieZeit > 0
+      ? darlehensbetrag * Math.pow(1 + effzins / 100, rückzahlungsfreieZeit)
+      : darlehensbetrag;
+  // r = monatlicherAequivalenzzins
+  const r = (1 + effzins / 100) ** (1 / 12) - 1;
+
+  if (r <= 0 || monthlyRate <= darlehensbetragNeu * r) {
+    return { canBePaidOff: false, years: 0, months: 0, yearsAufgerundet: 0 };
   }
 
-  const nVollständig =
-    Math.log(monthlyRate / (monthlyRate - darlehensbetrag * r)) /
+  const monthsToPay =
+    Math.log(monthlyRate / (monthlyRate - darlehensbetragNeu * r)) /
     Math.log(1 + r);
-  const years = Math.floor(nVollständig / 12);
-  const months = Math.ceil(nVollständig % 12);
+  const monthsToPayWithInterest = Math.ceil(
+    monthsToPay + tilgungsfreieZeit * 12 + rückzahlungsfreieZeit * 12,
+  );
+  const years = Math.floor(monthsToPayWithInterest / 12);
+  const months = Math.ceil(monthsToPayWithInterest % 12);
 
-  return { canBePaidOff: true, years, months };
+  return {
+    canBePaidOff: true,
+    years,
+    months,
+    yearsAufgerundet: Math.ceil(monthsToPayWithInterest / 12),
+  };
 }
 
 export function calculateTotalInterest(
@@ -212,9 +261,9 @@ export function calculateAllRates(
   return result.sort((a, b) => a.endYear - b.endYear);
 }
 
-
-
-export function calculateTotalRatesByTimeframe(rates: RatesByTime): RatesByTime {
+export function calculateTotalRatesByTimeframe(
+  rates: RatesByTime,
+): RatesByTime {
   // Extract all unique time boundaries
   const timeBoundaries = new Set<number>();
   rates.forEach((rate) => {

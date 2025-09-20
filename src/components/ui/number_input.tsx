@@ -1,17 +1,21 @@
 "use client";
 import { useState, useEffect, useMemo } from "react";
 import { parseGermanNumber } from "~/lib/number_fromat";
+import { Input } from "./input";
 
 export function NumberInput({
   value,
   onChange,
   label,
+  unit = "",
   locale = "de-DE",
-}: {
+  ...props
+}: Omit<React.ComponentProps<"input">, "onChange"> & {
   value: number;
   onChange: (value: number) => void;
   label?: string;
   locale?: string;
+  unit?: string;
 }) {
   const numberFormatter = useMemo(() => {
     return new Intl.NumberFormat(locale, {
@@ -24,7 +28,7 @@ export function NumberInput({
   // Sync local state when value prop changes (important for atomWithStorage)
   useEffect(() => {
     setInputString(numberFormatter.format(value));
-  }, [value, numberFormatter]);
+  }, [value, numberFormatter, unit]);
 
   function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {
     // Remove all non-digit except comma and dot, but keep the raw input for display
@@ -43,21 +47,23 @@ export function NumberInput({
           {label} <span title="Info">ⓘ</span>
         </label>
       )}
-      <input
-        type="text"
-        inputMode="numeric"
-        className="w-full rounded-md border border-neutral-700 bg-neutral-800 px-3 py-1 text-white"
-        value={inputString}
-        onChange={handleInputChange}
-      />
+      <div className="relative">
+        <Input
+          type="text"
+          inputMode="numeric"
+          className={`w-full rounded-md border border-neutral-700 bg-neutral-800 py-1 text-white ${
+            unit ? "pr-8" : "px-3"
+          } pl-3`}
+          value={inputString}
+          onChange={handleInputChange}
+          {...props}
+        />
+        {unit && (
+          <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-sm text-neutral-400">
+            {unit}
+          </span>
+        )}
+      </div>
     </div>
   );
-}
-
-function getLastSeperator(str: string) {
-  const lastSeperator = str
-    .split("")
-    .reverse()
-    .find((char) => char === "," || char === ".");
-  return lastSeperator;
 }
