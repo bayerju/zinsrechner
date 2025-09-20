@@ -1,27 +1,44 @@
 "use client";
 
-import { useAtomValue, useAtom} from "jotai";
+import { useAtomValue, useAtom } from "jotai";
 import { Card, CardHeader, CardTitle, CardContent } from "~/components/ui/card";
 import { formatNumber } from "~/lib/number_fromat";
-import { nettodarlehensbetragAtom, effzinsAtom, restschuldAtom, zinsbindungAtom, fullPaymentAtom, bezahlteZinsenAtom } from "~/state/conditions_atoms";
+import {
+  nettoDarlehensBetragAtom,
+  effzinsAtom,
+  restschuldAtom,
+  zinsbindungAtom,
+  fullPaymentAtom,
+  bezahlteZinsenAtom,
+  tilgungssatzAtom,
+} from "~/state/conditions_atoms";
 import { NumberInput } from "./ui/number_input";
+import {
+  calculateMonthlyRate,
+  calculateTotalRatesByTimeframe,
+} from "~/lib/calculations";
+import { creditsAtom } from "~/state/credits_atom";
 
-type InfosHeaderProps = {
-  rateByTime: {
-    key: string;
-    rate: number;
-    startYear: number;
-    endYear: number;
-  }[];
-}
-
-export default function InfosHeader({ rateByTime }: InfosHeaderProps) {
-  const nettodarlehensbetrag = useAtomValue(nettodarlehensbetragAtom);
+export default function InfosHeader() {
   const [effzins, setEffzins] = useAtom(effzinsAtom);
   const zinsbindung = useAtomValue(zinsbindungAtom);
-  const restschuld = useAtomValue(restschuldAtom);
   const fullPayment = useAtomValue(fullPaymentAtom);
   const bezahlteZinsen = useAtomValue(bezahlteZinsenAtom);
+  const credits = useAtomValue(creditsAtom);
+  const tilgungssatz = useAtomValue(tilgungssatzAtom);
+
+  const nettoDarlehensbetrag = useAtomValue(nettoDarlehensBetragAtom);
+  const restschuld = useAtomValue(restschuldAtom);
+
+  const ratesByTime = calculateTotalRatesByTimeframe([
+    ...Object.values(credits ?? {}).flatMap((credit) => credit.rates),
+    {
+      startYear: 0,
+      endYear: zinsbindung,
+      rate: calculateMonthlyRate(nettoDarlehensbetrag, effzins, tilgungssatz),
+      key: "bankrate",
+    },
+  ]);
 
   return (
     <Card className="mb-4 w-full max-w-xl">
@@ -31,7 +48,7 @@ export default function InfosHeader({ rateByTime }: InfosHeaderProps) {
       <CardContent>
         <div className="flex flex-col items-center py-2">
           <div className="flex flex-row flex-wrap justify-center gap-2">
-            {rateByTime.map((iRate, index) => (
+            {ratesByTime.map((iRate, index) => (
               <div
                 key={iRate.key + index}
                 className="flex min-w-fit flex-col items-center"
@@ -40,7 +57,7 @@ export default function InfosHeader({ rateByTime }: InfosHeaderProps) {
                   {formatNumber(iRate.rate)}€
                 </span>
                 <span className="text-muted-foreground text-sm">
-                  {iRate.startYear} - {iRate.endYear} Jahre
+                  {iRate.startYear + 1} - {iRate.endYear} Jahre
                 </span>
               </div>
             ))}
@@ -48,16 +65,19 @@ export default function InfosHeader({ rateByTime }: InfosHeaderProps) {
           <div className="my-2 w-full border-t border-neutral-700" />
           <div className="flex w-full justify-between py-2 text-sm">
             <span className="flex items-center gap-1">
-              Nettodarlehensbetrag <span title="Info">ⓘ</span>
+              Nettodarlehensbetrag bei der Bank <span title="Info">ⓘ</span>
             </span>
-            <span>{formatNumber(nettodarlehensbetrag)} €</span>
+            <span>{formatNumber(nettoDarlehensbetrag)} €</span>
           </div>
           <div className="flex w-full justify-between py-2 text-sm">
             <span className="flex items-center gap-1">
-              Gebundener Sollzins p.a. <span title="Info">ⓘ</span>
+              Gebundener Effektivzins p.a. <span title="Info">ⓘ</span>
             </span>
             <span className="flex items-center gap-2">
-              <NumberInput value={effzins} onChange={(value) => setEffzins(value)} />
+              <NumberInput
+                value={effzins}
+                onChange={(value) => setEffzins(value)}
+              />
               %
             </span>
           </div>
@@ -79,7 +99,8 @@ export default function InfosHeader({ rateByTime }: InfosHeaderProps) {
           </div>
           <div className="flex w-full justify-between py-2 text-sm">
             <span className="flex items-center gap-1">
-              Bezahlte Zinsen nach {zinsbindung} Jahren <span title="Info">ⓘ</span>
+              Bezahlte Zinsen nach {zinsbindung} Jahren{" "}
+              <span title="Info">ⓘ</span>
             </span>
             <span>{formatNumber(bezahlteZinsen)} €</span>
           </div>
