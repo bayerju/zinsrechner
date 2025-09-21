@@ -30,6 +30,12 @@ export function NumberInput({
     setInputString(numberFormatter.format(value));
   }, []);
 
+  useEffect(() => {
+    if (props.disabled) {
+      setInputString(numberFormatter.format(value));
+    }
+  }, [value, numberFormatter, props.disabled]);
+
   function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {
     // Remove all non-digit except comma and dot, but keep the raw input for display
     const raw = e.target.value.replace(/[^\d.,]/g, "");
@@ -56,7 +62,10 @@ export function NumberInput({
           } pl-3`}
           value={inputString}
           onChange={handleInputChange}
-          onBlur={() =>setInputString(numberFormatter.format(value))}
+          onBlur={() => setInputString(numberFormatter.format(value))}
+          onFocus={() => {
+            if (inputString === "0") setInputString("");
+          }}
           {...props}
         />
         {unit && (

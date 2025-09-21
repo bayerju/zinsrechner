@@ -29,13 +29,14 @@ export const nettoDarlehensBetragAtom = atom<number>((get) =>
     credits: Object.values(get(creditsAtom) ?? {}),
   }),
 );
-export const restschuldAtom = atom<number>((get) =>
+export const restschuldBankAtom = atom<number>((get) =>
   calculateRestschuld({
     nettodarlehensbetrag: get(nettoDarlehensBetragAtom),
     monthlyRate: calculateMonthlyRate(
-      get(nettoDarlehensBetragAtom),
-      get(effzinsAtom),
-      get(tilgungssatzAtom),
+      {darlehensbetrag: get(nettoDarlehensBetragAtom),
+      effzins: get(effzinsAtom),
+      tilgungssatz: get(tilgungssatzAtom),
+      }
     ),
     effZins: get(effzinsAtom),
     years: get(zinsbindungAtom),
