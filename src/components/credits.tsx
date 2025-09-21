@@ -16,6 +16,7 @@ import {
   calculateMonthlyRate,
   calculateTilgungssatz,
 } from "~/lib/calculations";
+import { SwitchInput } from "./ui/switch_input";
 
 export default function Credits() {
   const [credits, setCredits] = useAtom(creditsAtom);
@@ -90,7 +91,9 @@ function NewCreditDialog({
   const [creditTilgungssatz, setCreditTilgungssatz] = useState(
     credit?.tilgungssatz ?? 0,
   );
-  const [creditKreditdauer, setcreditKreditdauer] = useState(0);
+  const [creditKreditdauer, setcreditKreditdauer] = useState(
+    credit?.kreditdauer ?? 0,
+  );
   const [credits, setCredits] = useAtom(creditsAtom);
   const [nameError, setNameError] = useState<string | null>(null);
   const [creditTilgungsfreieZeit, setCreditTilgungsfreieZeit] = useState(
@@ -98,7 +101,9 @@ function NewCreditDialog({
   );
   const [creditRückzahlungsfreieZeit, setCreditRückzahlungsfreieZeit] =
     useState(credit?.rückzahlungsfreieZeit ?? 0);
-  const [fixDurationOfCredit, setFixDurationOfCredit] = useState(false);
+  const [fixDurationOfCredit, setFixDurationOfCredit] = useState(
+    credit?.useKreditDauer ?? false,
+  );
 
   useEffect(() => {
     if (fixDurationOfCredit && creditKreditdauer > 0) {
@@ -143,27 +148,6 @@ function NewCreditDialog({
     creditRückzahlungsfreieZeit,
     fixDurationOfCredit,
   ]);
-
-  // const calculatedTilgungssatz = calculateTilgungssatz({effzins: creditEffektiverZinssatz, kreditdauer: creditKreditdauer, tilgungsfreieZeit: creditTilgungsfreieZeit, rückzahlungsfreieZeit: creditRückzahlungsfreieZeit});
-  // const calculatedDuration = calculateFullPaymentTime({
-  //   darlehensbetrag: creditSummeDarlehen,
-  //   monthlyRate: calculateMonthlyRate(
-  //     creditSummeDarlehen,
-  //     creditEffektiverZinssatz,
-  //     creditTilgungssatz,
-  //   ),
-  //   effzins: creditEffektiverZinssatz,
-  //   tilgungsfreieZeit: creditTilgungsfreieZeit,
-  //   rückzahlungsfreieZeit: creditRückzahlungsfreieZeit,
-  // }).years;
-
-  // useEffect((prev) => {
-  //   if (prev) {
-  //     return;
-  //   }
-  //   setCreditTilgungssatz(100 / kreditdauer);
-  //   setFixDurationOfCredit(true);
-  // }, [creditTilgungssatz, kreditdauer, creditSummeDarlehen, creditEffektiverZinssatz, creditTilgungsfreieZeit, creditRückzahlungsfreieZeit, fixDurationOfCredit]);
 
   // Validation function to check for duplicate names
   const validateName = (name: string) => {
@@ -222,81 +206,42 @@ function NewCreditDialog({
           onChange={setCreditEffektiverZinssatz}
           label="Effektiver Zinssatz"
         />
-        <div>
-          <label>Fixe Dauer</label>
-          <Switch
-            checked={fixDurationOfCredit}
-            onCheckedChange={(value) => {
-              setFixDurationOfCredit(value);
-              // if (value) {
-              //   setcreditKreditdauer(calculatedDuration);
-              // } else {
-              //   setCreditTilgungssatz(calculatedTilgungssatz);
-              // }
-            }}
-          />
-          <div className="flex flex-row gap-2">
-            <NumberInput
-              value={creditTilgungssatz}
-              onChange={(value) => {
-                setCreditTilgungssatz(value);
-                // setcreditKreditdauer(
-                //   calculateFullPaymentTime({
-                //     darlehensbetrag: creditSummeDarlehen,
-                //     monthlyRate: calculateMonthlyRate(
-                //       creditSummeDarlehen,
-                //       creditEffektiverZinssatz,
-                //       value,
-                //     ),
-                //     effzins: creditEffektiverZinssatz,
-                //     tilgungsfreieZeit: creditTilgungsfreieZeit,
-                //     rückzahlungsfreieZeit: creditRückzahlungsfreieZeit,
-                //   }).years,
-                // );
-              }}
-              label="Tilgungssatz"
-              unit="%"
-              disabled={fixDurationOfCredit}
-            />
-            <NumberInput
-              label="Kreditdauer in Jahren"
-              unit="Jahre"
-              value={creditKreditdauer}
-              onChange={(value) => {
-                setcreditKreditdauer(value);
-              }}
-              disabled={!fixDurationOfCredit}
-            />
-          </div>
-        </div>
         <SwitchInput
-          label="AnfangsSonderKonditionen"
-          // onChange={(value, isRückzahlungsfreieZeit) => {
-          //   if (isRückzahlungsfreieZeit) {
-          //     setCreditRückzahlungsfreieZeit(value);
-          //     setCreditTilgungsfreieZeit(0);
-          //   } else {
-          //     setCreditTilgungsfreieZeit(value);
-          //     setCreditRückzahlungsfreieZeit(0);
-          //   }
-          // }}
-          // value={creditTilgungsfreieZeit}
-          rückzahlungsfreieZeit={creditRückzahlungsfreieZeit}
-          tilgungsfreieZeit={creditTilgungsfreieZeit}
-          setRückzahlungsfreieZeit={(value) => {
-            setCreditRückzahlungsfreieZeit(value);
-            setCreditTilgungsfreieZeit(0);
+          valueLeft={creditTilgungssatz}
+          setLeft={setCreditTilgungssatz}
+          valueRight={creditKreditdauer}
+          setRight={setcreditKreditdauer}
+          onCheckedChange={(value) => {
+            setFixDurationOfCredit(value);
           }}
-          setTilgungsfreieZeit={(value) => {
-            setCreditTilgungsfreieZeit(value);
-            setCreditRückzahlungsfreieZeit(0);
-          }}
+          labelLeft="Tilgungssatz"
+          labelRight="Kreditdauer in Jahren"
+          unitLeft="%"
+          unitRight="Jahre"
         />
-        {/* <SwitchInput
-          label="Rückzahlungsfreier Zeitraum"
-          onChange={setCreditRückzahlungsfreieZeit}
-          value={creditRückzahlungsfreieZeit}
-        /> */}
+
+        <div>
+          <h3 className="text-lg font-semibold">
+            Sonderkonditionen zu Zahlungsbeginn
+          </h3>
+          <SwitchInput
+            labelLeft="Tilgungsfreie Zeit"
+            labelRight="Rückzahlungsfreie Zeit"
+            valueLeft={creditTilgungsfreieZeit}
+            valueRight={creditRückzahlungsfreieZeit}
+            setLeft={(value) => {
+              setCreditTilgungsfreieZeit(value);
+              setCreditRückzahlungsfreieZeit(0);
+            }}
+            setRight={(value) => {
+              setCreditRückzahlungsfreieZeit(value);
+              setCreditTilgungsfreieZeit(0);
+            }}
+            unitLeft="Jahre"
+            unitRight="Jahre"
+          />
+        </div>
+
         <Button
           disabled={!canSave}
           onClick={() => {
@@ -322,6 +267,7 @@ function NewCreditDialog({
                 kreditdauer: creditKreditdauer,
                 tilgungsFreieZeit: creditTilgungsfreieZeit,
                 rückzahlungsfreieZeit: creditRückzahlungsfreieZeit,
+                useKreditDauer: fixDurationOfCredit,
               });
 
               return newCredits;
@@ -333,57 +279,5 @@ function NewCreditDialog({
         </Button>
       </DialogContent>
     </Dialog>
-  );
-}
-
-function SwitchInput({
-  label,
-  setRückzahlungsfreieZeit,
-  setTilgungsfreieZeit,
-
-  // onChange,
-  rückzahlungsfreieZeit,
-  tilgungsfreieZeit,
-}: {
-  label: string;
-  rückzahlungsfreieZeit: number;
-  setRückzahlungsfreieZeit: (value: number) => void;
-  tilgungsfreieZeit: number;
-  setTilgungsfreieZeit: (value: number) => void;
-
-  // onChange: (value: number, isRückzahlungsfreieZeit: boolean) => void;
-}) {
-  // const [checked, setChecked] = useState(value !== 0);
-  const [rückzahlungsfreieZeitBoolean, setRückzahlungsfreieZeitBoolean] =
-    useState(rückzahlungsfreieZeit !== 0);
-
-  return (
-    <div>
-      <label>{label}</label>
-      {/* <Switch checked={checked} onCheckedChange={setChecked} /> */}
-
-      <div className="flex flex-row gap-2">
-        Tilgungsfreie Zeit
-        <Switch
-          checked={rückzahlungsfreieZeitBoolean}
-          onCheckedChange={setRückzahlungsfreieZeitBoolean}
-        />
-        Rückzahlungsfreie Zeit
-      </div>
-      <div className="flex flex-row gap-2">
-        <NumberInput
-          value={tilgungsfreieZeit}
-          onChange={(value) => setTilgungsfreieZeit(value)}
-          label={"Tilgungsfreie Zeit (Bsp. Kfw)"}
-          disabled={rückzahlungsfreieZeitBoolean}
-        />
-        <NumberInput
-          value={rückzahlungsfreieZeit}
-          onChange={(value) => setRückzahlungsfreieZeit(value)}
-          label={"Rückzahlungsfreie Zeit"}
-          disabled={!rückzahlungsfreieZeitBoolean}
-        />
-      </div>
-    </div>
   );
 }

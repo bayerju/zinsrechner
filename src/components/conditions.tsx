@@ -18,6 +18,7 @@ export default function Conditions() {
           label="Kaufpreis"
           value={kaufpreis}
           onChange={setKaufpreis}
+          unit="€"
         />
       </div>
       {/* Modernisierungskosten */}
@@ -26,6 +27,7 @@ export default function Conditions() {
           label="Modernisierungskosten"
           value={modernisierungskosten}
           onChange={setModernisierungskosten}
+          unit="€"
         />
       </div>
       {/* Kaufnebenkosten */}
@@ -34,6 +36,8 @@ export default function Conditions() {
           label="Kaufnebenkosten (Standard: 12,07% vom Kaufpreis)"
           value={kaufnebenkosten}
           onChange={setKaufnebenkosten}
+          unit="€"
+          disabled={true}
         />
         {/* <label className="mb-1 block text-sm font-medium">
           Kaufnebenkosten (Standard: 12,07% vom Kaufpreis)
@@ -96,6 +100,7 @@ export default function Conditions() {
           label="Eigenkapital"
           value={eigenkapital}
           onChange={setEigenkapital}
+          unit="€"
         />
       </div>
       {/* Sollzinsbindung */}

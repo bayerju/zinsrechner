@@ -77,6 +77,7 @@ export default function InfosHeader() {
               <NumberInput
                 value={effzins}
                 onChange={(value) => setEffzins(value)}
+                
               />
               %
             </span>
