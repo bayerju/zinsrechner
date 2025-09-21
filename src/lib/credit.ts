@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   calculateFullPaymentTime,
   calculateMonthlyRate,
+  calculateRestschuld,
   calculateTilgungssatz,
 } from "./calculations";
 
@@ -25,7 +26,9 @@ export const creditSchema = z.object({
   kreditdauer: z.number(),
   tilgungsFreieZeit: z.number().optional(),
   rückzahlungsfreieZeit: z.number().optional(),
+  zinsbindung: z.number(),
   rates: ratesByTimeSchema,
+  restSchuld: z.number(),
 });
 
 export type Credit = z.infer<typeof creditSchema>;
@@ -37,6 +40,7 @@ export type CreditCreate = Pick<
   | "tilgungssatz"
   | "name"
   | "kreditdauer"
+  | "zinsbindung"
 > &
   Partial<Credit>;
 
@@ -57,11 +61,17 @@ export function createCredit(overrides: CreditCreate): Credit {
     useKreditDauer: overrides.useKreditDauer ?? false,
     kreditdauer: overrides.kreditdauer ?? calculateFullPaymentTime({
       darlehensbetrag: overrides.summeDarlehen,
-      monthlyRate: calculateMonthlyRate(overrides.summeDarlehen, overrides.effektiverZinssatz, overrides.tilgungssatz),
+      monthlyRate: calculateMonthlyRate({darlehensbetrag: overrides.summeDarlehen, effzins: overrides.effektiverZinssatz, tilgungssatz: overrides.tilgungssatz, rückzahlungsfreieZeit: overrides.rückzahlungsfreieZeit}),
       effzins: overrides.effektiverZinssatz,
       tilgungsfreieZeit: overrides.tilgungsFreieZeit,
       rückzahlungsfreieZeit: overrides.rückzahlungsfreieZeit,
     }).years,
+    restSchuld: calculateRestschuld({
+      nettodarlehensbetrag: overrides.summeDarlehen,
+      monthlyRate: calculateMonthlyRate({darlehensbetrag: overrides.summeDarlehen, effzins: overrides.effektiverZinssatz, tilgungssatz: overrides.tilgungssatz, rückzahlungsfreieZeit: overrides.rückzahlungsfreieZeit}),
+      effZins: overrides.effektiverZinssatz,
+      years: overrides.zinsbindung,
+    }),
   };
 }
 
@@ -72,9 +82,10 @@ export function createRatesByTime(overrides: CreditCreate): RatesByTime {
       startYear: 0,
       endYear: overrides.tilgungsFreieZeit,
       rate: calculateMonthlyRate(
-        overrides.summeDarlehen,
-        overrides.effektiverZinssatz,
-        0,
+        {darlehensbetrag: overrides.summeDarlehen, 
+          effzins: overrides.effektiverZinssatz, 
+          tilgungssatz: 0, 
+          rückzahlungsfreieZeit: overrides.rückzahlungsfreieZeit},
       ),
       key: "tilgungsfrei",
     });
@@ -93,19 +104,21 @@ export function createRatesByTime(overrides: CreditCreate): RatesByTime {
     overrides.tilgungsFreieZeit ?? 0,
   );
   const mainMonthlyRate = calculateMonthlyRate(
-    overrides.summeDarlehen,
-    overrides.effektiverZinssatz,
-    overrides.tilgungssatz,
+    {darlehensbetrag: overrides.summeDarlehen, 
+      effzins: overrides.effektiverZinssatz, 
+      tilgungssatz: overrides.tilgungssatz, 
+      rückzahlungsfreieZeit: overrides.rückzahlungsfreieZeit},
   );
   result.push({
     startYear: startYearFullRate,
-    endYear: calculateFullPaymentTime({
-      darlehensbetrag: overrides.summeDarlehen,
-      monthlyRate: mainMonthlyRate,
-      effzins: overrides.effektiverZinssatz,
-      tilgungsfreieZeit: overrides.tilgungsFreieZeit,
-      rückzahlungsfreieZeit: overrides.rückzahlungsfreieZeit,
-    }).years,
+    endYear: overrides.zinsbindung,
+    // endYear: calculateFullPaymentTime({
+    //   darlehensbetrag: overrides.summeDarlehen,
+    //   monthlyRate: mainMonthlyRate,
+    //   effzins: overrides.effektiverZinssatz,
+    //   tilgungsfreieZeit: overrides.tilgungsFreieZeit,
+    //   rückzahlungsfreieZeit: overrides.rückzahlungsfreieZeit,
+    // }).years,
     rate: mainMonthlyRate,
     key: "tilgung",
   });

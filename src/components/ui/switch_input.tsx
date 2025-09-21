@@ -14,6 +14,7 @@ export function SwitchInput({
   valueLeft,
   valueRight,
   onCheckedChange,
+  defaultPosition = "left",
 }: {
   labelLeft: string;
   labelRight: string;
@@ -24,11 +25,13 @@ export function SwitchInput({
   valueRight: number;
   setRight: (value: number) => void;
   onCheckedChange?: (value: boolean) => void;
+  defaultPosition?: "left" | "right";
 
   // onChange: (value: number, isRückzahlungsfreieZeit: boolean) => void;
 }) {
   // const [checked, setChecked] = useState(value !== 0);
-  const [checked, setChecked] = useState(valueLeft !== 0);
+  const [checked, setChecked] = useState(defaultPosition === "left" ? false : true);
+  console.log(valueLeft, valueRight, defaultPosition);
 
   return (
     <div>

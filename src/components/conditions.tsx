@@ -7,8 +7,8 @@ export default function Conditions() {
   const [modernisierungskosten, setModernisierungskosten] = useAtom(modernisierungskostenAtom);
   const [eigenkapital, setEigenkapital] = useAtom(eigenkapitalAtom);
   const [kaufnebenkosten, setKaufnebenkosten] = useAtom(kaufnebenkostenAtom);
-  const [zinsbindung, setzinsbindung] = useAtom(zinsbindungAtom);
-  const [tilgungssatz, setTilgungssatz] = useAtom(tilgungssatzAtom);
+  // const [zinsbindung, setzinsbindung] = useAtom(zinsbindungAtom);
+  // const [tilgungssatz, setTilgungssatz] = useAtom(tilgungssatzAtom);
 
   return (
     <>
@@ -104,7 +104,7 @@ export default function Conditions() {
         />
       </div>
       {/* Sollzinsbindung */}
-      <div>
+      {/* <div>
         <label className="mb-1 block text-sm font-medium">
           Sollzinsbindung <span title="Info">ⓘ</span>
         </label>
@@ -118,9 +118,9 @@ export default function Conditions() {
           <option value={15}>15 Jahre</option>
           <option value={20}>20 Jahre</option>
         </select>
-      </div>
+      </div> */}
       {/* Tilgungssatz */}
-      <div>
+      {/* <div>
         <label className="mb-1 block text-sm font-medium">
           Tilgungssatz <span title="Info">ⓘ</span>
         </label>
@@ -135,7 +135,7 @@ export default function Conditions() {
           <option value={2.5}>2,50 %</option>
           <option value={3}>3,00 %</option>
         </select>
-      </div>
+      </div> */}
       {/* <div className="grid grid-cols-3 gap-2">
         <div className="col-span-2">
           <label className="mb-1 block text-sm font-medium">
