@@ -5,6 +5,7 @@ import { Geist } from "next/font/google";
 
 import { TRPCReactProvider } from "~/trpc/react";
 import JotaiProvider from "~/state/jotai_provider";
+import { PostHogProvider } from "~/components/PostHogProvider";
 // import { DevTools } from "jotai-devtools";
 
 export const metadata: Metadata = {
@@ -24,12 +25,14 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${geist.variable}`}>
       <body>
-        <TRPCReactProvider>
-          <JotaiProvider>
-            {children}
-            {/* <DevTools /> */}
-          </JotaiProvider>
+        <PostHogProvider>
+          <TRPCReactProvider>
+            <JotaiProvider>
+              {children}
+              {/* <DevTools /> */}
+            </JotaiProvider>
           </TRPCReactProvider>
+        </PostHogProvider>
       </body>
     </html>
   );
