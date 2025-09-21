@@ -28,7 +28,7 @@ export function NumberInput({
   // Sync local state when value prop changes (important for atomWithStorage)
   useEffect(() => {
     setInputString(numberFormatter.format(value));
-  }, [value, numberFormatter, unit]);
+  }, []);
 
   function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {
     // Remove all non-digit except comma and dot, but keep the raw input for display
@@ -56,10 +56,11 @@ export function NumberInput({
           } pl-3`}
           value={inputString}
           onChange={handleInputChange}
+          onBlur={() =>setInputString(numberFormatter.format(value))}
           {...props}
         />
         {unit && (
-          <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-sm text-neutral-400">
+          <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-sm text-neutral-200">
             {unit}
           </span>
         )}

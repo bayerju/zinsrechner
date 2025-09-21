@@ -21,6 +21,7 @@ export const creditSchema = z.object({
   summeDarlehen: z.number(),
   effektiverZinssatz: z.number(),
   tilgungssatz: z.number(),
+  useKreditDauer: z.boolean(),
   kreditdauer: z.number(),
   tilgungsFreieZeit: z.number().optional(),
   rückzahlungsfreieZeit: z.number().optional(),
@@ -53,6 +54,14 @@ export function createCredit(overrides: CreditCreate): Credit {
         tilgungsfreieZeit: overrides.tilgungsFreieZeit,
         rückzahlungsfreieZeit: overrides.rückzahlungsfreieZeit,
       }),
+    useKreditDauer: overrides.useKreditDauer ?? false,
+    kreditdauer: overrides.kreditdauer ?? calculateFullPaymentTime({
+      darlehensbetrag: overrides.summeDarlehen,
+      monthlyRate: calculateMonthlyRate(overrides.summeDarlehen, overrides.effektiverZinssatz, overrides.tilgungssatz),
+      effzins: overrides.effektiverZinssatz,
+      tilgungsfreieZeit: overrides.tilgungsFreieZeit,
+      rückzahlungsfreieZeit: overrides.rückzahlungsfreieZeit,
+    }).years,
   };
 }
 
