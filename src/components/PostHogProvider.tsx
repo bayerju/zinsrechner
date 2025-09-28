@@ -12,6 +12,7 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
       defaults: "2025-05-24",
       capture_exceptions: true, // This enables capturing exceptions using Error Tracking
       debug: process.env.NODE_ENV === "development",
+      cookieless_mode: "always",
     });
   }, []);
 

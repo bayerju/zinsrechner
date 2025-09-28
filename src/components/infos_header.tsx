@@ -75,6 +75,8 @@ export default function InfosHeader() {
     },
   ]);
 
+  const showRestschulden = restSchuldByTime.length > 1;
+
   return (
     <Card className="mb-4 w-full max-w-xl">
       <CardHeader>
@@ -93,13 +95,15 @@ export default function InfosHeader() {
       </CardHeader>
       <CardContent>
         <div className="flex flex-col items-center py-2">
-          <div className="flex w-full flex-row items-center gap-2">
-            <h3 className="text-sm">Raten </h3>
-            <div className="flex w-full flex-row flex-wrap justify-center gap-2">
+          <div className="relative grid w-full grid-cols-3 grid-rows-2 items-center justify-items-start gap-y-2 before:absolute before:top-1/2 before:right-0 before:left-0 before:-translate-y-1/2 before:border-t before:border-dashed before:border-neutral-700 before:content-['']">
+            {/* Raten header*/}
+            <h3 className="text-center">Raten </h3>
+            {/* Raten */}
+            <div className="col-span-2 flex w-full flex-row flex-wrap justify-start gap-2">
               {ratesByTime.map((iRate, index) => (
                 <div
                   key={iRate.key + index}
-                  className="flex min-w-fit flex-col items-center"
+                  className="flex min-w-fit flex-col items-start"
                 >
                   <span className="text-base font-semibold text-green-300 sm:text-2xl">
                     {formatNumber(iRate.rate)}€
@@ -110,28 +114,30 @@ export default function InfosHeader() {
                 </div>
               ))}
             </div>
+            {/* Restschulden header*/}
+            <h3 className={`text-sm ${showRestschulden ? '' : 'hidden'}`}>Restschulden </h3>
+            {/* Restschulden */}
+            <div className={`col-span-2 flex w-full flex-row flex-wrap justify-start gap-2 ${showRestschulden ? '' : 'hidden'}`}>
+              {restSchuldByTime
+                .sort((a, b) => a.endYear - b.endYear)
+                .map((iRestSchuld, index) => (
+                  <div
+                    key={iRestSchuld.endYear + index}
+                    className="flex min-w-fit flex-col items-start"
+                  >
+                    <span className="text-sm">
+                      {formatNumber(iRestSchuld.restschuld)}€
+                    </span>
+                    <p className="text-muted-foreground text-sm">
+                      {iRestSchuld.endYear} Jahre
+                    </p>
+                  </div>
+                ))}
+            </div>
           </div>
-          <div className="my-2 w-full border-t border-dashed border-neutral-700" />
+          <div className="flex w-full flex-row items-center gap-2"></div>
           <div className="flex w-full items-center gap-2">
-            <h3 className="text-center text-sm">Restschulden </h3>
             <div className="flex w-full flex-col items-center gap-2">
-              <div className="flex w-full flex-row flex-wrap justify-around gap-2">
-                {restSchuldByTime
-                  .sort((a, b) => a.endYear - b.endYear)
-                  .map((iRestSchuld, index) => (
-                    <div
-                      key={iRestSchuld.endYear + index}
-                      className="flex min-w-fit flex-col items-center"
-                    >
-                      <p className="text-muted-foreground text-sm">
-                        {iRestSchuld.endYear} Jahre
-                      </p>
-                      <span className="">
-                        {formatNumber(iRestSchuld.restschuld)}€
-                      </span>
-                    </div>
-                  ))}
-              </div>
               <p className="text-muted-foreground text-sm">
                 Restschluden gesamt:{" "}
                 {formatNumber(
@@ -156,51 +162,43 @@ export default function InfosHeader() {
             <span>{formatNumber(nettoDarlehensbetrag)} €</span>
           </div>
           <div className="flex w-full justify-between py-2 text-sm">
-            <span className="flex items-center gap-1">
+            <div className="flex items-center gap-1">
               Gebundener Effektivzins p.a. <span title="Info">ⓘ</span>
-            </span>
-            <span className="flex items-center gap-2">
+            </div>
+            <div className="w-32">
               <NumberInput
                 value={effzins}
                 onChange={(value) => setEffzins(value)}
+                unit="%"
               />
-              %
-            </span>
+            </div>
           </div>
           <div className="flex w-full justify-between py-2 text-sm">
-            <span className="flex items-center gap-1">
-              Sollzinsbindung
-            </span>
-            <span className="flex items-center gap-2">
-              <select
-                className="w-full rounded-md border border-neutral-700 bg-neutral-800 px-3 py-1 text-white"
-                value={zinsbindung}
-                onChange={(e) => setzinsbindung(Number(e.target.value))}
-              >
-                <option value={5}>5 Jahre</option>
-                <option value={10}>10 Jahre</option>
-                <option value={15}>15 Jahre</option>
-                <option value={20}>20 Jahre</option>
-              </select>
-            </span>
+            <span className="flex items-center gap-1">Sollzinsbindung</span>
+            <select
+              className="w-32 rounded-md border border-neutral-700 bg-neutral-800 px-3 py-1 text-white"
+              value={zinsbindung}
+              onChange={(e) => setzinsbindung(Number(e.target.value))}
+            >
+              <option value={5}>5 Jahre</option>
+              <option value={10}>10 Jahre</option>
+              <option value={15}>15 Jahre</option>
+              <option value={20}>20 Jahre</option>
+            </select>
           </div>
           <div className="flex w-full justify-between py-2 text-sm">
-            <span className="flex items-center gap-1">
-              Tilgungssatz
-            </span>
-            <span className="flex items-center gap-2">
-              <select
-                className="w-full rounded-md border border-neutral-700 bg-neutral-800 px-3 py-1 text-white"
-                value={tilgungssatz}
-                onChange={(e) => setTilgungssatz(Number(e.target.value))}
-              >
-                <option value={1}>1,00 %</option>
-                <option value={1.5}>1,50 %</option>
-                <option value={2}>2,00 %</option>
-                <option value={2.5}>2,50 %</option>
-                <option value={3}>3,00 %</option>
-              </select>
-            </span>
+            <span className="flex items-center gap-1">Tilgungssatz</span>
+            <select
+              className="w-32 rounded-md border border-neutral-700 bg-neutral-800 px-3 py-1 text-white"
+              value={tilgungssatz}
+              onChange={(e) => setTilgungssatz(Number(e.target.value))}
+            >
+              <option value={1}>1,00 %</option>
+              <option value={1.5}>1,50 %</option>
+              <option value={2}>2,00 %</option>
+              <option value={2.5}>2,50 %</option>
+              <option value={3}>3,00 %</option>
+            </select>
           </div>
 
           {/* <div className="my-2 w-full border-t border-neutral-700" /> */}

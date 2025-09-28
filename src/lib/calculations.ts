@@ -81,6 +81,19 @@ export function calculateTilgungssatz({
   tilgungsfreieZeit?: number;
   rückzahlungsfreieZeit?: number;
 }) {
+
+  const tilgungsDauer = kreditdauer - tilgungsfreieZeit - rückzahlungsfreieZeit;
+  if (tilgungsDauer <= 0) return NaN; // oder wirf einen Fehler
+
+  if (Math.abs((effzins / 100)) < 1e-12) {
+    return 100 / tilgungsDauer;
+  }
+
+  // if (effzins === 0) {
+  //   const tilgungsMonate = (kreditdauer - tilgungsfreieZeit - rückzahlungsfreieZeit) * 12; // kreditdauer der Tilgung in Monaten
+  //   return tilgungsMonate > 0 ? 100 / tilgungsMonate : 0;
+  // }
+
   return (
     (effzins /
       100 /
@@ -115,13 +128,16 @@ export function calculateFullPaymentTime({
   // r = monatlicherAequivalenzzins
   const r = claculateMonthlyInterest(effzins);
 
-  if (r <= 0 || monthlyRate <= darlehensbetragNeu * r) {
+  if (r < 0 || monthlyRate < darlehensbetragNeu * r) {
     return { canBePaidOff: false, years: 0, months: 0, yearsAufgerundet: 0 };
   }
-
-  const monthsToPay =
-    Math.log(monthlyRate / (monthlyRate - darlehensbetragNeu * r)) /
+let monthsToPay: number;
+  if (Math.abs(r) < 1e-12) {
+    monthsToPay = darlehensbetragNeu / monthlyRate;
+  } else {
+monthsToPay = Math.log(monthlyRate / (monthlyRate - darlehensbetragNeu * r)) /
     Math.log(1 + r);
+  }
   const monthsToPayWithInterest = Math.ceil(
     monthsToPay + tilgungsfreieZeit * 12 + rückzahlungsfreieZeit * 12,
   );
