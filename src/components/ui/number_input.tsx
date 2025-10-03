@@ -56,7 +56,7 @@ export function NumberInput({
       <div className="relative">
         <Input
           type="text"
-          inputMode="numeric"
+          inputMode="decimal"
           className={`w-full rounded-md border border-neutral-700 bg-neutral-800 py-1 text-white ${
             unit ? "pr-8" : "px-3"
           } pl-3`}
