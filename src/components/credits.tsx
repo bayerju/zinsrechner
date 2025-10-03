@@ -227,7 +227,7 @@ function NewCreditDialog({
       <DialogTrigger asChild onClick={() => setOpen(true)}>
         <Button>Neuer Kredit</Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="">
         <DialogTitle>
           {credit ? "Kredit bearbeiten" : "Neuer Kredit"}
         </DialogTitle>
