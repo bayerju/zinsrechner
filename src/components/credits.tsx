@@ -279,7 +279,8 @@ function NewCreditDialog({
         {/* Sollzinsbindung */}
         <div>
           <label className="mb-1 block text-sm font-medium">
-            Sollzinsbindung <span title="Info">ⓘ</span>
+            Sollzinsbindung 
+            {/* <span title="Info">ⓘ</span> */}
           </label>
           <select
             className="w-full rounded-md border border-neutral-700 bg-neutral-800 px-3 py-1 text-white"
@@ -297,7 +298,8 @@ function NewCreditDialog({
         {restschuld && restschuld > 0 ? (
           <div>
             <label className="mb-1 block text-sm font-medium">
-              Restschuld <span title="Info">ⓘ</span>
+              Restschuld 
+              {/* <span title="Info">ⓘ</span> */}
             </label>
             <span>{formatNumber(restschuld)} €</span>
           </div>

@@ -39,13 +39,15 @@ export function SwitchInput({
       <div className="flex flex-row gap-2">
         <div className="flex-1">
           <label className="mb-1 block text-sm font-medium">
-            {labelLeft} <span title="Info">ⓘ</span>
+            {labelLeft} 
+            {/* <span title="Info">ⓘ</span> */}
           </label>
         </div>
         <div className="w-12"></div> {/* Space for switch */}
         <div className="flex-1">
           <label className="mb-1 block text-sm font-medium">
-            {labelRight} <span title="Info">ⓘ</span>
+            {labelRight} 
+            {/* <span title="Info">ⓘ</span> */}
           </label>
         </div>
       </div>

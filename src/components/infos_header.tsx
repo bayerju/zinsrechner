@@ -157,13 +157,15 @@ export default function InfosHeader() {
           </h2>
           <div className="flex w-full justify-between py-2 text-sm">
             <span className="flex items-center gap-1">
-              Nettodarlehensbetrag bei der Bank <span title="Info">ⓘ</span>
+              Nettodarlehensbetrag bei der Bank 
+              {/* <span title="Info">ⓘ</span> */}
             </span>
             <span>{formatNumber(nettoDarlehensbetrag)} €</span>
           </div>
           <div className="flex w-full justify-between py-2 text-sm">
             <div className="flex items-center gap-1">
-              Gebundener Effektivzins p.a. <span title="Info">ⓘ</span>
+              Gebundener Effektivzins p.a. 
+              {/* <span title="Info">ⓘ</span> */}
             </div>
             <div className="w-32">
               <NumberInput
@@ -205,7 +207,8 @@ export default function InfosHeader() {
           {/* Restschuld nach x Jahren */}
           <div className="flex w-full justify-between py-2 text-sm">
             <span className="flex items-center gap-1">
-              Restschuld nach {zinsbindung} Jahren <span title="Info">ⓘ</span>
+              Restschuld nach {zinsbindung} Jahren 
+              {/* <span title="Info">ⓘ</span> */}
             </span>
             <span>{formatNumber(restschuldBank)} €</span>
           </div>

@@ -50,7 +50,8 @@ export function NumberInput({
     <div>
       {label && (
         <label className="mb-1 block text-sm font-medium">
-          {label} <span title="Info">ⓘ</span>
+          {label} 
+          {/* <span title="Info">ⓘ</span> */}
         </label>
       )}
       <div className="relative">
