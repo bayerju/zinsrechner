@@ -7,18 +7,20 @@ import {
   calculateRestschuld,
 } from "~/lib/calculations";
 
-export const effzinsAtom = atomWithStorage<number>("effzins", 3.7);
-export const kaufpreisAtom = atomWithStorage<number>("kaufpreis", 330_000);
+export const effzinsAtom = atomWithStorage<number>("effzins", 3.7, undefined, {getOnInit: true});
+export const kaufpreisAtom = atomWithStorage<number>("kaufpreis", 330_000, undefined, {getOnInit: true});
 export const modernisierungskostenAtom = atomWithStorage<number>(
   "modernisierungskosten",
   100_000,
+  undefined,
+  {getOnInit: true},
 );
-export const eigenkapitalAtom = atomWithStorage<number>("eigenkapital", 100_000);
+export const eigenkapitalAtom = atomWithStorage<number>("eigenkapital", 100_000, undefined, {getOnInit: true});
 export const kaufnebenkostenAtom = atom<number>((get) => {
   return get(kaufpreisAtom) * 0.1207;
 });
-export const tilgungssatzAtom = atomWithStorage<number>("tilgungssatz", 2);
-export const zinsbindungAtom = atomWithStorage<number>("zinsbindung", 10);
+export const tilgungssatzAtom = atomWithStorage<number>("tilgungssatz", 2, undefined, {getOnInit: true});
+export const zinsbindungAtom = atomWithStorage<number>("zinsbindung", 10, undefined, {getOnInit: true});
 
 export const nettoDarlehensBetragAtom = atom<number>((get) =>
   calculateNettodarlehensbetragBank({
