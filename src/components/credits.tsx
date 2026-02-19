@@ -252,6 +252,7 @@ function NewCreditDialog({
           value={creditEffektiverZinssatz}
           onChange={setCreditEffektiverZinssatz}
           label="Effektiver Zinssatz"
+          acceptDotAsDecimal
         />
         <div>
           <SwitchInput
@@ -279,7 +280,7 @@ function NewCreditDialog({
         {/* Sollzinsbindung */}
         <div>
           <label className="mb-1 block text-sm font-medium">
-            Sollzinsbindung 
+            Sollzinsbindung
             {/* <span title="Info">ⓘ</span> */}
           </label>
           <select
@@ -298,7 +299,7 @@ function NewCreditDialog({
         {restschuld && restschuld > 0 ? (
           <div>
             <label className="mb-1 block text-sm font-medium">
-              Restschuld 
+              Restschuld
               {/* <span title="Info">ⓘ</span> */}
             </label>
             <span>{formatNumber(restschuld)} €</span>
@@ -307,8 +308,9 @@ function NewCreditDialog({
         {/* rate */}
         <div>
           {rates.length > 0
-            ? rates
-                .map((rate) => <p key={rate.key}>{Math.round(rate.rate)} €</p>)
+            ? rates.map((rate) => (
+                <p key={rate.key}>{Math.round(rate.rate)} €</p>
+              ))
             : null}
         </div>
 

@@ -115,9 +115,13 @@ export default function InfosHeader() {
               ))}
             </div>
             {/* Restschulden header*/}
-            <h3 className={`text-sm ${showRestschulden ? '' : 'hidden'}`}>Restschulden </h3>
+            <h3 className={`text-sm ${showRestschulden ? "" : "hidden"}`}>
+              Restschulden
+            </h3>
             {/* Restschulden */}
-            <div className={`col-span-2 flex w-full flex-row flex-wrap justify-start gap-2 ${showRestschulden ? '' : 'hidden'}`}>
+            <div
+              className={`col-span-2 flex w-full flex-row flex-wrap justify-start gap-2 ${showRestschulden ? "" : "hidden"}`}
+            >
               {restSchuldByTime
                 .sort((a, b) => a.endYear - b.endYear)
                 .map((iRestSchuld, index) => (
@@ -157,14 +161,14 @@ export default function InfosHeader() {
           </h2>
           <div className="flex w-full justify-between py-2 text-sm">
             <span className="flex items-center gap-1">
-              Nettodarlehensbetrag bei der Bank 
+              Nettodarlehensbetrag bei der Bank
               {/* <span title="Info">ⓘ</span> */}
             </span>
             <span>{formatNumber(nettoDarlehensbetrag)} €</span>
           </div>
           <div className="flex w-full justify-between py-2 text-sm">
             <div className="flex items-center gap-1">
-              Gebundener Effektivzins p.a. 
+              Gebundener Effektivzins p.a.
               {/* <span title="Info">ⓘ</span> */}
             </div>
             <div className="w-32">
@@ -172,6 +176,7 @@ export default function InfosHeader() {
                 value={effzins}
                 onChange={(value) => setEffzins(value)}
                 unit="%"
+                acceptDotAsDecimal
               />
             </div>
           </div>
@@ -207,7 +212,7 @@ export default function InfosHeader() {
           {/* Restschuld nach x Jahren */}
           <div className="flex w-full justify-between py-2 text-sm">
             <span className="flex items-center gap-1">
-              Restschuld nach {zinsbindung} Jahren 
+              Restschuld nach {zinsbindung} Jahren
               {/* <span title="Info">ⓘ</span> */}
             </span>
             <span>{formatNumber(restschuldBank)} €</span>

@@ -30,7 +30,9 @@ export function SwitchInput({
   // onChange: (value: number, isRückzahlungsfreieZeit: boolean) => void;
 }) {
   // const [checked, setChecked] = useState(value !== 0);
-  const [checked, setChecked] = useState(defaultPosition === "left" ? false : true);
+  const [checked, setChecked] = useState(
+    defaultPosition === "left" ? false : true,
+  );
   console.log(valueLeft, valueRight, defaultPosition);
 
   return (
@@ -39,14 +41,14 @@ export function SwitchInput({
       <div className="flex flex-row gap-2">
         <div className="flex-1">
           <label className="mb-1 block text-sm font-medium">
-            {labelLeft} 
+            {labelLeft}
             {/* <span title="Info">ⓘ</span> */}
           </label>
         </div>
         <div className="w-12"></div> {/* Space for switch */}
         <div className="flex-1">
           <label className="mb-1 block text-sm font-medium">
-            {labelRight} 
+            {labelRight}
             {/* <span title="Info">ⓘ</span> */}
           </label>
         </div>
@@ -59,6 +61,7 @@ export function SwitchInput({
             onChange={(value) => setLeft(value)}
             disabled={checked}
             unit={unitLeft}
+            acceptDotAsDecimal={unitLeft === "%"}
           />
         </div>
         <Switch
