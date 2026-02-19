@@ -9,7 +9,7 @@ export function NumberInput({
   label,
   unit = "",
   locale = "de-DE",
-  acceptDotAsDecimal = false,
+  parseInput,
   ...props
 }: Omit<React.ComponentProps<"input">, "onChange"> & {
   value: number;
@@ -17,7 +17,7 @@ export function NumberInput({
   label?: string;
   locale?: string;
   unit?: string;
-  acceptDotAsDecimal?: boolean;
+  parseInput?: (raw: string, locale: string) => number;
 }) {
   const numberFormatter = useMemo(() => {
     return new Intl.NumberFormat(locale, {
@@ -41,9 +41,7 @@ export function NumberInput({
     // console.log("raw", raw);
     // console.log("numberFormatter.format(parseGermanNumber(raw))", parseGermanNumber(raw));
     // Parse and send the number value to parent
-    const value = acceptDotAsDecimal
-      ? parseGermanNumber(raw.replace(/\./g, ","))
-      : parseGermanNumber(raw);
+    const value = parseInput ? parseInput(raw, locale) : parseGermanNumber(raw);
     onChange(value);
   }
 

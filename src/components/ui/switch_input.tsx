@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Switch } from "./switch";
 import { NumberInput } from "./number_input";
+import { PercentInput } from "./percent_input";
 
 export function SwitchInput({
   labelLeft,
@@ -56,13 +57,20 @@ export function SwitchInput({
 
       <div className="flex flex-row items-center gap-2">
         <div className="flex-1">
-          <NumberInput
-            value={valueLeft}
-            onChange={(value) => setLeft(value)}
-            disabled={checked}
-            unit={unitLeft}
-            acceptDotAsDecimal={unitLeft === "%"}
-          />
+          {unitLeft === "%" ? (
+            <PercentInput
+              value={valueLeft}
+              onChange={(value) => setLeft(value)}
+              disabled={checked}
+            />
+          ) : (
+            <NumberInput
+              value={valueLeft}
+              onChange={(value) => setLeft(value)}
+              disabled={checked}
+              unit={unitLeft}
+            />
+          )}
         </div>
         <Switch
           className="data-[state=checked]:bg-input data-[state=unchecked]:bg-input border-neutral-500"

@@ -12,7 +12,7 @@ import {
   bezahlteZinsenAtom,
   tilgungssatzAtom,
 } from "~/state/conditions_atoms";
-import { NumberInput } from "./ui/number_input";
+import { PercentInput } from "./ui/percent_input";
 import {
   calculateMonthlyRate,
   calculateRestschuldByTimeframe,
@@ -172,11 +172,9 @@ export default function InfosHeader() {
               {/* <span title="Info">ⓘ</span> */}
             </div>
             <div className="w-32">
-              <NumberInput
+              <PercentInput
                 value={effzins}
                 onChange={(value) => setEffzins(value)}
-                unit="%"
-                acceptDotAsDecimal
               />
             </div>
           </div>

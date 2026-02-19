@@ -12,6 +12,7 @@ import {
 import { Input } from "./ui/input";
 import { useState } from "react";
 import { NumberInput } from "./ui/number_input";
+import { PercentInput } from "./ui/percent_input";
 import { Trash2, Edit, KeyRound } from "lucide-react";
 import { Switch } from "./ui/switch";
 import { useEffect } from "react";
@@ -267,26 +268,21 @@ function NewCreditDialog({
           onChange={setCreditSummeDarlehen}
           label="Summe Darlehen"
         />
-        <NumberInput
+        <PercentInput
           value={creditEffektiverZinssatz}
           onChange={setCreditEffektiverZinssatz}
           label="Effektiver Zinssatz"
-          acceptDotAsDecimal
         />
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          <NumberInput
+          <PercentInput
             value={creditTilgungszuschuss}
             onChange={setCreditTilgungszuschuss}
             label="Tilgungszuschuss"
-            unit="%"
-            acceptDotAsDecimal
           />
-          <NumberInput
+          <PercentInput
             value={creditFoerderfaehigerAnteil}
             onChange={setCreditFoerderfaehigerAnteil}
             label="Förderfähiger Anteil"
-            unit="%"
-            acceptDotAsDecimal
           />
         </div>
         <div>
