@@ -26,17 +26,13 @@ export function NumberInput({
   }, [locale]);
 
   const [inputString, setInputString] = useState<string>(value.toString());
-
-  // Sync local state when value prop changes (important for atomWithStorage)
-  useEffect(() => {
-    setInputString(numberFormatter.format(value));
-  }, []);
+  const [isFocused, setIsFocused] = useState(false);
 
   useEffect(() => {
-    if (props.disabled) {
+    if (!isFocused || props.disabled) {
       setInputString(numberFormatter.format(value));
     }
-  }, [value, numberFormatter, props.disabled]);
+  }, [value, numberFormatter, props.disabled, isFocused]);
 
   function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {
     // Remove all non-digit except comma and dot, but keep the raw input for display
@@ -69,8 +65,12 @@ export function NumberInput({
           } pl-3`}
           value={inputString}
           onChange={handleInputChange}
-          onBlur={() => setInputString(numberFormatter.format(value))}
+          onBlur={() => {
+            setIsFocused(false);
+            setInputString(numberFormatter.format(value));
+          }}
           onFocus={() => {
+            setIsFocused(true);
             if (inputString === "0") setInputString("");
           }}
           {...props}
