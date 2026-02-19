@@ -1,7 +1,7 @@
 "use client";
 
 import { useAtomValue, useAtom } from "jotai";
-import { Card, CardHeader, CardTitle, CardContent } from "~/components/ui/card";
+import { Card, CardContent } from "~/components/ui/card";
 import { formatNumber } from "~/lib/number_fromat";
 import {
   nettoDarlehensBetragAtom,
@@ -23,6 +23,7 @@ import {
 import { creditsAtom } from "~/state/credits_atom";
 import { Switch } from "./ui/switch";
 import { InfoHover } from "./info_hover";
+import { TopNav } from "./top_nav";
 
 export default function InfosHeader() {
   const [effzins, setEffzins] = useAtom(effzinsAtom);
@@ -79,21 +80,8 @@ export default function InfosHeader() {
 
   return (
     <Card className="mb-4 w-full max-w-xl">
-      <CardHeader>
-        <CardTitle>
-          <div className="flex w-full flex-row items-center justify-between">
-            <h2>Ihre Kondition</h2>
-            {/* <div>
-              <span className="text-muted-foreground text-sm">
-                Anschlussfinanzierung{" "}
-                <InfoHover content="Anschlussfinanzierung automatisch an abgelaufene Zinsbindung anschließen mit 3,5% Effektivem Jahreszins" />
-              </span>
-              <Switch />
-            </div> */}
-          </div>
-        </CardTitle>
-      </CardHeader>
       <CardContent>
+        <TopNav />
         <div className="flex flex-col items-center py-2">
           <div className="relative grid w-full grid-cols-3 grid-rows-2 items-center justify-items-start gap-y-2 before:absolute before:top-1/2 before:right-0 before:left-0 before:-translate-y-1/2 before:border-t before:border-dashed before:border-neutral-700 before:content-['']">
             {/* Raten header*/}
