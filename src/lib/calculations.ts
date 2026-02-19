@@ -23,6 +23,23 @@ export function calculateNettodarlehensbetragBank({
   );
 }
 
+export function calculateTilgungszuschussBetrag({
+  darlehensbetrag,
+  foerderfaehigerAnteilProzent = 0,
+  tilgungszuschussProzent = 0,
+}: {
+  darlehensbetrag: number;
+  foerderfaehigerAnteilProzent?: number;
+  tilgungszuschussProzent?: number;
+}) {
+  const foerderAnteil = Math.min(
+    100,
+    Math.max(0, foerderfaehigerAnteilProzent),
+  );
+  const zuschuss = Math.min(100, Math.max(0, tilgungszuschussProzent));
+  return darlehensbetrag * (foerderAnteil / 100) * (zuschuss / 100);
+}
+
 // export function calculateMonthlyRate({
 //   darlehensbetrag, effzins, kreditdauer, tilgungsfreieZeit = 0, rückzahlungsfreieZeit = 0
 // }: {
@@ -36,11 +53,22 @@ export function calculateNettodarlehensbetragBank({
 //   return Kprime * r / (1 - Math.pow(1 + r, -nMonate));
 // }
 
-export function calculateMonthlyRate(
-  {darlehensbetrag, effzins, tilgungssatz, rückzahlungsfreieZeit = 0}: {darlehensbetrag: number, effzins: number, tilgungssatz: number, rückzahlungsfreieZeit?: number}
-) {
-  const darlehensbetragAufgezinst = darlehensbetrag * Math.pow(1 + effzins / 100, rückzahlungsfreieZeit);
-  return darlehensbetragAufgezinst * (effzins / 100 / 12 + tilgungssatz / 100 / 12);
+export function calculateMonthlyRate({
+  darlehensbetrag,
+  effzins,
+  tilgungssatz,
+  rückzahlungsfreieZeit = 0,
+}: {
+  darlehensbetrag: number;
+  effzins: number;
+  tilgungssatz: number;
+  rückzahlungsfreieZeit?: number;
+}) {
+  const darlehensbetragAufgezinst =
+    darlehensbetrag * Math.pow(1 + effzins / 100, rückzahlungsfreieZeit);
+  return (
+    darlehensbetragAufgezinst * (effzins / 100 / 12 + tilgungssatz / 100 / 12)
+  );
 }
 
 export function calculateRestschuld({
@@ -61,13 +89,17 @@ export function calculateRestschuld({
   const q = rückzahlungsfreieZeit ?? 0;
   const m = tilgungsfreieZeit ?? 0;
 
-  const p = effZins/100;
-  const r = Math.pow(1+p, 1/12) - 1;
-  if (years <= q) return nettodarlehensbetrag * Math.pow(1+r, Math.round(12*years));
-  const Kprime = nettodarlehensbetrag * Math.pow(1+p, q);
+  const p = effZins / 100;
+  const r = Math.pow(1 + p, 1 / 12) - 1;
+  if (years <= q)
+    return nettodarlehensbetrag * Math.pow(1 + r, Math.round(12 * years));
+  const Kprime = nettodarlehensbetrag * Math.pow(1 + p, q);
   if (years <= q + m) return Kprime;
-  const N = Math.round(12*(years - q - m));
-  return Math.max(0, Kprime * Math.pow(1+r, N) - monthlyRate * ( (Math.pow(1+r, N) - 1) / r ));
+  const N = Math.round(12 * (years - q - m));
+  return Math.max(
+    0,
+    Kprime * Math.pow(1 + r, N) - monthlyRate * ((Math.pow(1 + r, N) - 1) / r),
+  );
 }
 
 export function calculateTilgungssatz({
@@ -81,11 +113,10 @@ export function calculateTilgungssatz({
   tilgungsfreieZeit?: number;
   rückzahlungsfreieZeit?: number;
 }) {
-
   const tilgungsDauer = kreditdauer - tilgungsfreieZeit - rückzahlungsfreieZeit;
   if (tilgungsDauer <= 0) return NaN; // oder wirf einen Fehler
 
-  if (Math.abs((effzins / 100)) < 1e-12) {
+  if (Math.abs(effzins / 100) < 1e-12) {
     return 100 / tilgungsDauer;
   }
 
@@ -131,12 +162,13 @@ export function calculateFullPaymentTime({
   if (r < 0 || monthlyRate < darlehensbetragNeu * r) {
     return { canBePaidOff: false, years: 0, months: 0, yearsAufgerundet: 0 };
   }
-let monthsToPay: number;
+  let monthsToPay: number;
   if (Math.abs(r) < 1e-12) {
     monthsToPay = darlehensbetragNeu / monthlyRate;
   } else {
-monthsToPay = Math.log(monthlyRate / (monthlyRate - darlehensbetragNeu * r)) /
-    Math.log(1 + r);
+    monthsToPay =
+      Math.log(monthlyRate / (monthlyRate - darlehensbetragNeu * r)) /
+      Math.log(1 + r);
   }
   const monthsToPayWithInterest = Math.ceil(
     monthsToPay + tilgungsfreieZeit * 12 + rückzahlungsfreieZeit * 12,
@@ -341,10 +373,10 @@ export function calculateTotalRatesByTimeframe(
 type RestschuldByTimeframe = {
   endYear: number;
   restschuld: number;
-}
+};
 
 export function calculateRestschuldByTimeframe(
-  credits: {zinsbindung: number, restSchuld: number}[],
+  credits: { zinsbindung: number; restSchuld: number }[],
 ): RestschuldByTimeframe[] {
   const result: RestschuldByTimeframe[] = [];
   const timeBoundaries = new Set<number>();
@@ -353,10 +385,15 @@ export function calculateRestschuldByTimeframe(
   });
 
   timeBoundaries.forEach((timeBoundary) => {
-    const existingRestschulds = credits.filter((credit) => credit.zinsbindung === timeBoundary);
-    const restschuld = existingRestschulds.reduce((acc, credit) => acc + credit.restSchuld, 0);
+    const existingRestschulds = credits.filter(
+      (credit) => credit.zinsbindung === timeBoundary,
+    );
+    const restschuld = existingRestschulds.reduce(
+      (acc, credit) => acc + credit.restSchuld,
+      0,
+    );
     if (restschuld > 0) {
-    result.push({
+      result.push({
         endYear: timeBoundary,
         restschuld: restschuld,
       });
@@ -364,4 +401,3 @@ export function calculateRestschuldByTimeframe(
   });
   return result;
 }
-

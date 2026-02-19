@@ -19,6 +19,7 @@ import {
   calculateFullPaymentTime,
   calculateMonthlyRate,
   calculateRestschuld,
+  calculateTilgungszuschussBetrag,
   calculateTilgungssatz,
 } from "~/lib/calculations";
 import { SwitchInput } from "./ui/switch_input";
@@ -94,6 +95,11 @@ function NewCreditDialog({
   const [creditEffektiverZinssatz, setCreditEffektiverZinssatz] = useState(
     credit?.effektiverZinssatz ?? 0,
   );
+  const [creditTilgungszuschuss, setCreditTilgungszuschuss] = useState(
+    credit?.tilgungszuschussProzent ?? 0,
+  );
+  const [creditFoerderfaehigerAnteil, setCreditFoerderfaehigerAnteil] =
+    useState(credit?.foerderfaehigerAnteilProzent ?? 0);
   const [creditTilgungssatz, setCreditTilgungssatz] = useState(
     credit?.tilgungssatz ?? 0,
   );
@@ -113,15 +119,24 @@ function NewCreditDialog({
   const [creditZinsbindung, setCreditZinsbindung] = useState(
     credit?.zinsbindung ?? 10,
   );
+  const tilgungszuschussBetrag = calculateTilgungszuschussBetrag({
+    darlehensbetrag: creditSummeDarlehen,
+    foerderfaehigerAnteilProzent: creditFoerderfaehigerAnteil,
+    tilgungszuschussProzent: creditTilgungszuschuss,
+  });
+  const rueckzahlungsRelevanterBetrag = Math.max(
+    0,
+    creditSummeDarlehen - tilgungszuschussBetrag,
+  );
   const restschuld =
     creditSummeDarlehen > 0 &&
     creditEffektiverZinssatz > 0 &&
     creditTilgungssatz > 0 &&
     creditZinsbindung > 0
       ? calculateRestschuld({
-          nettodarlehensbetrag: creditSummeDarlehen,
+          nettodarlehensbetrag: rueckzahlungsRelevanterBetrag,
           monthlyRate: calculateMonthlyRate({
-            darlehensbetrag: creditSummeDarlehen,
+            darlehensbetrag: rueckzahlungsRelevanterBetrag,
             effzins: creditEffektiverZinssatz,
             tilgungssatz: creditTilgungssatz,
             rückzahlungsfreieZeit: creditRückzahlungsfreieZeit,
@@ -147,6 +162,8 @@ function NewCreditDialog({
           zinsbindung: creditZinsbindung,
           tilgungsFreieZeit: creditTilgungsfreieZeit,
           rückzahlungsfreieZeit: creditRückzahlungsfreieZeit,
+          tilgungszuschussProzent: creditTilgungszuschuss,
+          foerderfaehigerAnteilProzent: creditFoerderfaehigerAnteil,
         })
       : [];
 
@@ -174,9 +191,9 @@ function NewCreditDialog({
     if (creditTilgungssatz > 0 && !fixDurationOfCredit) {
       setcreditKreditdauer(
         calculateFullPaymentTime({
-          darlehensbetrag: creditSummeDarlehen,
+          darlehensbetrag: rueckzahlungsRelevanterBetrag,
           monthlyRate: calculateMonthlyRate({
-            darlehensbetrag: creditSummeDarlehen,
+            darlehensbetrag: rueckzahlungsRelevanterBetrag,
             effzins: creditEffektiverZinssatz,
             tilgungssatz: creditTilgungssatz,
             rückzahlungsfreieZeit: creditRückzahlungsfreieZeit,
@@ -193,6 +210,8 @@ function NewCreditDialog({
     creditTilgungssatz,
     creditTilgungsfreieZeit,
     creditRückzahlungsfreieZeit,
+    creditTilgungszuschuss,
+    creditFoerderfaehigerAnteil,
     fixDurationOfCredit,
   ]);
 
@@ -254,6 +273,22 @@ function NewCreditDialog({
           label="Effektiver Zinssatz"
           acceptDotAsDecimal
         />
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <NumberInput
+            value={creditTilgungszuschuss}
+            onChange={setCreditTilgungszuschuss}
+            label="Tilgungszuschuss"
+            unit="%"
+            acceptDotAsDecimal
+          />
+          <NumberInput
+            value={creditFoerderfaehigerAnteil}
+            onChange={setCreditFoerderfaehigerAnteil}
+            label="Förderfähiger Anteil"
+            unit="%"
+            acceptDotAsDecimal
+          />
+        </div>
         <div>
           <SwitchInput
             valueLeft={creditTilgungssatz}
@@ -364,6 +399,8 @@ function NewCreditDialog({
                 rückzahlungsfreieZeit: creditRückzahlungsfreieZeit,
                 useKreditDauer: fixDurationOfCredit,
                 zinsbindung: creditZinsbindung,
+                tilgungszuschussProzent: creditTilgungszuschuss,
+                foerderfaehigerAnteilProzent: creditFoerderfaehigerAnteil,
               });
 
               return newCredits;
