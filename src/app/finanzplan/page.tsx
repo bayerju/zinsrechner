@@ -501,7 +501,26 @@ export default function FinanzplanPage() {
               <tbody>
                 {comparisonRows.map((row) => (
                   <tr key={row.id} className="border-b border-neutral-700/60">
-                    <td className="px-3 py-2 text-neutral-100">{row.name}</td>
+                    <td className="px-3 py-2 text-neutral-100">
+                      <span className="inline-flex items-center gap-2">
+                        <span
+                          className="inline-block h-2.5 w-2.5 rounded-full"
+                          style={{
+                            backgroundColor:
+                              chartConfig[row.id]?.color ?? "#a3a3a3",
+                          }}
+                        />
+                        <span
+                          className="rounded-sm border px-2 py-0.5"
+                          style={{
+                            borderColor:
+                              chartConfig[row.id]?.color ?? "#525252",
+                          }}
+                        >
+                          {row.name}
+                        </span>
+                      </span>
+                    </td>
                     <td className="px-3 py-2 text-neutral-100">
                       {row.stichtag} Jahre
                     </td>
