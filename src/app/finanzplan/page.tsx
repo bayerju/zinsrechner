@@ -561,7 +561,6 @@ export default function FinanzplanPage() {
         if (prev.length === 1) return prev;
         return prev.filter((id) => id !== scenarioId);
       }
-      if (prev.length >= 4) return prev;
       return [...prev, scenarioId];
     });
   }
@@ -599,7 +598,6 @@ export default function FinanzplanPage() {
               <p className="text-sm font-medium text-black">
                 Szenarien vergleichen
               </p>
-              <span className="text-xs text-neutral-600">max. 4</span>
             </div>
             <div className="flex flex-wrap gap-2">
               {scenarioList.map((scenario) => {
