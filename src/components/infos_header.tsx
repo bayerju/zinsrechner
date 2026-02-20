@@ -15,10 +15,10 @@ import {
 import { PercentInput } from "./ui/percent_input";
 import {
   calculateMonthlyRate,
-  calculateRestschuldByTimeframe,
+  calculateRestschuld,
+  calculateTilgungszuschussBetrag,
   calculateTotalRatesByTimeframe,
   calculateFullPaymentTime,
-  calculateTotalInterest,
 } from "~/lib/calculations";
 import { creditsAtom } from "~/state/credits_atom";
 import { Switch } from "./ui/switch";
@@ -69,13 +69,72 @@ export default function InfosHeader() {
     },
   ]);
 
-  const restSchuldByTime = calculateRestschuldByTimeframe([
-    ...Object.values(credits ?? {}),
-    {
-      zinsbindung: zinsbindung,
-      restSchuld: restschuldBank,
-    },
-  ]);
+  const bankMonatsrate = calculateMonthlyRate({
+    darlehensbetrag: nettoDarlehensbetrag,
+    effzins,
+    tilgungssatz,
+  });
+
+  const restSchuldByTime = Array.from(
+    new Set([
+      zinsbindung,
+      ...Object.values(credits ?? {}).map((credit) => credit.zinsbindung),
+    ]),
+  )
+    .filter((stichtag) => stichtag > 0)
+    .sort((a, b) => a - b)
+    .map((stichtag) => {
+      const bankRestschuld = calculateRestschuld({
+        nettodarlehensbetrag: nettoDarlehensbetrag,
+        monthlyRate: bankMonatsrate,
+        effZins: effzins,
+        years: Math.min(stichtag, zinsbindung),
+      });
+
+      const restschuldCredits = Object.values(credits ?? {}).reduce(
+        (sum, credit) => {
+          const tilgungszuschussBetrag = calculateTilgungszuschussBetrag({
+            darlehensbetrag: credit.summeDarlehen,
+            foerderfaehigerAnteilProzent:
+              credit.foerderfaehigerAnteilProzent ?? 0,
+            tilgungszuschussProzent: credit.tilgungszuschussProzent ?? 0,
+          });
+          const rueckzahlungsRelevanterBetrag = Math.max(
+            0,
+            credit.summeDarlehen - tilgungszuschussBetrag,
+          );
+          const monthlyRate = calculateMonthlyRate({
+            darlehensbetrag: rueckzahlungsRelevanterBetrag,
+            effzins: credit.effektiverZinssatz,
+            tilgungssatz: credit.tilgungssatz,
+            rückzahlungsfreieZeit: credit.rückzahlungsfreieZeit,
+          });
+
+          return (
+            sum +
+            calculateRestschuld({
+              nettodarlehensbetrag: rueckzahlungsRelevanterBetrag,
+              monthlyRate,
+              effZins: credit.effektiverZinssatz,
+              years: Math.min(stichtag, credit.zinsbindung),
+              tilgungsfreieZeit: credit.tilgungsFreieZeit,
+              rückzahlungsfreieZeit: credit.rückzahlungsfreieZeit,
+            })
+          );
+        },
+        0,
+      );
+
+      return {
+        endYear: stichtag,
+        restschuld: bankRestschuld + restschuldCredits,
+      };
+    });
+
+  const restschuldGesamtStichtag =
+    restSchuldByTime.find((item) => item.endYear === zinsbindung)?.restschuld ??
+    restSchuldByTime[restSchuldByTime.length - 1]?.restschuld ??
+    0;
 
   const showRestschulden = restSchuldByTime.length > 1;
 
@@ -133,14 +192,8 @@ export default function InfosHeader() {
           <div className="flex w-full items-center gap-2">
             <div className="flex w-full flex-col items-center gap-2">
               <p className="text-muted-foreground text-sm">
-                Restschluden gesamt:{" "}
-                {formatNumber(
-                  restSchuldByTime.reduce(
-                    (acc, iRestSchuld) => acc + iRestSchuld.restschuld,
-                    0,
-                  ),
-                )}
-                €
+                Restschuld gesamt nach {zinsbindung} Jahren:{" "}
+                {formatNumber(restschuldGesamtStichtag)}€
               </p>
             </div>
           </div>
