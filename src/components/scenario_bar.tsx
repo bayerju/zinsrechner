@@ -14,9 +14,14 @@ import {
 import { Input } from "~/components/ui/input";
 import {
   activeScenarioIdAtom,
+  defaultScenarioId,
   scenariosAtom,
   type Scenario,
 } from "~/state/scenarios_atom";
+import {
+  defaultScenarioValues,
+  scenarioValuesAtom,
+} from "~/state/scenario_values_atom";
 
 function createScenarioId() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -37,6 +42,7 @@ function buildUniqueName(name: string, takenNames: Set<string>) {
 export function ScenarioBar() {
   const [scenarios, setScenarios] = useAtom(scenariosAtom);
   const [activeScenarioId, setActiveScenarioId] = useAtom(activeScenarioIdAtom);
+  const [, setScenarioValues] = useAtom(scenarioValuesAtom);
   const [isActionsOpen, setIsActionsOpen] = useState(false);
   const [isRenameOpen, setIsRenameOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
@@ -51,21 +57,28 @@ export function ScenarioBar() {
   useEffect(() => {
     if (scenarioList.length === 0) {
       const defaultScenario: Scenario = {
-        id: "basis",
+        id: defaultScenarioId,
         name: "Basis",
         createdAt: 0,
       };
       setScenarios({ [defaultScenario.id]: defaultScenario });
       setActiveScenarioId(defaultScenario.id);
+      setScenarioValues({ [defaultScenario.id]: defaultScenarioValues });
       return;
     }
 
     if (!activeScenario && scenarioList[0]) {
       setActiveScenarioId(scenarioList[0].id);
     }
-  }, [activeScenario, scenarioList, setActiveScenarioId, setScenarios]);
+  }, [
+    activeScenario,
+    scenarioList,
+    setActiveScenarioId,
+    setScenarios,
+    setScenarioValues,
+  ]);
 
-  function createScenario(baseName: string) {
+  function createScenario(baseName: string, duplicateFromActive = false) {
     const existingNames = new Set(
       scenarioList.map((scenario) => scenario.name),
     );
@@ -78,6 +91,16 @@ export function ScenarioBar() {
     };
 
     setScenarios((prev) => ({ ...prev, [id]: scenario }));
+    setScenarioValues((prev) => {
+      const activeValues = prev[activeScenarioId] ?? defaultScenarioValues;
+      const nextValues = duplicateFromActive
+        ? structuredClone(activeValues)
+        : structuredClone(defaultScenarioValues);
+      return {
+        ...prev,
+        [id]: nextValues,
+      };
+    });
     setActiveScenarioId(id);
   }
 
@@ -137,6 +160,11 @@ export function ScenarioBar() {
       delete next[activeScenario.id];
       return next;
     });
+    setScenarioValues((prev) => {
+      const next = { ...prev };
+      delete next[activeScenario.id];
+      return next;
+    });
     if (nextScenario) {
       setActiveScenarioId(nextScenario.id);
     }
@@ -184,6 +212,7 @@ export function ScenarioBar() {
               activeScenario
                 ? `${activeScenario.name} Kopie`
                 : "Szenario Kopie",
+              true,
             )
           }
           disabled={!activeScenario}
@@ -236,6 +265,7 @@ export function ScenarioBar() {
                   activeScenario
                     ? `${activeScenario.name} Kopie`
                     : "Szenario Kopie",
+                  true,
                 );
                 setIsActionsOpen(false);
               }}

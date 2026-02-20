@@ -1,27 +1,23 @@
 import { atom } from "jotai";
-import { atomWithStorage } from "jotai/utils";
 import { creditsAtom } from "./credits_atom";
+import { createScenarioFieldAtom } from "./scenario_values_atom";
 import {
   calculateMonthlyRate,
   calculateNettodarlehensbetragBank,
   calculateRestschuld,
 } from "~/lib/calculations";
 
-export const effzinsAtom = atomWithStorage<number>("effzins", 3.7);
-export const kaufpreisAtom = atomWithStorage<number>("kaufpreis", 330_000);
-export const modernisierungskostenAtom = atomWithStorage<number>(
+export const effzinsAtom = createScenarioFieldAtom("effzins");
+export const kaufpreisAtom = createScenarioFieldAtom("kaufpreis");
+export const modernisierungskostenAtom = createScenarioFieldAtom(
   "modernisierungskosten",
-  100_000,
 );
-export const eigenkapitalAtom = atomWithStorage<number>(
-  "eigenkapital",
-  100_000,
-);
+export const eigenkapitalAtom = createScenarioFieldAtom("eigenkapital");
 export const kaufnebenkostenAtom = atom<number>((get) => {
   return get(kaufpreisAtom) * 0.1207;
 });
-export const tilgungssatzAtom = atomWithStorage<number>("tilgungssatz", 2);
-export const zinsbindungAtom = atomWithStorage<number>("zinsbindung", 10);
+export const tilgungssatzAtom = createScenarioFieldAtom("tilgungssatz");
+export const zinsbindungAtom = createScenarioFieldAtom("zinsbindung");
 
 export const nettoDarlehensBetragAtom = atom<number>((get) =>
   calculateNettodarlehensbetragBank({
