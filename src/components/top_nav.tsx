@@ -26,6 +26,26 @@ export function TopNav() {
       >
         Finanzplan
       </Link>
+      <Link
+        href="/liquiditaetsplan"
+        className={
+          pathname === "/liquiditaetsplan"
+            ? "font-medium text-black"
+            : "text-neutral-600"
+        }
+      >
+        Liquiditaet Eingaben
+      </Link>
+      <Link
+        href="/liquiditaetsauswertung"
+        className={
+          pathname === "/liquiditaetsauswertung"
+            ? "font-medium text-black"
+            : "text-neutral-600"
+        }
+      >
+        Liquiditaet Auswertung
+      </Link>
     </nav>
   );
 }
