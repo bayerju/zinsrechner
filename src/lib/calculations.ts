@@ -66,8 +66,9 @@ export function calculateMonthlyRate({
 }) {
   const darlehensbetragAufgezinst =
     darlehensbetrag * Math.pow(1 + effzins / 100, rückzahlungsfreieZeit);
+  const monthlyEffInterest = claculateMonthlyInterest(effzins);
   return (
-    darlehensbetragAufgezinst * (effzins / 100 / 12 + tilgungssatz / 100 / 12)
+    darlehensbetragAufgezinst * (monthlyEffInterest + tilgungssatz / 100 / 12)
   );
 }
 
@@ -96,6 +97,9 @@ export function calculateRestschuld({
   const Kprime = nettodarlehensbetrag * Math.pow(1 + p, q);
   if (years <= q + m) return Kprime;
   const N = Math.round(12 * (years - q - m));
+  if (Math.abs(r) < 1e-12) {
+    return Math.max(0, Kprime - monthlyRate * N);
+  }
   return Math.max(
     0,
     Kprime * Math.pow(1 + r, N) - monthlyRate * ((Math.pow(1 + r, N) - 1) / r),
