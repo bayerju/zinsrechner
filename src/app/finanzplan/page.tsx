@@ -2,8 +2,21 @@
 
 import { useAtom, useAtomValue } from "jotai";
 import { useEffect, useMemo, useState } from "react";
+import {
+  CartesianGrid,
+  Line,
+  LineChart,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { TopNav } from "~/components/top_nav";
 import { Card, CardContent } from "~/components/ui/card";
+import {
+  ChartContainer,
+  ChartTooltipContent,
+  type ChartConfig,
+} from "~/components/ui/chart";
 import {
   calculateMonthlyRate,
   calculateRestschuld,
@@ -217,6 +230,51 @@ function calculateScenarioFinanzplan(values: ScenarioValues): {
   };
 }
 
+function calculateScenarioMonthlyRateSeries(
+  values: ScenarioValues,
+  maxYears: number,
+) {
+  const credits = Object.values(values.credits ?? {}) as Credit[];
+  const nettoDarlehensbetragBank =
+    values.kaufpreis +
+    values.modernisierungskosten +
+    values.kaufpreis * 0.1207 -
+    values.eigenkapital -
+    credits.reduce((acc, credit) => acc + credit.summeDarlehen, 0);
+
+  const bankMonatsrate = calculateMonthlyRate({
+    darlehensbetrag: nettoDarlehensbetragBank,
+    effzins: values.effzins,
+    tilgungssatz: values.tilgungssatz,
+  });
+
+  const segments: Array<{ startYear: number; endYear: number; rate: number }> =
+    [{ startYear: 0, endYear: values.zinsbindung, rate: bankMonatsrate }];
+
+  credits.forEach((credit) => {
+    credit.rates.forEach((rate) => {
+      segments.push({
+        startYear: rate.startYear,
+        endYear: Math.min(rate.endYear, credit.zinsbindung),
+        rate: rate.rate,
+      });
+    });
+  });
+
+  return Array.from({ length: maxYears }, (_, index) => {
+    const year = index + 1;
+    const monthlyRate = segments.reduce((sum, segment) => {
+      const isActive = segment.startYear < year && segment.endYear >= year;
+      return isActive ? sum + segment.rate : sum;
+    }, 0);
+
+    return {
+      year,
+      monthlyRate,
+    };
+  });
+}
+
 export default function FinanzplanPage() {
   const scenarios = useAtomValue(scenariosAtom);
   const scenarioValues = useAtomValue(scenarioValuesAtom);
@@ -269,6 +327,41 @@ export default function FinanzplanPage() {
         .filter((row) => row !== null),
     [scenarios, scenarioValues, selectedScenarioIds],
   );
+
+  const maxComparisonYears = useMemo(
+    () => Math.max(1, ...comparisonRows.map((row) => row.stichtag)),
+    [comparisonRows],
+  );
+
+  const chartConfig = useMemo(() => {
+    const palette = ["#60a5fa", "#34d399", "#f59e0b", "#f472b6"];
+    return comparisonRows.reduce((config, row, index) => {
+      config[row.id] = {
+        label: row.name,
+        color: palette[index % palette.length],
+      };
+      return config;
+    }, {} as ChartConfig);
+  }, [comparisonRows]);
+
+  const chartData = useMemo(() => {
+    const perScenarioSeries = comparisonRows.map((row) => {
+      const values = scenarioValues[row.id] ?? defaultScenarioValues;
+      return {
+        id: row.id,
+        series: calculateScenarioMonthlyRateSeries(values, maxComparisonYears),
+      };
+    });
+
+    return Array.from({ length: maxComparisonYears }, (_, index) => {
+      const year = index + 1;
+      const row: Record<string, number> & { year: number } = { year };
+      perScenarioSeries.forEach((scenarioSeries) => {
+        row[scenarioSeries.id] = scenarioSeries.series[index]?.monthlyRate ?? 0;
+      });
+      return row;
+    });
+  }, [comparisonRows, maxComparisonYears, scenarioValues]);
 
   const comparisonBaseId = useMemo(() => {
     if (selectedScenarioIds.includes(defaultScenarioId))
@@ -329,6 +422,50 @@ export default function FinanzplanPage() {
                 );
               })}
             </div>
+          </div>
+
+          <div className="rounded-md border border-neutral-700 bg-neutral-800 p-3">
+            <p className="mb-2 text-sm font-medium text-neutral-100">
+              Monatliche Gesamt-Rate im Zeitverlauf
+            </p>
+            <ChartContainer config={chartConfig} className="h-72 w-full">
+              <LineChart
+                data={chartData}
+                margin={{ left: 8, right: 8, top: 8, bottom: 8 }}
+              >
+                <CartesianGrid vertical={false} />
+                <XAxis
+                  dataKey="year"
+                  tickLine={false}
+                  axisLine={false}
+                  tickMargin={8}
+                  label={{
+                    value: "Jahr",
+                    position: "insideBottom",
+                    offset: -5,
+                  }}
+                />
+                <YAxis
+                  tickLine={false}
+                  axisLine={false}
+                  tickMargin={8}
+                  tickFormatter={(value) =>
+                    `${Math.round(value).toLocaleString("de-DE")} €`
+                  }
+                />
+                <Tooltip content={<ChartTooltipContent />} />
+                {comparisonRows.map((scenario) => (
+                  <Line
+                    key={scenario.id}
+                    dataKey={scenario.id}
+                    type="monotone"
+                    stroke={`var(--color-${scenario.id})`}
+                    strokeWidth={2}
+                    dot={false}
+                  />
+                ))}
+              </LineChart>
+            </ChartContainer>
           </div>
 
           <div className="overflow-x-auto rounded-md border border-neutral-700 bg-neutral-800">
