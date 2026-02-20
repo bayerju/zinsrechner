@@ -3,6 +3,8 @@
 import { useAtom, useAtomValue } from "jotai";
 import { useEffect, useMemo, useState } from "react";
 import {
+  Area,
+  AreaChart,
   CartesianGrid,
   Line,
   LineChart,
@@ -34,6 +36,7 @@ import {
   scenarioValuesAtom,
   type ScenarioValues,
 } from "~/state/scenario_values_atom";
+import { SCENARIO_COLOR_PALETTE } from "~/lib/scenario_colors";
 
 type FinanzplanRow = {
   stichtag: number;
@@ -54,6 +57,23 @@ type KreditRow = {
   zinsen: number;
   durchschnittMonatlicheZinsen: number;
 };
+
+function slugifyKey(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function getCreditColor(seed: string) {
+  const hash = Array.from(seed).reduce(
+    (acc, char) => acc + char.charCodeAt(0),
+    0,
+  );
+  return (
+    SCENARIO_COLOR_PALETTE[hash % SCENARIO_COLOR_PALETTE.length] ?? "#60a5fa"
+  );
+}
 
 function calculateScenarioFinanzplan(values: ScenarioValues): {
   kreditRows: KreditRow[];
@@ -275,6 +295,95 @@ function calculateScenarioMonthlyRateSeries(
   });
 }
 
+function calculateDetailRestschuldStack(
+  values: ScenarioValues,
+  maxYears: number,
+) {
+  const credits = Object.values(values.credits ?? {}) as Credit[];
+  const nettoDarlehensbetragBank =
+    values.kaufpreis +
+    values.modernisierungskosten +
+    values.kaufpreis * 0.1207 -
+    values.eigenkapital -
+    credits.reduce((acc, credit) => acc + credit.summeDarlehen, 0);
+
+  const bankMonatsrate = calculateMonthlyRate({
+    darlehensbetrag: nettoDarlehensbetragBank,
+    effzins: values.effzins,
+    tilgungssatz: values.tilgungssatz,
+  });
+
+  const creditSeries = [
+    {
+      key: "bank",
+      label: "Bankkredit",
+      color: getCreditColor("bank"),
+      restschuldAt: (year: number) =>
+        calculateRestschuld({
+          nettodarlehensbetrag: nettoDarlehensbetragBank,
+          monthlyRate: bankMonatsrate,
+          effZins: values.effzins,
+          years: Math.min(year, values.zinsbindung),
+        }),
+    },
+    ...credits.map((credit) => {
+      const tilgungszuschuss = calculateTilgungszuschussBetrag({
+        darlehensbetrag: credit.summeDarlehen,
+        foerderfaehigerAnteilProzent: credit.foerderfaehigerAnteilProzent ?? 0,
+        tilgungszuschussProzent: credit.tilgungszuschussProzent ?? 0,
+      });
+      const rueckzahlungsRelevanterBetrag = Math.max(
+        0,
+        credit.summeDarlehen - tilgungszuschuss,
+      );
+      const monthlyRate = calculateMonthlyRate({
+        darlehensbetrag: rueckzahlungsRelevanterBetrag,
+        effzins: credit.effektiverZinssatz,
+        tilgungssatz: credit.tilgungssatz,
+        rückzahlungsfreieZeit: credit.rückzahlungsfreieZeit,
+      });
+      const key = `credit_${slugifyKey(credit.name)}`;
+      return {
+        key,
+        label: credit.name,
+        color: getCreditColor(key),
+        restschuldAt: (year: number) =>
+          calculateRestschuld({
+            nettodarlehensbetrag: rueckzahlungsRelevanterBetrag,
+            monthlyRate,
+            effZins: credit.effektiverZinssatz,
+            years: Math.min(year, credit.zinsbindung),
+            tilgungsfreieZeit: credit.tilgungsFreieZeit,
+            rückzahlungsfreieZeit: credit.rückzahlungsfreieZeit,
+          }),
+      };
+    }),
+  ];
+
+  const chartData = Array.from({ length: maxYears }, (_, index) => {
+    const year = index + 1;
+    const row: Record<string, number> & { year: number } = { year };
+    creditSeries.forEach((series) => {
+      row[series.key] = series.restschuldAt(year);
+    });
+    return row;
+  });
+
+  const chartConfig = creditSeries.reduce((acc, series) => {
+    acc[series.key] = {
+      label: series.label,
+      color: series.color,
+    };
+    return acc;
+  }, {} as ChartConfig);
+
+  return {
+    chartData,
+    chartConfig,
+    creditSeries,
+  };
+}
+
 export default function FinanzplanPage() {
   const scenarios = useAtomValue(scenariosAtom);
   const scenarioValues = useAtomValue(scenarioValuesAtom);
@@ -412,6 +521,14 @@ export default function FinanzplanPage() {
   }
 
   const detailAccentColor = getStableScenarioColor(detailScenarioId);
+  const detailMaxYears = useMemo(
+    () => Math.max(1, ...finanzplanRows.map((row) => row.stichtag)),
+    [finanzplanRows],
+  );
+  const detailRestschuldChart = useMemo(
+    () => calculateDetailRestschuldStack(detailValues, detailMaxYears),
+    [detailValues, detailMaxYears],
+  );
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-xl flex-col items-center bg-neutral-900 px-2 py-2 md:max-w-4xl md:px-4 lg:max-w-6xl">
@@ -478,6 +595,7 @@ export default function FinanzplanPage() {
                   }}
                 />
                 <YAxis
+                  width={96}
                   tickLine={false}
                   axisLine={false}
                   tickMargin={8}
@@ -641,6 +759,60 @@ export default function FinanzplanPage() {
           <p className="text-sm text-neutral-700">
             Einzelrechnung je Kredit bis zur jeweiligen Zinsbindung.
           </p>
+          <div
+            className="rounded-md border border-neutral-700 bg-neutral-800 p-3"
+            style={{ borderLeft: `4px solid ${detailAccentColor}` }}
+          >
+            <p
+              className="mb-2 text-sm font-medium"
+              style={{ color: detailAccentColor }}
+            >
+              Restschuld ueber Zeit (aufgeteilt nach Krediten)
+            </p>
+            <ChartContainer
+              config={detailRestschuldChart.chartConfig}
+              className="h-72 w-full"
+            >
+              <AreaChart
+                data={detailRestschuldChart.chartData}
+                margin={{ left: 8, right: 8, top: 8, bottom: 8 }}
+              >
+                <CartesianGrid vertical={false} />
+                <XAxis
+                  dataKey="year"
+                  tickLine={false}
+                  axisLine={false}
+                  tickMargin={8}
+                  label={{
+                    value: "Jahr",
+                    position: "insideBottom",
+                    offset: -5,
+                  }}
+                />
+                <YAxis
+                  width={96}
+                  tickLine={false}
+                  axisLine={false}
+                  tickMargin={8}
+                  tickFormatter={(value) =>
+                    `${Math.round(value).toLocaleString("de-DE")} €`
+                  }
+                />
+                <Tooltip content={<ChartTooltipContent />} />
+                {detailRestschuldChart.creditSeries.map((series) => (
+                  <Area
+                    key={series.key}
+                    dataKey={series.key}
+                    type="monotone"
+                    stackId="restschuld"
+                    stroke={`var(--color-${series.key})`}
+                    fill={`var(--color-${series.key})`}
+                    fillOpacity={0.25}
+                  />
+                ))}
+              </AreaChart>
+            </ChartContainer>
+          </div>
           <div
             className="overflow-x-auto rounded-md border border-neutral-700 bg-neutral-800"
             style={{ borderLeft: `4px solid ${detailAccentColor}` }}
