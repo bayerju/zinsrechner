@@ -51,6 +51,9 @@ export default function LiquiditaetsauswertungPage() {
     month: string;
     type: "income" | "expense";
   } | null>(null);
+  const [chartMode, setChartMode] = useState<"capitalEnd" | "net">(
+    "capitalEnd",
+  );
 
   const resultRows = useMemo(
     () => simulateLiquidity(values, selectedCreditScenario),
@@ -79,6 +82,7 @@ export default function LiquiditaetsauswertungPage() {
       resultRows.map((row) => ({
         month: row.month,
         capitalEnd: row.capitalEnd,
+        net: row.net,
       })),
     [resultRows],
   );
@@ -87,6 +91,10 @@ export default function LiquiditaetsauswertungPage() {
     capitalEnd: {
       label: "Kontostand",
       color: "#3b82f6",
+    },
+    net: {
+      label: "Netto",
+      color: "#f59e0b",
     },
   };
 
@@ -147,9 +155,37 @@ export default function LiquiditaetsauswertungPage() {
           </div>
 
           <div className="rounded-md border border-neutral-700 bg-neutral-800 p-3">
-            <p className="mb-2 text-sm font-medium text-neutral-100">
-              Kontostand ueber Zeit
-            </p>
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <p className="text-sm font-medium text-neutral-100">
+                {chartMode === "capitalEnd"
+                  ? "Kontostand ueber Zeit"
+                  : "Netto ueber Zeit"}
+              </p>
+              <div className="inline-flex items-center rounded-md border border-neutral-600 bg-neutral-900 p-0.5 text-xs">
+                <button
+                  type="button"
+                  className={`rounded px-2 py-1 ${
+                    chartMode === "capitalEnd"
+                      ? "bg-neutral-100 text-black"
+                      : "text-neutral-200"
+                  }`}
+                  onClick={() => setChartMode("capitalEnd")}
+                >
+                  Kontostand
+                </button>
+                <button
+                  type="button"
+                  className={`rounded px-2 py-1 ${
+                    chartMode === "net"
+                      ? "bg-neutral-100 text-black"
+                      : "text-neutral-200"
+                  }`}
+                  onClick={() => setChartMode("net")}
+                >
+                  Netto
+                </button>
+              </div>
+            </div>
             <ChartContainer
               config={liquidityChartConfig}
               className="h-72 w-full"
@@ -177,9 +213,9 @@ export default function LiquiditaetsauswertungPage() {
                 />
                 <Tooltip content={<ChartTooltipContent />} />
                 <Line
-                  dataKey="capitalEnd"
+                  dataKey={chartMode}
                   type="monotone"
-                  stroke="var(--color-capitalEnd)"
+                  stroke={`var(--color-${chartMode})`}
                   strokeWidth={2}
                   dot={false}
                 />
