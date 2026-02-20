@@ -79,7 +79,7 @@ export default function InfosHeader() {
   const showRestschulden = restSchuldByTime.length > 1;
 
   return (
-    <Card className="mb-4 w-full max-w-xl">
+    <Card className="mb-4 w-full">
       <CardContent>
         <TopNav />
         <div className="flex flex-col items-center py-2">

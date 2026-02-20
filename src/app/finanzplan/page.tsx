@@ -179,7 +179,7 @@ export default function FinanzplanPage() {
   });
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-xl flex-col items-center bg-neutral-900 px-2 py-2">
+    <main className="mx-auto flex min-h-screen w-full max-w-xl flex-col items-center bg-neutral-900 px-2 py-2 md:max-w-4xl md:px-4 lg:max-w-6xl">
       <Card className="w-full">
         <CardContent className="space-y-3">
           <TopNav />

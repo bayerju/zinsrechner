@@ -7,14 +7,14 @@ import Credits from "~/components/credits";
 export default function Home() {
   return (
     <main
-      className="flex min-h-screen w-full flex-col items-center bg-neutral-900 py-2"
+      className="mx-auto flex min-h-screen w-full max-w-xl flex-col items-center bg-neutral-900 px-2 py-2 md:max-w-4xl md:px-4 lg:max-w-6xl"
       suppressHydrationWarning
     >
       {/* Ihre Kondition Card */}
       <InfosHeader />
 
       {/* Wie kommt Ihre Kondition zustande? Card */}
-      <Card className="w-full max-w-xl">
+      <Card className="w-full">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg font-semibold">
             <span role="img" aria-label="settings">
