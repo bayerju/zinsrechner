@@ -1,5 +1,7 @@
 "use client";
 
+import * as React from "react";
+
 import {
   Area,
   AreaChart,
@@ -71,7 +73,7 @@ export function ScenarioMonthlyRateChart({
   );
 }
 
-function RestschuldStackTooltip({
+function StackedCreditTooltip({
   active,
   payload,
   label,
@@ -121,27 +123,62 @@ function RestschuldStackTooltip({
 }
 
 export function DetailRestschuldStackChart({
-  chartConfig,
-  chartData,
-  seriesKeys,
+  restschuld,
+  monthlyRate,
   accentColor,
 }: {
-  chartConfig: ChartConfig;
-  chartData: YearRow[];
-  seriesKeys: string[];
+  restschuld: {
+    chartConfig: ChartConfig;
+    chartData: YearRow[];
+    seriesKeys: string[];
+  };
+  monthlyRate: {
+    chartConfig: ChartConfig;
+    chartData: YearRow[];
+    seriesKeys: string[];
+  };
   accentColor: string;
 }) {
+  const [mode, setMode] = React.useState<"restschuld" | "rate">("restschuld");
+  const active = mode === "restschuld" ? restschuld : monthlyRate;
+
   return (
     <div
       className="rounded-md border border-neutral-700 bg-neutral-800 p-3"
       style={{ borderLeft: `4px solid ${accentColor}` }}
     >
-      <p className="mb-2 text-sm font-medium" style={{ color: accentColor }}>
-        Restschuld ueber Zeit (aufgeteilt nach Krediten)
-      </p>
-      <ChartContainer config={chartConfig} className="h-72 w-full">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm font-medium" style={{ color: accentColor }}>
+          {mode === "restschuld"
+            ? "Restschuld ueber Zeit (aufgeteilt nach Krediten)"
+            : "Monatliche Rate ueber Zeit (aufgeteilt nach Krediten)"}
+        </p>
+        <div className="inline-flex items-center rounded-md border border-neutral-600 bg-neutral-900 p-0.5 text-xs">
+          <button
+            type="button"
+            className={`rounded px-2 py-1 ${
+              mode === "restschuld"
+                ? "bg-neutral-100 text-black"
+                : "text-neutral-200"
+            }`}
+            onClick={() => setMode("restschuld")}
+          >
+            Restschuld
+          </button>
+          <button
+            type="button"
+            className={`rounded px-2 py-1 ${
+              mode === "rate" ? "bg-neutral-100 text-black" : "text-neutral-200"
+            }`}
+            onClick={() => setMode("rate")}
+          >
+            Monatsrate
+          </button>
+        </div>
+      </div>
+      <ChartContainer config={active.chartConfig} className="h-72 w-full">
         <AreaChart
-          data={chartData}
+          data={active.chartData}
           margin={{ left: 8, right: 8, top: 8, bottom: 8 }}
         >
           <CartesianGrid vertical={false} />
@@ -162,9 +199,9 @@ export function DetailRestschuldStackChart({
             }
           />
           <Tooltip
-            content={<RestschuldStackTooltip chartConfig={chartConfig} />}
+            content={<StackedCreditTooltip chartConfig={active.chartConfig} />}
           />
-          {seriesKeys.map((key) => (
+          {active.seriesKeys.map((key) => (
             <Area
               key={key}
               dataKey={key}

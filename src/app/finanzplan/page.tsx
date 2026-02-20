@@ -26,7 +26,7 @@ import {
   scenarioValuesAtom,
   type ScenarioValues,
 } from "~/state/scenario_values_atom";
-import { SCENARIO_COLOR_PALETTE } from "~/lib/scenario_colors";
+import { getCreditSeriesColorByIndex } from "~/lib/scenario_colors";
 
 type FinanzplanRow = {
   stichtag: number;
@@ -53,16 +53,6 @@ function slugifyKey(value: string) {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "_")
     .replace(/^_+|_+$/g, "");
-}
-
-function getCreditColor(seed: string) {
-  const hash = Array.from(seed).reduce(
-    (acc, char) => acc + char.charCodeAt(0),
-    0,
-  );
-  return (
-    SCENARIO_COLOR_PALETTE[hash % SCENARIO_COLOR_PALETTE.length] ?? "#60a5fa"
-  );
 }
 
 function calculateScenarioFinanzplan(values: ScenarioValues): {
@@ -307,7 +297,7 @@ function calculateDetailRestschuldStack(
     {
       key: "bank",
       label: "Bankkredit",
-      color: getCreditColor("bank"),
+      color: getCreditSeriesColorByIndex(0),
       restschuldAt: (year: number) =>
         calculateRestschuld({
           nettodarlehensbetrag: nettoDarlehensbetragBank,
@@ -316,7 +306,7 @@ function calculateDetailRestschuldStack(
           years: Math.min(year, values.zinsbindung),
         }),
     },
-    ...credits.map((credit) => {
+    ...credits.map((credit, index) => {
       const tilgungszuschuss = calculateTilgungszuschussBetrag({
         darlehensbetrag: credit.summeDarlehen,
         foerderfaehigerAnteilProzent: credit.foerderfaehigerAnteilProzent ?? 0,
@@ -336,7 +326,7 @@ function calculateDetailRestschuldStack(
       return {
         key,
         label: credit.name,
-        color: getCreditColor(key),
+        color: getCreditSeriesColorByIndex(index + 1),
         restschuldAt: (year: number) =>
           calculateRestschuld({
             nettodarlehensbetrag: rueckzahlungsRelevanterBetrag,
@@ -355,6 +345,78 @@ function calculateDetailRestschuldStack(
     const row: Record<string, number> & { year: number } = { year };
     creditSeries.forEach((series) => {
       row[series.key] = series.restschuldAt(year);
+    });
+    return row;
+  });
+
+  const chartConfig = creditSeries.reduce((acc, series) => {
+    acc[series.key] = {
+      label: series.label,
+      color: series.color,
+    };
+    return acc;
+  }, {} as ChartConfig);
+
+  return {
+    chartData,
+    chartConfig,
+    creditSeries,
+  };
+}
+
+function calculateDetailMonthlyRateStack(
+  values: ScenarioValues,
+  maxYears: number,
+) {
+  const credits = Object.values(values.credits ?? {}) as Credit[];
+  const nettoDarlehensbetragBank =
+    values.kaufpreis +
+    values.modernisierungskosten +
+    values.kaufpreis * 0.1207 -
+    values.eigenkapital -
+    credits.reduce((acc, credit) => acc + credit.summeDarlehen, 0);
+
+  const bankRate = calculateMonthlyRate({
+    darlehensbetrag: nettoDarlehensbetragBank,
+    effzins: values.effzins,
+    tilgungssatz: values.tilgungssatz,
+  });
+
+  const creditSeries = [
+    {
+      key: "bank",
+      label: "Bankkredit",
+      color: getCreditSeriesColorByIndex(0),
+      monthlyRateAt: (year: number) =>
+        year <= values.zinsbindung ? bankRate : 0,
+    },
+    ...credits.map((credit, index) => {
+      const key = `credit_${slugifyKey(credit.name)}`;
+      const segments = credit.rates.map((rate) => ({
+        startYear: rate.startYear,
+        endYear: Math.min(rate.endYear, credit.zinsbindung),
+        monthlyRate: rate.rate,
+      }));
+
+      return {
+        key,
+        label: credit.name,
+        color: getCreditSeriesColorByIndex(index + 1),
+        monthlyRateAt: (year: number) =>
+          segments.reduce((sum, segment) => {
+            const isActive =
+              segment.startYear < year && segment.endYear >= year;
+            return isActive ? sum + segment.monthlyRate : sum;
+          }, 0),
+      };
+    }),
+  ];
+
+  const chartData = Array.from({ length: maxYears }, (_, index) => {
+    const year = index + 1;
+    const row: Record<string, number> & { year: number } = { year };
+    creditSeries.forEach((series) => {
+      row[series.key] = series.monthlyRateAt(year);
     });
     return row;
   });
@@ -517,6 +579,10 @@ export default function FinanzplanPage() {
   );
   const detailRestschuldChart = useMemo(
     () => calculateDetailRestschuldStack(detailValues, detailMaxYears),
+    [detailValues, detailMaxYears],
+  );
+  const detailMonthlyRateChart = useMemo(
+    () => calculateDetailMonthlyRateStack(detailValues, detailMaxYears),
     [detailValues, detailMaxYears],
   );
 
@@ -711,11 +777,20 @@ export default function FinanzplanPage() {
             Einzelrechnung je Kredit bis zur jeweiligen Zinsbindung.
           </p>
           <DetailRestschuldStackChart
-            chartConfig={detailRestschuldChart.chartConfig}
-            chartData={detailRestschuldChart.chartData}
-            seriesKeys={detailRestschuldChart.creditSeries.map(
-              (series) => series.key,
-            )}
+            restschuld={{
+              chartConfig: detailRestschuldChart.chartConfig,
+              chartData: detailRestschuldChart.chartData,
+              seriesKeys: detailRestschuldChart.creditSeries.map(
+                (series) => series.key,
+              ),
+            }}
+            monthlyRate={{
+              chartConfig: detailMonthlyRateChart.chartConfig,
+              chartData: detailMonthlyRateChart.chartData,
+              seriesKeys: detailMonthlyRateChart.creditSeries.map(
+                (series) => series.key,
+              ),
+            }}
             accentColor={detailAccentColor}
           />
           <div
