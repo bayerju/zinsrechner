@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useMemo } from "react";
 import { parseGermanNumber } from "~/lib/number_fromat";
+import { cn } from "~/lib/utils";
 import { Input } from "./input";
 
 export function NumberInput({
@@ -10,6 +11,7 @@ export function NumberInput({
   unit = "",
   locale = "de-DE",
   parseInput,
+  className,
   ...props
 }: Omit<React.ComponentProps<"input">, "onChange"> & {
   value: number;
@@ -58,9 +60,12 @@ export function NumberInput({
           type="text"
           inputMode="decimal"
           lang={locale}
-          className={`w-full rounded-md border border-neutral-700 bg-neutral-800 py-1 text-white ${
-            unit ? "pr-8" : "px-3"
-          } pl-3`}
+          className={cn(
+            `w-full rounded-md border border-neutral-700 bg-neutral-800 py-1 text-white ${
+              unit ? "pr-8" : "px-3"
+            } pl-3`,
+            className,
+          )}
           value={inputString}
           onChange={handleInputChange}
           onBlur={() => {
@@ -74,7 +79,7 @@ export function NumberInput({
           {...props}
         />
         {unit && (
-          <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-sm text-neutral-200">
+          <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-sm text-neutral-400 dark:text-neutral-200">
             {unit}
           </span>
         )}
