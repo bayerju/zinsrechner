@@ -1,10 +1,16 @@
 "use client";
 
 import { useAtom, useAtomValue } from "jotai";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { TopNav } from "~/components/top_nav";
 import { LiquidityScenarioBar } from "~/components/liquidity_scenario_bar";
 import { Card, CardContent } from "~/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "~/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -13,7 +19,7 @@ import {
   SelectValue,
 } from "~/components/ui/select";
 import { formatNumber } from "~/lib/number_fromat";
-import { simulateLiquidity } from "~/lib/liquidity";
+import { getMonthContributions, simulateLiquidity } from "~/lib/liquidity";
 import { scenarioValuesAtom } from "~/state/scenario_values_atom";
 import { scenariosAtom } from "~/state/scenarios_atom";
 import {
@@ -28,6 +34,10 @@ export default function LiquiditaetsauswertungPage() {
 
   const selectedCreditScenario =
     creditScenarioValues[values.creditScenarioId] ?? null;
+  const [detail, setDetail] = useState<{
+    month: string;
+    type: "income" | "expense";
+  } | null>(null);
 
   const resultRows = useMemo(
     () => simulateLiquidity(values, selectedCreditScenario),
@@ -39,6 +49,16 @@ export default function LiquiditaetsauswertungPage() {
   const minCapital = Math.min(
     values.startCapital,
     ...resultRows.map((row) => row.capitalEnd),
+  );
+
+  const detailContributions = useMemo(() => {
+    if (!detail) return [];
+    return getMonthContributions(values, detail.month, detail.type);
+  }, [detail, values]);
+
+  const detailSum = detailContributions.reduce(
+    (sum, contribution) => sum + contribution.amount,
+    0,
   );
 
   function updateValues(
@@ -114,10 +134,26 @@ export default function LiquiditaetsauswertungPage() {
                   <tr key={row.month} className="border-t border-neutral-200">
                     <td className="px-2 py-1">{row.month}</td>
                     <td className="px-2 py-1 text-green-700">
-                      {formatNumber(row.income)} €
+                      <button
+                        type="button"
+                        className="underline decoration-dotted"
+                        onClick={() =>
+                          setDetail({ month: row.month, type: "income" })
+                        }
+                      >
+                        {formatNumber(row.income)} €
+                      </button>
                     </td>
                     <td className="px-2 py-1 text-red-700">
-                      {formatNumber(row.expense)} €
+                      <button
+                        type="button"
+                        className="underline decoration-dotted"
+                        onClick={() =>
+                          setDetail({ month: row.month, type: "expense" })
+                        }
+                      >
+                        {formatNumber(row.expense)} €
+                      </button>
                     </td>
                     <td className="px-2 py-1">
                       {formatNumber(row.creditRate)} €
@@ -141,6 +177,61 @@ export default function LiquiditaetsauswertungPage() {
               </tbody>
             </table>
           </div>
+
+          <Dialog
+            open={detail !== null}
+            onOpenChange={(open) => !open && setDetail(null)}
+          >
+            <DialogContent className="sm:max-w-lg">
+              <DialogHeader>
+                <DialogTitle>
+                  {detail?.type === "income" ? "Einnahmen" : "Ausgaben"} im
+                  Monat {detail?.month}
+                </DialogTitle>
+              </DialogHeader>
+
+              {detailContributions.length === 0 ? (
+                <p className="text-sm text-neutral-600">
+                  Keine Positionen in diesem Monat.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  <div className="rounded-md border border-neutral-300 bg-neutral-50 p-2 text-sm">
+                    Summe: {formatNumber(detailSum)} €
+                  </div>
+                  <div className="max-h-80 overflow-auto rounded-md border border-neutral-300">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="sticky top-0 bg-white text-left">
+                          <th className="px-2 py-1">Position</th>
+                          <th className="px-2 py-1">Quelle</th>
+                          <th className="px-2 py-1">Betrag</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {detailContributions.map((entry) => (
+                          <tr
+                            key={entry.itemId}
+                            className="border-t border-neutral-200"
+                          >
+                            <td className="px-2 py-1">{entry.name}</td>
+                            <td className="px-2 py-1">
+                              {entry.source === "override"
+                                ? "Monatswert"
+                                : "Standard"}
+                            </td>
+                            <td className="px-2 py-1">
+                              {formatNumber(entry.amount)} €
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </DialogContent>
+          </Dialog>
         </CardContent>
       </Card>
     </main>

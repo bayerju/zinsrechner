@@ -18,6 +18,7 @@ export type LiquidityItem = {
   name: string;
   type: "income" | "expense";
   defaultAmount: number;
+  labels: string[];
   frequency: LiquidityFrequency;
   startMonth: string;
   endMonth?: string;
@@ -125,11 +126,24 @@ export const liquidityScenarioValuesAtom = atomWithStorage<
   [defaultLiquidityScenarioId]: defaultLiquidityScenarioValues,
 });
 
+function normalizeScenarioValues(
+  values: LiquidityScenarioValues,
+): LiquidityScenarioValues {
+  return {
+    ...values,
+    items: values.items.map((item) => ({
+      ...item,
+      labels: Array.isArray(item.labels) ? item.labels : [],
+    })),
+  };
+}
+
 export const activeLiquidityScenarioValuesAtom = atom(
   (get) => {
     const id = get(activeLiquidityScenarioIdAtom);
     const values = get(liquidityScenarioValuesAtom);
-    return values[id] ?? defaultLiquidityScenarioValues;
+    const selected = values[id] ?? defaultLiquidityScenarioValues;
+    return normalizeScenarioValues(selected);
   },
   (
     get,
@@ -140,11 +154,13 @@ export const activeLiquidityScenarioValuesAtom = atom(
   ) => {
     const id = get(activeLiquidityScenarioIdAtom);
     set(liquidityScenarioValuesAtom, (prev) => {
-      const current = prev[id] ?? defaultLiquidityScenarioValues;
+      const current = normalizeScenarioValues(
+        prev[id] ?? defaultLiquidityScenarioValues,
+      );
       const next = typeof update === "function" ? update(current) : update;
       return {
         ...prev,
-        [id]: next,
+        [id]: normalizeScenarioValues(next),
       };
     });
   },
