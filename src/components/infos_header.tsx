@@ -8,8 +8,6 @@ import {
   effzinsAtom,
   restschuldBankAtom,
   zinsbindungAtom,
-  fullPaymentAtom,
-  bezahlteZinsenAtom,
   tilgungssatzAtom,
 } from "~/state/conditions_atoms";
 import { PercentInput } from "./ui/percent_input";
@@ -21,8 +19,6 @@ import {
   calculateFullPaymentTime,
 } from "~/lib/calculations";
 import { creditsAtom } from "~/state/credits_atom";
-import { Switch } from "./ui/switch";
-import { InfoHover } from "./info_hover";
 import { TopNav } from "./top_nav";
 import { ScenarioBar } from "./scenario_bar";
 

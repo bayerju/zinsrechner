@@ -1,10 +1,17 @@
 import { NumberInput } from "./ui/number_input";
 import { useAtom } from "jotai";
-import { kaufpreisAtom, modernisierungskostenAtom, eigenkapitalAtom, kaufnebenkostenAtom, tilgungssatzAtom, zinsbindungAtom } from "~/state/conditions_atoms";
+import {
+  kaufpreisAtom,
+  modernisierungskostenAtom,
+  eigenkapitalAtom,
+  kaufnebenkostenAtom,
+} from "~/state/conditions_atoms";
 
 export default function Conditions() {
   const [kaufpreis, setKaufpreis] = useAtom(kaufpreisAtom);
-  const [modernisierungskosten, setModernisierungskosten] = useAtom(modernisierungskostenAtom);
+  const [modernisierungskosten, setModernisierungskosten] = useAtom(
+    modernisierungskostenAtom,
+  );
   const [eigenkapital, setEigenkapital] = useAtom(eigenkapitalAtom);
   const [kaufnebenkosten, setKaufnebenkosten] = useAtom(kaufnebenkostenAtom);
   // const [zinsbindung, setzinsbindung] = useAtom(zinsbindungAtom);
@@ -96,7 +103,7 @@ export default function Conditions() {
       </div>
       {/* Eigenkapital */}
       <div>
-       <NumberInput
+        <NumberInput
           label="Eigenkapital"
           value={eigenkapital}
           onChange={setEigenkapital}

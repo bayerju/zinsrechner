@@ -14,7 +14,6 @@ import {
   calculateRestschuld,
   calculateTilgungszuschussBetrag,
 } from "~/lib/calculations";
-import { type Credit } from "~/lib/credit";
 import { formatNumber } from "~/lib/number_fromat";
 import {
   activeScenarioIdAtom,
@@ -60,7 +59,7 @@ function calculateScenarioFinanzplan(values: ScenarioValues): {
   kreditRows: KreditRow[];
   finanzplanRows: FinanzplanRow[];
 } {
-  const credits = Object.values(values.credits ?? {}) as Credit[];
+  const credits = Object.values(values.credits ?? {});
   const nettoDarlehensbetragBank =
     values.kaufpreis +
     values.modernisierungskosten +
@@ -235,7 +234,7 @@ function calculateScenarioMonthlyRateSeries(
   values: ScenarioValues,
   maxYears: number,
 ) {
-  const credits = Object.values(values.credits ?? {}) as Credit[];
+  const credits = Object.values(values.credits ?? {});
   const nettoDarlehensbetragBank =
     values.kaufpreis +
     values.modernisierungskosten +
@@ -280,7 +279,7 @@ function calculateDetailRestschuldStack(
   values: ScenarioValues,
   maxYears: number,
 ) {
-  const credits = Object.values(values.credits ?? {}) as Credit[];
+  const credits = Object.values(values.credits ?? {});
   const nettoDarlehensbetragBank =
     values.kaufpreis +
     values.modernisierungskosten +
@@ -369,7 +368,7 @@ function calculateDetailMonthlyRateStack(
   values: ScenarioValues,
   maxYears: number,
 ) {
-  const credits = Object.values(values.credits ?? {}) as Credit[];
+  const credits = Object.values(values.credits ?? {});
   const nettoDarlehensbetragBank =
     values.kaufpreis +
     values.modernisierungskosten +
@@ -461,7 +460,7 @@ export default function FinanzplanPage() {
       );
       return defaults.length > 0 ? defaults : [scenarioList[0]!.id];
     });
-  }, [activeScenarioId, scenarioList]);
+  }, [activeScenarioId, scenarioList, setSelectedScenarioIds]);
 
   useEffect(() => {
     if (scenarioList.length === 0) return;

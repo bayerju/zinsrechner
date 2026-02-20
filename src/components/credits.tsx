@@ -13,8 +13,7 @@ import { Input } from "./ui/input";
 import { useState } from "react";
 import { NumberInput } from "./ui/number_input";
 import { PercentInput } from "./ui/percent_input";
-import { Trash2, Edit, KeyRound } from "lucide-react";
-import { Switch } from "./ui/switch";
+import { Trash2, Edit } from "lucide-react";
 import { useEffect } from "react";
 import {
   calculateFullPaymentTime,
@@ -213,6 +212,7 @@ function NewCreditDialog({
     creditRückzahlungsfreieZeit,
     creditTilgungszuschuss,
     creditFoerderfaehigerAnteil,
+    rueckzahlungsRelevanterBetrag,
     fixDurationOfCredit,
   ]);
 

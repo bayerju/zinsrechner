@@ -52,9 +52,10 @@ export function ScenarioMonthlyRateChart({
             tickLine={false}
             axisLine={false}
             tickMargin={8}
-            tickFormatter={(value) =>
-              `${Math.round(value).toLocaleString("de-DE")} €`
-            }
+            tickFormatter={(value) => {
+              const numeric = typeof value === "number" ? value : Number(value);
+              return `${Math.round(numeric).toLocaleString("de-DE")} €`;
+            }}
           />
           <Tooltip content={<ChartTooltipContent />} />
           {scenarioIds.map((scenarioId) => (
@@ -194,9 +195,10 @@ export function DetailRestschuldStackChart({
             tickLine={false}
             axisLine={false}
             tickMargin={8}
-            tickFormatter={(value) =>
-              `${Math.round(value).toLocaleString("de-DE")} €`
-            }
+            tickFormatter={(value) => {
+              const numeric = typeof value === "number" ? value : Number(value);
+              return `${Math.round(numeric).toLocaleString("de-DE")} €`;
+            }}
           />
           <Tooltip
             content={<StackedCreditTooltip chartConfig={active.chartConfig} />}
