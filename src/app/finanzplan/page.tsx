@@ -286,6 +286,7 @@ export default function FinanzplanPage() {
     [scenarios],
   );
   const [selectedScenarioIds, setSelectedScenarioIds] = useState<string[]>([]);
+  const [detailScenarioId, setDetailScenarioId] = useState<string>("");
 
   useEffect(() => {
     if (scenarioList.length === 0) return;
@@ -300,13 +301,24 @@ export default function FinanzplanPage() {
     });
   }, [activeScenarioId, scenarioList]);
 
-  const activeValues =
-    scenarioValues[activeScenarioId] ??
+  useEffect(() => {
+    if (scenarioList.length === 0) return;
+    const validIds = new Set(scenarioList.map((scenario) => scenario.id));
+    setDetailScenarioId((prev) => {
+      if (prev && validIds.has(prev)) return prev;
+      if (validIds.has(activeScenarioId)) return activeScenarioId;
+      if (validIds.has(defaultScenarioId)) return defaultScenarioId;
+      return scenarioList[0]!.id;
+    });
+  }, [activeScenarioId, scenarioList]);
+
+  const detailValues =
+    scenarioValues[detailScenarioId] ??
     scenarioValues[defaultScenarioId] ??
     defaultScenarioValues;
   const { kreditRows, finanzplanRows } = useMemo(
-    () => calculateScenarioFinanzplan(activeValues),
-    [activeValues],
+    () => calculateScenarioFinanzplan(detailValues),
+    [detailValues],
   );
 
   const comparisonRows = useMemo(
@@ -397,6 +409,25 @@ export default function FinanzplanPage() {
     if (index === -1) return null;
     return SCENARIO_COLORS[index % SCENARIO_COLORS.length];
   }
+
+  function getStableScenarioColor(scenarioId: string) {
+    const index = scenarioList.findIndex(
+      (scenario) => scenario.id === scenarioId,
+    );
+    if (index === -1) return "#a3a3a3";
+    return SCENARIO_COLORS[index % SCENARIO_COLORS.length];
+  }
+
+  function getScenarioChip(scenarioId: string) {
+    const chips = ["🔵", "🟢", "🟠", "🩷"];
+    const index = scenarioList.findIndex(
+      (scenario) => scenario.id === scenarioId,
+    );
+    if (index === -1) return "⚪";
+    return chips[index % chips.length] ?? "⚪";
+  }
+
+  const detailAccentColor = getStableScenarioColor(detailScenarioId);
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-xl flex-col items-center bg-neutral-900 px-2 py-2 md:max-w-4xl md:px-4 lg:max-w-6xl">
@@ -598,16 +629,39 @@ export default function FinanzplanPage() {
             </p>
           )}
 
-          <p className="text-sm text-neutral-700">
-            Detailtabellen unten zeigen das aktuell aktive Szenario.
-          </p>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <label className="text-sm text-neutral-700">
+              Details fuer Szenario:
+            </label>
+            <select
+              className="h-7 min-w-44 rounded-md border-2 bg-white px-2 text-xs font-medium"
+              style={{
+                borderColor: detailAccentColor,
+                color: detailAccentColor,
+              }}
+              value={detailScenarioId}
+              onChange={(e) => setDetailScenarioId(e.target.value)}
+            >
+              {scenarioList.map((scenario) => (
+                <option key={scenario.id} value={scenario.id}>
+                  {getScenarioChip(scenario.id)} {scenario.name}
+                </option>
+              ))}
+            </select>
+          </div>
           <p className="text-sm text-neutral-700">
             Einzelrechnung je Kredit bis zur jeweiligen Zinsbindung.
           </p>
-          <div className="overflow-x-auto rounded-md border border-neutral-700 bg-neutral-800">
+          <div
+            className="overflow-x-auto rounded-md border border-neutral-700 bg-neutral-800"
+            style={{ borderLeft: `4px solid ${detailAccentColor}` }}
+          >
             <table className="w-full min-w-[780px] text-sm">
               <thead>
-                <tr className="border-b border-neutral-700 text-left text-neutral-300">
+                <tr
+                  className="border-b border-neutral-700 text-left"
+                  style={{ color: detailAccentColor }}
+                >
                   <th className="px-3 py-2 font-medium">Kredit</th>
                   <th className="px-3 py-2 font-medium">Stichtag</th>
                   <th className="px-3 py-2 font-medium">Bisher bezahlt</th>
@@ -652,10 +706,16 @@ export default function FinanzplanPage() {
             gerechnet. Danach bleiben die Werte eingefroren (ohne
             Anschlussfinanzierung).
           </p>
-          <div className="overflow-x-auto rounded-md border border-neutral-700 bg-neutral-800">
+          <div
+            className="overflow-x-auto rounded-md border border-neutral-700 bg-neutral-800"
+            style={{ borderLeft: `4px solid ${detailAccentColor}` }}
+          >
             <table className="w-full min-w-[720px] text-sm">
               <thead>
-                <tr className="border-b border-neutral-700 text-left text-neutral-300">
+                <tr
+                  className="border-b border-neutral-700 text-left"
+                  style={{ color: detailAccentColor }}
+                >
                   <th className="px-3 py-2 font-medium">Stichtag</th>
                   <th className="px-3 py-2 font-medium">Bisher bezahlt</th>
                   <th className="px-3 py-2 font-medium">Bisher getilgt</th>
