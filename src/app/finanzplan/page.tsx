@@ -18,6 +18,7 @@ import { type Credit } from "~/lib/credit";
 import { formatNumber } from "~/lib/number_fromat";
 import {
   activeScenarioIdAtom,
+  comparedScenarioIdsAtom,
   defaultScenarioId,
   scenariosAtom,
 } from "~/state/scenarios_atom";
@@ -444,7 +445,9 @@ export default function FinanzplanPage() {
     () => Object.values(scenarios).sort((a, b) => a.createdAt - b.createdAt),
     [scenarios],
   );
-  const [selectedScenarioIds, setSelectedScenarioIds] = useState<string[]>([]);
+  const [selectedScenarioIds, setSelectedScenarioIds] = useAtom(
+    comparedScenarioIdsAtom,
+  );
   const [detailScenarioId, setDetailScenarioId] = useState<string>("");
 
   useEffect(() => {

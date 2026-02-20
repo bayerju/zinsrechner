@@ -86,3 +86,8 @@ export const activeScenarioIdAtom = atomWithStorage<string>(
   "activeScenarioId",
   defaultScenarioId,
 );
+
+export const comparedScenarioIdsAtom = atomWithStorage<string[]>(
+  "comparedScenarioIds",
+  [],
+);
