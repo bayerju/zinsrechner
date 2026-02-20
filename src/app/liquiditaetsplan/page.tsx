@@ -34,12 +34,32 @@ import {
   type LiquidityScenarioValues,
 } from "~/state/liquidity_scenarios_atom";
 import { buildMonthList, monthKeyToIndex } from "~/lib/liquidity";
+import { cn } from "~/lib/utils";
 
 function createItemId() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
     return crypto.randomUUID();
   }
   return `${Date.now()}-${Math.round(Math.random() * 1_000_000)}`;
+}
+
+const LABEL_COLORS = [
+  "#3b82f6",
+  "#10b981",
+  "#f59e0b",
+  "#ef4444",
+  "#8b5cf6",
+  "#06b6d4",
+  "#f97316",
+  "#84cc16",
+];
+
+function getLabelColor(label: string) {
+  const hash = Array.from(label).reduce(
+    (sum, char) => sum + char.charCodeAt(0),
+    0,
+  );
+  return LABEL_COLORS[hash % LABEL_COLORS.length] ?? "#3b82f6";
 }
 
 export default function LiquiditaetsplanPage() {
@@ -59,6 +79,10 @@ export default function LiquiditaetsplanPage() {
     values.startMonth,
   );
   const [settingsEndMonth, setSettingsEndMonth] = useState("");
+  const [settingsNewLabel, setSettingsNewLabel] = useState("");
+
+  const [incomeLabelFilter, setIncomeLabelFilter] = useState<string[]>([]);
+  const [expenseLabelFilter, setExpenseLabelFilter] = useState<string[]>([]);
 
   const [overrideItemId, setOverrideItemId] = useState<string | null>(null);
   const [overrideMonth, setOverrideMonth] = useState(values.startMonth);
@@ -76,8 +100,45 @@ export default function LiquiditaetsplanPage() {
   const settingsItem =
     values.items.find((item) => item.id === settingsItemId) ?? null;
 
-  const incomeItems = values.items.filter((item) => item.type === "income");
-  const expenseItems = values.items.filter((item) => item.type === "expense");
+  const incomeLabels = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          values.items
+            .filter((item) => item.type === "income")
+            .flatMap((item) => item.labels),
+        ),
+      ).sort((a, b) => a.localeCompare(b)),
+    [values.items],
+  );
+  const expenseLabels = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          values.items
+            .filter((item) => item.type === "expense")
+            .flatMap((item) => item.labels),
+        ),
+      ).sort((a, b) => a.localeCompare(b)),
+    [values.items],
+  );
+
+  const labelSuggestions = useMemo(() => {
+    if (!settingsItem) return [] as string[];
+    const pool = settingsItem.type === "income" ? incomeLabels : expenseLabels;
+    return pool.filter((label) => !settingsItem.labels.includes(label));
+  }, [settingsItem, incomeLabels, expenseLabels]);
+
+  const incomeItems = values.items.filter(
+    (item) =>
+      item.type === "income" &&
+      incomeLabelFilter.every((label) => item.labels.includes(label)),
+  );
+  const expenseItems = values.items.filter(
+    (item) =>
+      item.type === "expense" &&
+      expenseLabelFilter.every((label) => item.labels.includes(label)),
+  );
 
   function updateValues(
     update:
@@ -109,6 +170,7 @@ export default function LiquiditaetsplanPage() {
       name: name.trim(),
       type,
       defaultAmount: amount,
+      labels: [],
       frequency: "monthly",
       startMonth: values.startMonth,
       endMonth: undefined,
@@ -141,6 +203,7 @@ export default function LiquiditaetsplanPage() {
     setSettingsFrequency(item.frequency);
     setSettingsStartMonth(item.startMonth);
     setSettingsEndMonth(item.endMonth ?? "");
+    setSettingsNewLabel("");
   }
 
   function saveSettings() {
@@ -171,6 +234,43 @@ export default function LiquiditaetsplanPage() {
         overrides: nextOverrides,
       };
     });
+  }
+
+  function addLabelToSettingsItem(explicitLabel?: string) {
+    if (!settingsItemId) return;
+    const label = (explicitLabel ?? settingsNewLabel).trim();
+    if (!label) return;
+    updateItem(settingsItemId, (item) => ({
+      ...item,
+      labels: item.labels.includes(label)
+        ? item.labels
+        : [...item.labels, label],
+    }));
+    setSettingsNewLabel("");
+  }
+
+  function removeLabelFromSettingsItem(label: string) {
+    if (!settingsItemId) return;
+    updateItem(settingsItemId, (item) => ({
+      ...item,
+      labels: item.labels.filter((current) => current !== label),
+    }));
+  }
+
+  function toggleIncomeLabelFilter(label: string) {
+    setIncomeLabelFilter((prev) =>
+      prev.includes(label)
+        ? prev.filter((current) => current !== label)
+        : [...prev, label],
+    );
+  }
+
+  function toggleExpenseLabelFilter(label: string) {
+    setExpenseLabelFilter((prev) =>
+      prev.includes(label)
+        ? prev.filter((current) => current !== label)
+        : [...prev, label],
+    );
   }
 
   return (
@@ -255,6 +355,40 @@ export default function LiquiditaetsplanPage() {
           <div className="grid gap-3 lg:grid-cols-2">
             <div className="space-y-2 rounded-md border border-neutral-300 p-3">
               <h4 className="text-sm font-medium text-black">Einnahmen</h4>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs text-neutral-600">Filter (AND):</span>
+                {incomeLabels.length === 0 ? (
+                  <span className="text-xs text-neutral-400">Keine Labels</span>
+                ) : (
+                  incomeLabels.map((label) => {
+                    const selected = incomeLabelFilter.includes(label);
+                    return (
+                      <Button
+                        key={label}
+                        type="button"
+                        size="sm"
+                        variant={selected ? "default" : "outline"}
+                        className="h-7"
+                        onClick={() => toggleIncomeLabelFilter(label)}
+                      >
+                        <span style={{ color: getLabelColor(label) }}>#</span>
+                        <span>{label}</span>
+                      </Button>
+                    );
+                  })
+                )}
+                {incomeLabelFilter.length > 0 && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-7"
+                    onClick={() => setIncomeLabelFilter([])}
+                  >
+                    Zuruecksetzen
+                  </Button>
+                )}
+              </div>
               <div className="grid grid-cols-[1fr_180px_auto] gap-2">
                 <Input
                   className="h-9 border-neutral-300 bg-white text-black"
@@ -282,16 +416,39 @@ export default function LiquiditaetsplanPage() {
                   key={item.id}
                   className="grid grid-cols-[1fr_180px_auto_auto] gap-2"
                 >
-                  <Input
-                    className="h-9 border-neutral-300 bg-white text-black"
-                    value={item.name}
-                    onChange={(e) =>
-                      updateItem(item.id, (old) => ({
-                        ...old,
-                        name: e.target.value,
-                      }))
-                    }
-                  />
+                  <div className="relative">
+                    {item.labels.length > 0 && (
+                      <div className="pointer-events-none absolute inset-y-0 left-2 flex items-center gap-0.5">
+                        {item.labels.slice(0, 2).map((label) => (
+                          <span
+                            key={label}
+                            className="text-xs font-semibold"
+                            style={{ color: getLabelColor(label) }}
+                          >
+                            #
+                          </span>
+                        ))}
+                        {item.labels.length > 2 && (
+                          <span className="ml-1 text-[10px] text-neutral-500">
+                            +{item.labels.length - 2}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    <Input
+                      className={cn(
+                        "h-9 border-neutral-300 bg-white text-black",
+                        item.labels.length > 0 && "pl-10",
+                      )}
+                      value={item.name}
+                      onChange={(e) =>
+                        updateItem(item.id, (old) => ({
+                          ...old,
+                          name: e.target.value,
+                        }))
+                      }
+                    />
+                  </div>
                   <NumberInput
                     unit="€"
                     className="h-9 border-neutral-300 bg-white text-black"
@@ -327,6 +484,40 @@ export default function LiquiditaetsplanPage() {
 
             <div className="space-y-2 rounded-md border border-neutral-300 p-3">
               <h4 className="text-sm font-medium text-black">Ausgaben</h4>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs text-neutral-600">Filter (AND):</span>
+                {expenseLabels.length === 0 ? (
+                  <span className="text-xs text-neutral-400">Keine Labels</span>
+                ) : (
+                  expenseLabels.map((label) => {
+                    const selected = expenseLabelFilter.includes(label);
+                    return (
+                      <Button
+                        key={label}
+                        type="button"
+                        size="sm"
+                        variant={selected ? "default" : "outline"}
+                        className="h-7"
+                        onClick={() => toggleExpenseLabelFilter(label)}
+                      >
+                        <span style={{ color: getLabelColor(label) }}>#</span>
+                        <span>{label}</span>
+                      </Button>
+                    );
+                  })
+                )}
+                {expenseLabelFilter.length > 0 && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-7"
+                    onClick={() => setExpenseLabelFilter([])}
+                  >
+                    Zuruecksetzen
+                  </Button>
+                )}
+              </div>
               <div className="grid grid-cols-[1fr_180px_auto] gap-2">
                 <Input
                   className="h-9 border-neutral-300 bg-white text-black"
@@ -354,16 +545,39 @@ export default function LiquiditaetsplanPage() {
                   key={item.id}
                   className="grid grid-cols-[1fr_180px_auto_auto] gap-2"
                 >
-                  <Input
-                    className="h-9 border-neutral-300 bg-white text-black"
-                    value={item.name}
-                    onChange={(e) =>
-                      updateItem(item.id, (old) => ({
-                        ...old,
-                        name: e.target.value,
-                      }))
-                    }
-                  />
+                  <div className="relative">
+                    {item.labels.length > 0 && (
+                      <div className="pointer-events-none absolute inset-y-0 left-2 flex items-center gap-0.5">
+                        {item.labels.slice(0, 2).map((label) => (
+                          <span
+                            key={label}
+                            className="text-xs font-semibold"
+                            style={{ color: getLabelColor(label) }}
+                          >
+                            #
+                          </span>
+                        ))}
+                        {item.labels.length > 2 && (
+                          <span className="ml-1 text-[10px] text-neutral-500">
+                            +{item.labels.length - 2}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    <Input
+                      className={cn(
+                        "h-9 border-neutral-300 bg-white text-black",
+                        item.labels.length > 0 && "pl-10",
+                      )}
+                      value={item.name}
+                      onChange={(e) =>
+                        updateItem(item.id, (old) => ({
+                          ...old,
+                          name: e.target.value,
+                        }))
+                      }
+                    />
+                  </div>
                   <NumberInput
                     unit="€"
                     className="h-9 border-neutral-300 bg-white text-black"
@@ -449,6 +663,74 @@ export default function LiquiditaetsplanPage() {
                 placeholder="Kein Endmonat"
               />
             </label>
+
+            <div className="space-y-2">
+              <label className="text-xs text-neutral-700">Labels</label>
+              <div className="flex gap-2">
+                <Input
+                  className="h-9 border-neutral-300 bg-white text-black"
+                  placeholder="Label hinzufuegen"
+                  list="label-suggestions"
+                  value={settingsNewLabel}
+                  onChange={(e) => setSettingsNewLabel(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      addLabelToSettingsItem();
+                    }
+                  }}
+                />
+                <datalist id="label-suggestions">
+                  {labelSuggestions.map((label) => (
+                    <option key={label} value={label}>
+                      {label}
+                    </option>
+                  ))}
+                </datalist>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => addLabelToSettingsItem()}
+                >
+                  Hinzufuegen
+                </Button>
+              </div>
+              {labelSuggestions.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {labelSuggestions.slice(0, 8).map((label) => (
+                    <Button
+                      key={label}
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-6 px-2 text-xs"
+                      onClick={() => addLabelToSettingsItem(label)}
+                    >
+                      {label}
+                    </Button>
+                  ))}
+                </div>
+              )}
+              {settingsItem && settingsItem.labels.length > 0 ? (
+                <div className="flex flex-wrap gap-1">
+                  {settingsItem.labels.map((label) => (
+                    <button
+                      key={label}
+                      type="button"
+                      className="rounded bg-neutral-100 px-2 py-0.5 text-xs text-neutral-700"
+                      onClick={() => removeLabelFromSettingsItem(label)}
+                      title="Label entfernen"
+                    >
+                      {label} ×
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-neutral-500">
+                  Keine Labels gesetzt.
+                </p>
+              )}
+            </div>
 
             <div className="flex gap-2">
               <Button

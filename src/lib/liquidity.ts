@@ -17,6 +17,13 @@ export type LiquidityMonthResult = {
   capitalEnd: number;
 };
 
+export type LiquidityMonthContribution = {
+  itemId: string;
+  name: string;
+  amount: number;
+  source: "default" | "override";
+};
+
 export function monthKeyToIndex(monthKey: string) {
   const [year, month] = monthKey.split("-").map(Number);
   if (!year || !month) return 0;
@@ -144,4 +151,30 @@ export function simulateLiquidity(
   });
 
   return rows;
+}
+
+export function getMonthContributions(
+  values: LiquidityScenarioValues,
+  month: string,
+  type: "income" | "expense",
+): LiquidityMonthContribution[] {
+  return values.items
+    .filter((item) => item.type === type)
+    .reduce<LiquidityMonthContribution[]>((acc, item) => {
+      const override = item.overrides[month];
+      if (override?.disabled) return acc;
+      if (!occursInMonth(item, month)) return acc;
+
+      const isOverride = typeof override?.amount === "number";
+      const amount = isOverride ? Number(override.amount) : item.defaultAmount;
+
+      acc.push({
+        itemId: item.id,
+        name: item.name,
+        amount,
+        source: isOverride ? "override" : "default",
+      });
+      return acc;
+    }, [])
+    .sort((a, b) => b.amount - a.amount);
 }
