@@ -617,25 +617,26 @@ export default function FinanzplanPage() {
             <label className="text-sm text-neutral-700">
               Details fuer Szenario:
             </label>
-            <span
-              className="inline-block h-2.5 w-2.5 rounded-full"
-              style={{ backgroundColor: detailAccentColor }}
-            />
-            <select
-              className="h-7 min-w-44 rounded-md border-2 bg-white px-2 text-xs font-medium"
-              style={{
-                borderColor: detailAccentColor,
-                color: detailAccentColor,
-              }}
-              value={detailScenarioId}
-              onChange={(e) => setDetailScenarioId(e.target.value)}
-            >
-              {scenarioList.map((scenario) => (
-                <option key={scenario.id} value={scenario.id}>
-                  {scenario.name}
-                </option>
-              ))}
-            </select>
+            <div className="relative inline-flex items-center">
+              <span
+                className="pointer-events-none absolute left-2 z-10 inline-block h-2.5 w-2.5 rounded-full"
+                style={{ backgroundColor: detailAccentColor }}
+              />
+              <select
+                className="h-7 min-w-44 rounded-md border-2 bg-white pr-2 pl-6 text-xs font-medium text-black"
+                style={{
+                  borderColor: detailAccentColor,
+                }}
+                value={detailScenarioId}
+                onChange={(e) => setDetailScenarioId(e.target.value)}
+              >
+                {scenarioList.map((scenario) => (
+                  <option key={scenario.id} value={scenario.id}>
+                    {scenario.name}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
           <p className="text-sm text-neutral-700">
             Einzelrechnung je Kredit bis zur jeweiligen Zinsbindung.
