@@ -2,6 +2,7 @@
 
 import { useAtom, useAtomValue } from "jotai";
 import { useMemo, useState } from "react";
+import { Plus, Settings2, Trash2 } from "lucide-react";
 import { TopNav } from "~/components/top_nav";
 import { LiquidityScenarioBar } from "~/components/liquidity_scenario_bar";
 import { Card, CardContent } from "~/components/ui/card";
@@ -46,13 +47,18 @@ export default function LiquiditaetsplanPage() {
   const creditScenarios = useAtomValue(scenariosAtom);
   const creditScenarioValues = useAtomValue(scenarioValuesAtom);
 
-  const [newName, setNewName] = useState("");
-  const [newType, setNewType] = useState<"income" | "expense">("income");
-  const [newAmount, setNewAmount] = useState(0);
-  const [newFrequency, setNewFrequency] =
+  const [newIncomeName, setNewIncomeName] = useState("");
+  const [newIncomeAmount, setNewIncomeAmount] = useState(0);
+  const [newExpenseName, setNewExpenseName] = useState("");
+  const [newExpenseAmount, setNewExpenseAmount] = useState(0);
+
+  const [settingsItemId, setSettingsItemId] = useState<string | null>(null);
+  const [settingsFrequency, setSettingsFrequency] =
     useState<LiquidityFrequency>("monthly");
-  const [newStartMonth, setNewStartMonth] = useState(values.startMonth);
-  const [newEndMonth, setNewEndMonth] = useState("");
+  const [settingsStartMonth, setSettingsStartMonth] = useState(
+    values.startMonth,
+  );
+  const [settingsEndMonth, setSettingsEndMonth] = useState("");
 
   const [overrideItemId, setOverrideItemId] = useState<string | null>(null);
   const [overrideMonth, setOverrideMonth] = useState(values.startMonth);
@@ -67,6 +73,11 @@ export default function LiquiditaetsplanPage() {
 
   const selectedOverrideItem =
     values.items.find((item) => item.id === overrideItemId) ?? null;
+  const settingsItem =
+    values.items.find((item) => item.id === settingsItemId) ?? null;
+
+  const incomeItems = values.items.filter((item) => item.type === "income");
+  const expenseItems = values.items.filter((item) => item.type === "expense");
 
   function updateValues(
     update:
@@ -74,27 +85,6 @@ export default function LiquiditaetsplanPage() {
       | ((prev: LiquidityScenarioValues) => LiquidityScenarioValues),
   ) {
     setValues(update);
-  }
-
-  function addItem() {
-    if (!newName.trim()) return;
-    const item: LiquidityItem = {
-      id: createItemId(),
-      name: newName.trim(),
-      type: newType,
-      defaultAmount: newAmount,
-      frequency: newFrequency,
-      startMonth: newStartMonth,
-      endMonth: newEndMonth || undefined,
-      overrides: {},
-    };
-    updateValues((prev) => ({
-      ...prev,
-      items: [...prev.items, item],
-    }));
-    setNewName("");
-    setNewAmount(0);
-    setNewEndMonth("");
   }
 
   function updateItem(
@@ -107,6 +97,61 @@ export default function LiquiditaetsplanPage() {
         item.id === itemId ? updater(item) : item,
       ),
     }));
+  }
+
+  function addItem(type: "income" | "expense") {
+    const name = type === "income" ? newIncomeName : newExpenseName;
+    const amount = type === "income" ? newIncomeAmount : newExpenseAmount;
+    if (!name.trim()) return;
+
+    const item: LiquidityItem = {
+      id: createItemId(),
+      name: name.trim(),
+      type,
+      defaultAmount: amount,
+      frequency: "monthly",
+      startMonth: values.startMonth,
+      endMonth: undefined,
+      overrides: {},
+    };
+
+    updateValues((prev) => ({
+      ...prev,
+      items: [...prev.items, item],
+    }));
+
+    if (type === "income") {
+      setNewIncomeName("");
+      setNewIncomeAmount(0);
+    } else {
+      setNewExpenseName("");
+      setNewExpenseAmount(0);
+    }
+  }
+
+  function removeItem(itemId: string) {
+    updateValues((prev) => ({
+      ...prev,
+      items: prev.items.filter((item) => item.id !== itemId),
+    }));
+  }
+
+  function openSettings(item: LiquidityItem) {
+    setSettingsItemId(item.id);
+    setSettingsFrequency(item.frequency);
+    setSettingsStartMonth(item.startMonth);
+    setSettingsEndMonth(item.endMonth ?? "");
+  }
+
+  function saveSettings() {
+    if (!settingsItemId) return;
+    updateItem(settingsItemId, (item) => ({
+      ...item,
+      frequency: settingsFrequency,
+      startMonth: settingsStartMonth,
+      endMonth: settingsEndMonth || undefined,
+    }));
+    setSettingsItemId(null);
   }
 
   function saveOverride() {
@@ -146,10 +191,7 @@ export default function LiquiditaetsplanPage() {
                 className="h-9 border-neutral-300 bg-white text-black"
                 value={values.startCapital}
                 onChange={(value) =>
-                  updateValues((prev) => ({
-                    ...prev,
-                    startCapital: value,
-                  }))
+                  updateValues((prev) => ({ ...prev, startCapital: value }))
                 }
               />
               <label className="mb-1 block text-sm font-medium text-neutral-700">
@@ -184,10 +226,7 @@ export default function LiquiditaetsplanPage() {
               <Select
                 value={values.creditScenarioId}
                 onValueChange={(value) =>
-                  updateValues((prev) => ({
-                    ...prev,
-                    creditScenarioId: value,
-                  }))
+                  updateValues((prev) => ({ ...prev, creditScenarioId: value }))
                 }
               >
                 <SelectTrigger className="h-9 border-neutral-300 bg-white text-black">
@@ -213,76 +252,36 @@ export default function LiquiditaetsplanPage() {
             )}
           </div>
 
-          <div className="rounded-md border border-neutral-300 p-2">
-            <h4 className="mb-2 text-sm font-medium">Position hinzufuegen</h4>
-            <div className="grid gap-2 sm:grid-cols-2">
-              <Input
-                className="h-9 border-neutral-300 bg-white text-black"
-                placeholder="Name"
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-              />
-              <NumberInput
-                unit="€"
-                className="h-9 border-neutral-300 bg-white text-black"
-                placeholder="Betrag"
-                value={newAmount}
-                onChange={setNewAmount}
-              />
-              <Select
-                value={newType}
-                onValueChange={(value) =>
-                  setNewType(value as "income" | "expense")
-                }
-              >
-                <SelectTrigger className="h-9 border-neutral-300 bg-white text-black">
-                  <SelectValue placeholder="Typ" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="income">Einnahme</SelectItem>
-                  <SelectItem value="expense">Ausgabe</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select
-                value={newFrequency}
-                onValueChange={(value) =>
-                  setNewFrequency(value as LiquidityFrequency)
-                }
-              >
-                <SelectTrigger className="h-9 border-neutral-300 bg-white text-black">
-                  <SelectValue placeholder="Intervall" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="monthly">Monatlich</SelectItem>
-                  <SelectItem value="quarterly">Quartalsweise</SelectItem>
-                  <SelectItem value="yearly">Jaehrlich</SelectItem>
-                  <SelectItem value="once">Einmalig</SelectItem>
-                </SelectContent>
-              </Select>
-              <MonthPicker
-                className="h-9 border-neutral-300 bg-white text-black"
-                value={newStartMonth}
-                onChange={setNewStartMonth}
-              />
-              <MonthPicker
-                className="h-9 border-neutral-300 bg-white text-black"
-                value={newEndMonth}
-                onChange={setNewEndMonth}
-                placeholder="Kein Endmonat"
-              />
-            </div>
-            <Button type="button" className="mt-2" onClick={addItem}>
-              Position hinzufuegen
-            </Button>
-          </div>
+          <div className="grid gap-3 lg:grid-cols-2">
+            <div className="space-y-2 rounded-md border border-neutral-300 p-3">
+              <h4 className="text-sm font-medium text-black">Einnahmen</h4>
+              <div className="grid grid-cols-[1fr_180px_auto] gap-2">
+                <Input
+                  className="h-9 border-neutral-300 bg-white text-black"
+                  placeholder="Name"
+                  value={newIncomeName}
+                  onChange={(e) => setNewIncomeName(e.target.value)}
+                />
+                <NumberInput
+                  unit="€"
+                  className="h-9 border-neutral-300 bg-white text-black"
+                  value={newIncomeAmount}
+                  onChange={setNewIncomeAmount}
+                />
+                <Button
+                  type="button"
+                  size="icon"
+                  onClick={() => addItem("income")}
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
 
-          <div className="space-y-2">
-            {values.items.map((item) => (
-              <div
-                key={item.id}
-                className="rounded-md border border-neutral-300 p-2"
-              >
-                <div className="grid gap-2 sm:grid-cols-2">
+              {incomeItems.map((item) => (
+                <div
+                  key={item.id}
+                  className="grid grid-cols-[1fr_180px_auto_auto] gap-2"
+                >
                   <Input
                     className="h-9 border-neutral-300 bg-white text-black"
                     value={item.name}
@@ -304,98 +303,191 @@ export default function LiquiditaetsplanPage() {
                       }))
                     }
                   />
-                  <Select
-                    value={item.type}
-                    onValueChange={(value) =>
-                      updateItem(item.id, (old) => ({
-                        ...old,
-                        type: value as "income" | "expense",
-                      }))
-                    }
-                  >
-                    <SelectTrigger className="h-9 border-neutral-300 bg-white text-black">
-                      <SelectValue placeholder="Typ" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="income">Einnahme</SelectItem>
-                      <SelectItem value="expense">Ausgabe</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Select
-                    value={item.frequency}
-                    onValueChange={(value) =>
-                      updateItem(item.id, (old) => ({
-                        ...old,
-                        frequency: value as LiquidityFrequency,
-                      }))
-                    }
-                  >
-                    <SelectTrigger className="h-9 border-neutral-300 bg-white text-black">
-                      <SelectValue placeholder="Intervall" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="monthly">Monatlich</SelectItem>
-                      <SelectItem value="quarterly">Quartalsweise</SelectItem>
-                      <SelectItem value="yearly">Jaehrlich</SelectItem>
-                      <SelectItem value="once">Einmalig</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <MonthPicker
-                    className="h-9 border-neutral-300 bg-white text-black"
-                    value={item.startMonth}
-                    onChange={(nextMonth) =>
-                      updateItem(item.id, (old) => ({
-                        ...old,
-                        startMonth: nextMonth,
-                      }))
-                    }
-                  />
-                  <MonthPicker
-                    className="h-9 border-neutral-300 bg-white text-black"
-                    value={item.endMonth ?? ""}
-                    onChange={(nextMonth) =>
-                      updateItem(item.id, (old) => ({
-                        ...old,
-                        endMonth: nextMonth || undefined,
-                      }))
-                    }
-                    placeholder="Kein Endmonat"
-                  />
-                </div>
-                <div className="mt-2 flex gap-2">
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={() => {
-                      setOverrideItemId(item.id);
-                      setOverrideMonth(values.startMonth);
-                      setOverrideAmount(item.defaultAmount);
-                      setOverrideUseDefault(true);
-                      setOverrideDisabled(false);
-                    }}
+                    size="icon"
+                    onClick={() => openSettings(item)}
+                    title="Einstellungen"
                   >
-                    Monatswerte anpassen
+                    <Settings2 className="h-4 w-4" />
                   </Button>
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={() =>
-                      updateValues((prev) => ({
-                        ...prev,
-                        items: prev.items.filter(
-                          (existing) => existing.id !== item.id,
-                        ),
-                      }))
-                    }
+                    size="icon"
+                    onClick={() => removeItem(item.id)}
+                    title="Entfernen"
                   >
-                    Entfernen
+                    <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
+              ))}
+            </div>
+
+            <div className="space-y-2 rounded-md border border-neutral-300 p-3">
+              <h4 className="text-sm font-medium text-black">Ausgaben</h4>
+              <div className="grid grid-cols-[1fr_180px_auto] gap-2">
+                <Input
+                  className="h-9 border-neutral-300 bg-white text-black"
+                  placeholder="Name"
+                  value={newExpenseName}
+                  onChange={(e) => setNewExpenseName(e.target.value)}
+                />
+                <NumberInput
+                  unit="€"
+                  className="h-9 border-neutral-300 bg-white text-black"
+                  value={newExpenseAmount}
+                  onChange={setNewExpenseAmount}
+                />
+                <Button
+                  type="button"
+                  size="icon"
+                  onClick={() => addItem("expense")}
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
               </div>
-            ))}
+
+              {expenseItems.map((item) => (
+                <div
+                  key={item.id}
+                  className="grid grid-cols-[1fr_180px_auto_auto] gap-2"
+                >
+                  <Input
+                    className="h-9 border-neutral-300 bg-white text-black"
+                    value={item.name}
+                    onChange={(e) =>
+                      updateItem(item.id, (old) => ({
+                        ...old,
+                        name: e.target.value,
+                      }))
+                    }
+                  />
+                  <NumberInput
+                    unit="€"
+                    className="h-9 border-neutral-300 bg-white text-black"
+                    value={item.defaultAmount}
+                    onChange={(value) =>
+                      updateItem(item.id, (old) => ({
+                        ...old,
+                        defaultAmount: value,
+                      }))
+                    }
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => openSettings(item)}
+                    title="Einstellungen"
+                  >
+                    <Settings2 className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => removeItem(item.id)}
+                    title="Entfernen"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
           </div>
         </CardContent>
       </Card>
+
+      <Dialog
+        open={settingsItemId !== null}
+        onOpenChange={(open) => !open && setSettingsItemId(null)}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              Einstellungen {settingsItem ? `- ${settingsItem.name}` : ""}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <label className="text-xs text-neutral-700">
+              Intervall
+              <Select
+                value={settingsFrequency}
+                onValueChange={(value) =>
+                  setSettingsFrequency(value as LiquidityFrequency)
+                }
+              >
+                <SelectTrigger className="h-9 border-neutral-300 bg-white text-black">
+                  <SelectValue placeholder="Intervall" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="monthly">Monatlich</SelectItem>
+                  <SelectItem value="quarterly">Quartalsweise</SelectItem>
+                  <SelectItem value="yearly">Jaehrlich</SelectItem>
+                  <SelectItem value="once">Einmalig</SelectItem>
+                </SelectContent>
+              </Select>
+            </label>
+
+            <label className="text-xs text-neutral-700">
+              Startmonat
+              <MonthPicker
+                className="h-9 border-neutral-300 bg-white text-black"
+                value={settingsStartMonth}
+                onChange={setSettingsStartMonth}
+              />
+            </label>
+
+            <label className="text-xs text-neutral-700">
+              Endmonat
+              <MonthPicker
+                className="h-9 border-neutral-300 bg-white text-black"
+                value={settingsEndMonth}
+                onChange={setSettingsEndMonth}
+                placeholder="Kein Endmonat"
+              />
+            </label>
+
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setSettingsEndMonth("")}
+              >
+                Endmonat entfernen
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  if (!settingsItem) return;
+                  setOverrideItemId(settingsItem.id);
+                  setOverrideMonth(values.startMonth);
+                  setOverrideAmount(settingsItem.defaultAmount);
+                  setOverrideUseDefault(true);
+                  setOverrideDisabled(false);
+                }}
+              >
+                Monatswerte anpassen
+              </Button>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setSettingsItemId(null)}
+            >
+              Abbrechen
+            </Button>
+            <Button type="button" onClick={saveSettings}>
+              Speichern
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={overrideItemId !== null}
