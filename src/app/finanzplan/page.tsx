@@ -270,6 +270,23 @@ export default function FinanzplanPage() {
     [scenarios, scenarioValues, selectedScenarioIds],
   );
 
+  const comparisonBaseId = useMemo(() => {
+    if (selectedScenarioIds.includes(defaultScenarioId))
+      return defaultScenarioId;
+    return selectedScenarioIds[0] ?? null;
+  }, [selectedScenarioIds]);
+
+  const comparisonBaseRow = useMemo(() => {
+    if (!comparisonBaseId) return null;
+    return comparisonRows.find((row) => row.id === comparisonBaseId) ?? null;
+  }, [comparisonRows, comparisonBaseId]);
+
+  function renderDelta(value: number, baseValue: number) {
+    const delta = value - baseValue;
+    const sign = delta > 0 ? "+" : "";
+    return `${sign}${formatNumber(delta)} €`;
+  }
+
   function toggleScenarioForComparison(scenarioId: string) {
     setSelectedScenarioIds((prev) => {
       if (prev.includes(scenarioId)) {
@@ -335,25 +352,78 @@ export default function FinanzplanPage() {
                       {row.stichtag} Jahre
                     </td>
                     <td className="px-3 py-2 text-neutral-100">
-                      {formatNumber(row.bisherBezahltGesamt)} €
+                      <div>{formatNumber(row.bisherBezahltGesamt)} €</div>
+                      {comparisonBaseRow && row.id !== comparisonBaseRow.id && (
+                        <div className="text-xs text-neutral-400">
+                          Δ{" "}
+                          {renderDelta(
+                            row.bisherBezahltGesamt,
+                            comparisonBaseRow.bisherBezahltGesamt,
+                          )}
+                        </div>
+                      )}
                     </td>
                     <td className="px-3 py-2 text-green-300">
-                      {formatNumber(row.getilgtGesamt)} €
+                      <div>{formatNumber(row.getilgtGesamt)} €</div>
+                      {comparisonBaseRow && row.id !== comparisonBaseRow.id && (
+                        <div className="text-xs text-neutral-400">
+                          Δ{" "}
+                          {renderDelta(
+                            row.getilgtGesamt,
+                            comparisonBaseRow.getilgtGesamt,
+                          )}
+                        </div>
+                      )}
                     </td>
                     <td className="px-3 py-2 text-neutral-100">
-                      {formatNumber(row.restschuldGesamt)} €
+                      <div>{formatNumber(row.restschuldGesamt)} €</div>
+                      {comparisonBaseRow && row.id !== comparisonBaseRow.id && (
+                        <div className="text-xs text-neutral-400">
+                          Δ{" "}
+                          {renderDelta(
+                            row.restschuldGesamt,
+                            comparisonBaseRow.restschuldGesamt,
+                          )}
+                        </div>
+                      )}
                     </td>
                     <td className="px-3 py-2 text-amber-300">
-                      {formatNumber(row.zinsenGesamt)} €
+                      <div>{formatNumber(row.zinsenGesamt)} €</div>
+                      {comparisonBaseRow && row.id !== comparisonBaseRow.id && (
+                        <div className="text-xs text-neutral-400">
+                          Δ{" "}
+                          {renderDelta(
+                            row.zinsenGesamt,
+                            comparisonBaseRow.zinsenGesamt,
+                          )}
+                        </div>
+                      )}
                     </td>
                     <td className="px-3 py-2 text-neutral-100">
-                      {formatNumber(row.durchschnittMonatlicheZinsen)} €
+                      <div>
+                        {formatNumber(row.durchschnittMonatlicheZinsen)} €
+                      </div>
+                      {comparisonBaseRow && row.id !== comparisonBaseRow.id && (
+                        <div className="text-xs text-neutral-400">
+                          Δ{" "}
+                          {renderDelta(
+                            row.durchschnittMonatlicheZinsen,
+                            comparisonBaseRow.durchschnittMonatlicheZinsen,
+                          )}
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+
+          {comparisonBaseRow && (
+            <p className="text-xs text-neutral-600">
+              Delta-Basis: {comparisonBaseRow.name}
+            </p>
+          )}
 
           <p className="text-sm text-neutral-700">
             Detailtabellen unten zeigen das aktuell aktive Szenario.
