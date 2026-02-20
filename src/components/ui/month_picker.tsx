@@ -1,31 +1,32 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { Button } from "~/components/ui/button";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "~/components/ui/select";
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "~/components/ui/popover";
+import { cn } from "~/lib/utils";
 
-function buildMonthOptions(fromYear: number, toYear: number) {
-  const options: Array<{ value: string; label: string }> = [];
+const MONTH_INDICES = Array.from({ length: 12 }, (_, index) => index);
 
-  for (let year = fromYear; year <= toYear; year += 1) {
-    for (let month = 1; month <= 12; month += 1) {
-      const value = `${year.toString().padStart(4, "0")}-${month
-        .toString()
-        .padStart(2, "0")}`;
-      const label = format(new Date(year, month - 1, 1), "LLLL yyyy", {
-        locale: de,
-      });
-      options.push({ value, label });
-    }
-  }
+function parseMonthValue(
+  value: string,
+): { year: number; monthIndex: number } | null {
+  if (!value) return null;
+  const [yearRaw, monthRaw] = value.split("-").map(Number);
+  if (!yearRaw || !monthRaw || monthRaw < 1 || monthRaw > 12) return null;
+  return { year: yearRaw, monthIndex: monthRaw - 1 };
+}
 
-  return options;
+function toMonthValue(year: number, monthIndex: number) {
+  return `${year.toString().padStart(4, "0")}-${(monthIndex + 1)
+    .toString()
+    .padStart(2, "0")}`;
 }
 
 export function MonthPicker({
@@ -45,25 +46,88 @@ export function MonthPicker({
   fromYear?: number;
   toYear?: number;
 }) {
-  const monthOptions = buildMonthOptions(fromYear, toYear);
-  const hasCurrentValue = monthOptions.some((option) => option.value === value);
+  const parsed = parseMonthValue(value);
+  const initialYear = parsed?.year ?? fromYear;
+  const [open, setOpen] = useState(false);
+  const [visibleYear, setVisibleYear] = useState(() =>
+    Math.min(toYear, Math.max(fromYear, initialYear)),
+  );
+
+  const monthLabel = useMemo(() => {
+    if (!parsed) return placeholder;
+    return format(new Date(parsed.year, parsed.monthIndex, 1), "LLLL yyyy", {
+      locale: de,
+    });
+  }, [parsed, placeholder]);
 
   return (
-    <Select
-      value={hasCurrentValue ? value : undefined}
-      onValueChange={onChange}
-      disabled={disabled}
-    >
-      <SelectTrigger className={className}>
-        <SelectValue placeholder={placeholder} />
-      </SelectTrigger>
-      <SelectContent>
-        {monthOptions.map((option) => (
-          <SelectItem key={option.value} value={option.value}>
-            {option.label}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={disabled}
+          className={cn(
+            "w-full justify-between border-neutral-300 bg-white text-black hover:bg-neutral-50",
+            className,
+          )}
+        >
+          <span className={cn(!parsed && "text-neutral-500")}>
+            {monthLabel}
+          </span>
+          <span className="text-xs text-neutral-500">Monat</span>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-72 p-3" align="start">
+        <div className="mb-3 flex items-center justify-between">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={visibleYear <= fromYear}
+            onClick={() =>
+              setVisibleYear((year) => Math.max(fromYear, year - 1))
+            }
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <span className="text-sm font-medium">{visibleYear}</span>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={visibleYear >= toYear}
+            onClick={() => setVisibleYear((year) => Math.min(toYear, year + 1))}
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+
+        <div className="grid grid-cols-3 gap-2">
+          {MONTH_INDICES.map((monthIndex) => {
+            const monthDate = new Date(visibleYear, monthIndex, 1);
+            const monthText = format(monthDate, "LLL", { locale: de });
+            const monthValue = toMonthValue(visibleYear, monthIndex);
+            const isSelected = value === monthValue;
+
+            return (
+              <Button
+                key={monthValue}
+                type="button"
+                variant={isSelected ? "default" : "outline"}
+                size="sm"
+                className="h-8"
+                onClick={() => {
+                  onChange(monthValue);
+                  setOpen(false);
+                }}
+              >
+                {monthText}
+              </Button>
+            );
+          })}
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
