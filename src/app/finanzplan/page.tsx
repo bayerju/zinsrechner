@@ -55,6 +55,8 @@ type KreditRow = {
   durchschnittMonatlicheZinsen: number;
 };
 
+const SCENARIO_COLORS = ["#60a5fa", "#34d399", "#f59e0b", "#f472b6"];
+
 function calculateScenarioFinanzplan(values: ScenarioValues): {
   kreditRows: KreditRow[];
   finanzplanRows: FinanzplanRow[];
@@ -334,11 +336,10 @@ export default function FinanzplanPage() {
   );
 
   const chartConfig = useMemo(() => {
-    const palette = ["#60a5fa", "#34d399", "#f59e0b", "#f472b6"];
     return comparisonRows.reduce((config, row, index) => {
       config[row.id] = {
         label: row.name,
-        color: palette[index % palette.length],
+        color: SCENARIO_COLORS[index % SCENARIO_COLORS.length],
       };
       return config;
     }, {} as ChartConfig);
@@ -391,6 +392,12 @@ export default function FinanzplanPage() {
     });
   }
 
+  function getScenarioAccentColor(scenarioId: string) {
+    const index = selectedScenarioIds.indexOf(scenarioId);
+    if (index === -1) return null;
+    return SCENARIO_COLORS[index % SCENARIO_COLORS.length];
+  }
+
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-xl flex-col items-center bg-neutral-900 px-2 py-2 md:max-w-4xl md:px-4 lg:max-w-6xl">
       <Card className="w-full">
@@ -406,17 +413,27 @@ export default function FinanzplanPage() {
             <div className="flex flex-wrap gap-2">
               {scenarioList.map((scenario) => {
                 const selected = selectedScenarioIds.includes(scenario.id);
+                const accentColor = getScenarioAccentColor(scenario.id);
                 return (
                   <button
                     type="button"
                     key={scenario.id}
                     onClick={() => toggleScenarioForComparison(scenario.id)}
-                    className={`rounded-full border px-3 py-1 text-sm ${
+                    className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-sm ${
                       selected
-                        ? "border-black bg-black text-white"
-                        : "border-neutral-300 bg-white text-black"
+                        ? "border-2 bg-white text-black"
+                        : "border-neutral-300 bg-white text-neutral-700"
                     }`}
+                    style={
+                      selected && accentColor
+                        ? { borderColor: accentColor }
+                        : undefined
+                    }
                   >
+                    <span
+                      className="inline-block h-2.5 w-2.5 rounded-full"
+                      style={{ backgroundColor: accentColor ?? "#a3a3a3" }}
+                    />
                     {scenario.name}
                   </button>
                 );
