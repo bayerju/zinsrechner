@@ -48,6 +48,11 @@ export function ScenarioBar() {
   const [activeScenarioId, setActiveScenarioId] = useAtom(activeScenarioIdAtom);
   const [, setScenarioValues] = useAtom(scenarioValuesAtom);
   const [isActionsOpen, setIsActionsOpen] = useState(false);
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [createDuplicateFromActive, setCreateDuplicateFromActive] =
+    useState(false);
+  const [createValue, setCreateValue] = useState("");
+  const [createError, setCreateError] = useState<string | null>(null);
   const [isRenameOpen, setIsRenameOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [renameValue, setRenameValue] = useState("");
@@ -83,11 +88,7 @@ export function ScenarioBar() {
     setScenarioValues,
   ]);
 
-  function createScenario(baseName: string, duplicateFromActive = false) {
-    const existingNames = new Set(
-      scenarioList.map((scenario) => scenario.name),
-    );
-    const name = buildUniqueName(baseName, existingNames);
+  function createScenario(name: string, duplicateFromActive = false) {
     const id = createScenarioId();
     const scenario: Scenario = {
       id,
@@ -108,6 +109,42 @@ export function ScenarioBar() {
       };
     });
     setActiveScenarioId(id);
+  }
+
+  function openCreateDialog(duplicateFromActive: boolean) {
+    const existingNames = new Set(
+      scenarioList.map((scenario) => scenario.name),
+    );
+    const baseName = duplicateFromActive
+      ? activeScenario
+        ? `${activeScenario.name} Kopie`
+        : "Szenario Kopie"
+      : "Neues Szenario";
+
+    setCreateDuplicateFromActive(duplicateFromActive);
+    setCreateValue(buildUniqueName(baseName, existingNames));
+    setCreateError(null);
+    setIsActionsOpen(false);
+    setIsCreateOpen(true);
+  }
+
+  function submitCreateScenario() {
+    const name = createValue.trim();
+    if (!name) {
+      setCreateError("Szenarioname ist erforderlich.");
+      return;
+    }
+
+    const nameTaken = scenarioList.some(
+      (scenario) => scenario.name.toLowerCase() === name.toLowerCase(),
+    );
+    if (nameTaken) {
+      setCreateError("Ein Szenario mit diesem Namen existiert bereits.");
+      return;
+    }
+
+    createScenario(name, createDuplicateFromActive);
+    setIsCreateOpen(false);
   }
 
   function openRenameDialog() {
@@ -205,7 +242,7 @@ export function ScenarioBar() {
           type="button"
           size="sm"
           variant="outline"
-          onClick={() => createScenario("Neues Szenario")}
+          onClick={() => openCreateDialog(false)}
         >
           Neu
         </Button>
@@ -213,14 +250,7 @@ export function ScenarioBar() {
           type="button"
           size="sm"
           variant="outline"
-          onClick={() =>
-            createScenario(
-              activeScenario
-                ? `${activeScenario.name} Kopie`
-                : "Szenario Kopie",
-              true,
-            )
-          }
+          onClick={() => openCreateDialog(true)}
           disabled={!activeScenario}
         >
           Duplizieren
@@ -257,8 +287,7 @@ export function ScenarioBar() {
               type="button"
               variant="outline"
               onClick={() => {
-                createScenario("Neues Szenario");
-                setIsActionsOpen(false);
+                openCreateDialog(false);
               }}
             >
               Neu
@@ -267,13 +296,7 @@ export function ScenarioBar() {
               type="button"
               variant="outline"
               onClick={() => {
-                createScenario(
-                  activeScenario
-                    ? `${activeScenario.name} Kopie`
-                    : "Szenario Kopie",
-                  true,
-                );
-                setIsActionsOpen(false);
+                openCreateDialog(true);
               }}
               disabled={!activeScenario}
             >
@@ -296,6 +319,52 @@ export function ScenarioBar() {
               Loeschen
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {createDuplicateFromActive
+                ? "Szenario duplizieren"
+                : "Neues Szenario"}
+            </DialogTitle>
+            <DialogDescription>
+              Gib einen Namen fuer das neue Szenario ein.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Input
+              autoFocus
+              value={createValue}
+              onChange={(e) => {
+                setCreateValue(e.target.value);
+                if (createError) setCreateError(null);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  submitCreateScenario();
+                }
+              }}
+              placeholder="Szenarioname"
+            />
+            {createError && (
+              <p className="text-sm text-red-500">{createError}</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsCreateOpen(false)}
+            >
+              Abbrechen
+            </Button>
+            <Button type="button" onClick={submitCreateScenario}>
+              Speichern
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
       <Dialog open={isRenameOpen} onOpenChange={setIsRenameOpen}>
