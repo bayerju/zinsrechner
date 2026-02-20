@@ -140,6 +140,15 @@ export default function LiquiditaetsplanPage() {
       expenseLabelFilter.every((label) => item.labels.includes(label)),
   );
 
+  const incomeFilteredSum = incomeItems.reduce(
+    (sum, item) => sum + item.defaultAmount,
+    0,
+  );
+  const expenseFilteredSum = expenseItems.reduce(
+    (sum, item) => sum + item.defaultAmount,
+    0,
+  );
+
   function updateValues(
     update:
       | LiquidityScenarioValues
@@ -354,7 +363,12 @@ export default function LiquiditaetsplanPage() {
 
           <div className="grid gap-3 lg:grid-cols-2">
             <div className="space-y-2 rounded-md border border-neutral-300 p-3">
-              <h4 className="text-sm font-medium text-black">Einnahmen</h4>
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-medium text-black">Einnahmen</h4>
+                <span className="text-sm font-medium text-green-700">
+                  Summe: {incomeFilteredSum.toLocaleString("de-DE")} €
+                </span>
+              </div>
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-xs text-neutral-600">Filter (AND):</span>
                 {incomeLabels.length === 0 ? (
@@ -483,7 +497,12 @@ export default function LiquiditaetsplanPage() {
             </div>
 
             <div className="space-y-2 rounded-md border border-neutral-300 p-3">
-              <h4 className="text-sm font-medium text-black">Ausgaben</h4>
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-medium text-black">Ausgaben</h4>
+                <span className="text-sm font-medium text-red-700">
+                  Summe: {expenseFilteredSum.toLocaleString("de-DE")} €
+                </span>
+              </div>
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-xs text-neutral-600">Filter (AND):</span>
                 {expenseLabels.length === 0 ? (
