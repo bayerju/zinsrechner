@@ -341,8 +341,8 @@ function calculateDetailRestschuldStack(
     }),
   ];
 
-  const chartData = Array.from({ length: maxYears }, (_, index) => {
-    const year = index + 1;
+  const chartData = Array.from({ length: maxYears + 1 }, (_, index) => {
+    const year = index;
     const row: Record<string, number> & { year: number } = { year };
     creditSeries.forEach((series) => {
       row[series.key] = series.restschuldAt(year);
@@ -413,8 +413,8 @@ function calculateDetailMonthlyRateStack(
     }),
   ];
 
-  const chartData = Array.from({ length: maxYears }, (_, index) => {
-    const year = index + 1;
+  const chartData = Array.from({ length: maxYears + 1 }, (_, index) => {
+    const year = index;
     const row: Record<string, number> & { year: number } = { year };
     creditSeries.forEach((series) => {
       row[series.key] = series.monthlyRateAt(year);
