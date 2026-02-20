@@ -2,23 +2,13 @@
 
 import { useAtom, useAtomValue } from "jotai";
 import { useEffect, useMemo, useState } from "react";
-import {
-  Area,
-  AreaChart,
-  CartesianGrid,
-  Line,
-  LineChart,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
 import { TopNav } from "~/components/top_nav";
 import { Card, CardContent } from "~/components/ui/card";
+import { type ChartConfig } from "~/components/ui/chart";
 import {
-  ChartContainer,
-  ChartTooltipContent,
-  type ChartConfig,
-} from "~/components/ui/chart";
+  DetailRestschuldStackChart,
+  ScenarioMonthlyRateChart,
+} from "~/components/finanzplan_charts";
 import {
   calculateMonthlyRate,
   calculateRestschuld,
@@ -573,50 +563,11 @@ export default function FinanzplanPage() {
             </div>
           </div>
 
-          <div className="rounded-md border border-neutral-700 bg-neutral-800 p-3">
-            <p className="mb-2 text-sm font-medium text-neutral-100">
-              Monatliche Gesamt-Rate im Zeitverlauf
-            </p>
-            <ChartContainer config={chartConfig} className="h-72 w-full">
-              <LineChart
-                data={chartData}
-                margin={{ left: 8, right: 8, top: 8, bottom: 8 }}
-              >
-                <CartesianGrid vertical={false} />
-                <XAxis
-                  dataKey="year"
-                  tickLine={false}
-                  axisLine={false}
-                  tickMargin={8}
-                  label={{
-                    value: "Jahr",
-                    position: "insideBottom",
-                    offset: -5,
-                  }}
-                />
-                <YAxis
-                  width={96}
-                  tickLine={false}
-                  axisLine={false}
-                  tickMargin={8}
-                  tickFormatter={(value) =>
-                    `${Math.round(value).toLocaleString("de-DE")} €`
-                  }
-                />
-                <Tooltip content={<ChartTooltipContent />} />
-                {comparisonRows.map((scenario) => (
-                  <Line
-                    key={scenario.id}
-                    dataKey={scenario.id}
-                    type="monotone"
-                    stroke={`var(--color-${scenario.id})`}
-                    strokeWidth={2}
-                    dot={false}
-                  />
-                ))}
-              </LineChart>
-            </ChartContainer>
-          </div>
+          <ScenarioMonthlyRateChart
+            chartConfig={chartConfig}
+            chartData={chartData}
+            scenarioIds={comparisonRows.map((scenario) => scenario.id)}
+          />
 
           <div className="overflow-x-auto rounded-md border border-neutral-700 bg-neutral-800">
             <table className="w-full min-w-[820px] text-sm">
@@ -759,60 +710,14 @@ export default function FinanzplanPage() {
           <p className="text-sm text-neutral-700">
             Einzelrechnung je Kredit bis zur jeweiligen Zinsbindung.
           </p>
-          <div
-            className="rounded-md border border-neutral-700 bg-neutral-800 p-3"
-            style={{ borderLeft: `4px solid ${detailAccentColor}` }}
-          >
-            <p
-              className="mb-2 text-sm font-medium"
-              style={{ color: detailAccentColor }}
-            >
-              Restschuld ueber Zeit (aufgeteilt nach Krediten)
-            </p>
-            <ChartContainer
-              config={detailRestschuldChart.chartConfig}
-              className="h-72 w-full"
-            >
-              <AreaChart
-                data={detailRestschuldChart.chartData}
-                margin={{ left: 8, right: 8, top: 8, bottom: 8 }}
-              >
-                <CartesianGrid vertical={false} />
-                <XAxis
-                  dataKey="year"
-                  tickLine={false}
-                  axisLine={false}
-                  tickMargin={8}
-                  label={{
-                    value: "Jahr",
-                    position: "insideBottom",
-                    offset: -5,
-                  }}
-                />
-                <YAxis
-                  width={96}
-                  tickLine={false}
-                  axisLine={false}
-                  tickMargin={8}
-                  tickFormatter={(value) =>
-                    `${Math.round(value).toLocaleString("de-DE")} €`
-                  }
-                />
-                <Tooltip content={<ChartTooltipContent />} />
-                {detailRestschuldChart.creditSeries.map((series) => (
-                  <Area
-                    key={series.key}
-                    dataKey={series.key}
-                    type="monotone"
-                    stackId="restschuld"
-                    stroke={`var(--color-${series.key})`}
-                    fill={`var(--color-${series.key})`}
-                    fillOpacity={0.25}
-                  />
-                ))}
-              </AreaChart>
-            </ChartContainer>
-          </div>
+          <DetailRestschuldStackChart
+            chartConfig={detailRestschuldChart.chartConfig}
+            chartData={detailRestschuldChart.chartData}
+            seriesKeys={detailRestschuldChart.creditSeries.map(
+              (series) => series.key,
+            )}
+            accentColor={detailAccentColor}
+          />
           <div
             className="overflow-x-auto rounded-md border border-neutral-700 bg-neutral-800"
             style={{ borderLeft: `4px solid ${detailAccentColor}` }}
