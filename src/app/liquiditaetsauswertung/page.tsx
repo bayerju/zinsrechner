@@ -2,6 +2,14 @@
 
 import { useAtom, useAtomValue } from "jotai";
 import { useMemo, useState } from "react";
+import {
+  CartesianGrid,
+  Line,
+  LineChart,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { TopNav } from "~/components/top_nav";
 import { LiquidityScenarioBar } from "~/components/liquidity_scenario_bar";
 import { Card, CardContent } from "~/components/ui/card";
@@ -18,6 +26,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select";
+import {
+  ChartContainer,
+  ChartTooltipContent,
+  type ChartConfig,
+} from "~/components/ui/chart";
 import { formatNumber } from "~/lib/number_fromat";
 import { getMonthContributions, simulateLiquidity } from "~/lib/liquidity";
 import { scenarioValuesAtom } from "~/state/scenario_values_atom";
@@ -60,6 +73,22 @@ export default function LiquiditaetsauswertungPage() {
     (sum, contribution) => sum + contribution.amount,
     0,
   );
+
+  const liquidityChartData = useMemo(
+    () =>
+      resultRows.map((row) => ({
+        month: row.month,
+        capitalEnd: row.capitalEnd,
+      })),
+    [resultRows],
+  );
+
+  const liquidityChartConfig: ChartConfig = {
+    capitalEnd: {
+      label: "Kontostand",
+      color: "#3b82f6",
+    },
+  };
 
   function updateValues(
     update:
@@ -115,6 +144,47 @@ export default function LiquiditaetsauswertungPage() {
             <div className="rounded-md border border-neutral-300 bg-white p-2">
               Minimum: {formatNumber(minCapital)} €
             </div>
+          </div>
+
+          <div className="rounded-md border border-neutral-700 bg-neutral-800 p-3">
+            <p className="mb-2 text-sm font-medium text-neutral-100">
+              Kontostand ueber Zeit
+            </p>
+            <ChartContainer
+              config={liquidityChartConfig}
+              className="h-72 w-full"
+            >
+              <LineChart
+                data={liquidityChartData}
+                margin={{ left: 8, right: 8, top: 8, bottom: 8 }}
+              >
+                <CartesianGrid vertical={false} />
+                <XAxis
+                  dataKey="month"
+                  tickLine={false}
+                  axisLine={false}
+                  tickMargin={8}
+                  minTickGap={28}
+                />
+                <YAxis
+                  width={96}
+                  tickLine={false}
+                  axisLine={false}
+                  tickMargin={8}
+                  tickFormatter={(value) =>
+                    `${Math.round(Number(value)).toLocaleString("de-DE")} €`
+                  }
+                />
+                <Tooltip content={<ChartTooltipContent />} />
+                <Line
+                  dataKey="capitalEnd"
+                  type="monotone"
+                  stroke="var(--color-capitalEnd)"
+                  strokeWidth={2}
+                  dot={false}
+                />
+              </LineChart>
+            </ChartContainer>
           </div>
 
           <div className="max-h-[650px] overflow-auto rounded-md border border-neutral-300 bg-white">
