@@ -104,9 +104,10 @@ function creditRateByMonth(
   monthIndex: number,
   segments: Array<{ startYear: number; endYear: number; rate: number }>,
 ) {
-  const year = monthIndex / 12 + 1;
+  const yearsElapsed = monthIndex / 12;
   return segments.reduce((sum, segment) => {
-    const active = segment.startYear < year && segment.endYear >= year;
+    const active =
+      yearsElapsed >= segment.startYear && yearsElapsed < segment.endYear;
     return active ? sum + segment.rate : sum;
   }, 0);
 }
