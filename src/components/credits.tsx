@@ -41,34 +41,96 @@ export default function Credits() {
     setOpenCreditDialog(open);
   }
 
+  const creditEntries = Object.entries(credits);
+  const sumAdditionalCredits = creditEntries.reduce(
+    (sum, [, credit]) => sum + credit.summeDarlehen,
+    0,
+  );
+
   return (
-    <div>
-      <h1 className="text-lg font-semibold">Weitere Kredite</h1>
-      {Object.entries(credits).map(([key, credit]) => (
-        <div key={key} className="flex flex-row gap-2">
-          <p>{credit.name}</p>
-          {credit.rates.map((rate) => (
-            <p key={rate.key + key}>{Number(rate.rate).toFixed(2)} €</p>
-          ))}
-          <Edit
-            className="cursor-pointer"
-            onClick={() => {
-              setCreditToEdit(credit);
-              OnOpenChange(true);
-            }}
-          />
-          <Trash2
-            className="cursor-pointer"
-            onClick={() =>
-              setCredits((prev) => {
-                const newCredits = { ...prev };
-                delete newCredits[key];
-                return newCredits;
-              })
-            }
-          />
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <h1 className="text-lg font-semibold">Weitere Kredite</h1>
+        <p className="text-sm text-neutral-400">
+          Summe: {formatNumber(sumAdditionalCredits)} €
+        </p>
+      </div>
+
+      {creditEntries.length === 0 ? (
+        <p className="text-sm text-neutral-400">
+          Noch keine weiteren Kredite angelegt.
+        </p>
+      ) : (
+        <div className="overflow-x-auto rounded-md border border-neutral-700">
+          <table className="w-full min-w-[680px] text-sm">
+            <thead>
+              <tr className="bg-neutral-800 text-left text-neutral-300">
+                <th className="px-3 py-2 font-medium">Kredit</th>
+                <th className="px-3 py-2 font-medium">Darlehenssumme</th>
+                <th className="px-3 py-2 font-medium">Raten</th>
+                <th className="px-3 py-2 font-medium">Aktionen</th>
+              </tr>
+            </thead>
+            <tbody>
+              {creditEntries.map(([key, credit]) => (
+                <tr
+                  key={key}
+                  className="border-t border-neutral-700 bg-neutral-900"
+                >
+                  <td className="px-3 py-2 text-neutral-100">{credit.name}</td>
+                  <td className="px-3 py-2 text-neutral-100">
+                    {formatNumber(credit.summeDarlehen)} €
+                  </td>
+                  <td className="px-3 py-2">
+                    <div className="space-y-1 text-sm text-neutral-100">
+                      {credit.rates.map((rate) => (
+                        <p key={rate.key + key}>
+                          {rate.startYear}-{rate.endYear}J:{" "}
+                          {Number(rate.rate).toFixed(2)} €
+                        </p>
+                      ))}
+                    </div>
+                  </td>
+                  <td className="px-3 py-2">
+                    <div className="flex items-center gap-1">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => {
+                          setCreditToEdit(credit);
+                          OnOpenChange(true);
+                        }}
+                        title="Bearbeiten"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() =>
+                          setCredits((prev) => {
+                            const newCredits = { ...prev };
+                            delete newCredits[key];
+                            return newCredits;
+                          })
+                        }
+                        title="Löschen"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-      ))}
+      )}
+
       <NewCreditDialog
         key={(creditToEdit?.name ?? "new") + forceRemountCreditDialog}
         open={openCreditDialog}
