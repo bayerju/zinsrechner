@@ -22,6 +22,10 @@ import {
   defaultScenarioValues,
   scenarioValuesAtom,
 } from "~/state/scenario_values_atom";
+import {
+  defaultScenarioColor,
+  getNextScenarioColor,
+} from "~/lib/scenario_colors";
 
 function createScenarioId() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -60,6 +64,7 @@ export function ScenarioBar() {
         id: defaultScenarioId,
         name: "Basis",
         createdAt: 0,
+        color: defaultScenarioColor,
       };
       setScenarios({ [defaultScenario.id]: defaultScenario });
       setActiveScenarioId(defaultScenario.id);
@@ -88,6 +93,7 @@ export function ScenarioBar() {
       id,
       name,
       createdAt: Date.now(),
+      color: getNextScenarioColor(scenarioList.map((item) => item.color)),
     };
 
     setScenarios((prev) => ({ ...prev, [id]: scenario }));

@@ -55,8 +55,6 @@ type KreditRow = {
   durchschnittMonatlicheZinsen: number;
 };
 
-const SCENARIO_COLORS = ["#60a5fa", "#34d399", "#f59e0b", "#f472b6"];
-
 function calculateScenarioFinanzplan(values: ScenarioValues): {
   kreditRows: KreditRow[];
   finanzplanRows: FinanzplanRow[];
@@ -348,14 +346,14 @@ export default function FinanzplanPage() {
   );
 
   const chartConfig = useMemo(() => {
-    return comparisonRows.reduce((config, row, index) => {
+    return comparisonRows.reduce((config, row) => {
       config[row.id] = {
         label: row.name,
-        color: SCENARIO_COLORS[index % SCENARIO_COLORS.length],
+        color: scenarios[row.id]?.color ?? "#a3a3a3",
       };
       return config;
     }, {} as ChartConfig);
-  }, [comparisonRows]);
+  }, [comparisonRows, scenarios]);
 
   const chartData = useMemo(() => {
     const perScenarioSeries = comparisonRows.map((row) => {
@@ -405,26 +403,12 @@ export default function FinanzplanPage() {
   }
 
   function getScenarioAccentColor(scenarioId: string) {
-    const index = selectedScenarioIds.indexOf(scenarioId);
-    if (index === -1) return null;
-    return SCENARIO_COLORS[index % SCENARIO_COLORS.length];
+    if (!selectedScenarioIds.includes(scenarioId)) return null;
+    return scenarios[scenarioId]?.color ?? "#a3a3a3";
   }
 
   function getStableScenarioColor(scenarioId: string) {
-    const index = scenarioList.findIndex(
-      (scenario) => scenario.id === scenarioId,
-    );
-    if (index === -1) return "#a3a3a3";
-    return SCENARIO_COLORS[index % SCENARIO_COLORS.length];
-  }
-
-  function getScenarioChip(scenarioId: string) {
-    const chips = ["🔵", "🟢", "🟠", "🩷"];
-    const index = scenarioList.findIndex(
-      (scenario) => scenario.id === scenarioId,
-    );
-    if (index === -1) return "⚪";
-    return chips[index % chips.length] ?? "⚪";
+    return scenarios[scenarioId]?.color ?? "#a3a3a3";
   }
 
   const detailAccentColor = getStableScenarioColor(detailScenarioId);
@@ -633,6 +617,10 @@ export default function FinanzplanPage() {
             <label className="text-sm text-neutral-700">
               Details fuer Szenario:
             </label>
+            <span
+              className="inline-block h-2.5 w-2.5 rounded-full"
+              style={{ backgroundColor: detailAccentColor }}
+            />
             <select
               className="h-7 min-w-44 rounded-md border-2 bg-white px-2 text-xs font-medium"
               style={{
@@ -644,7 +632,7 @@ export default function FinanzplanPage() {
             >
               {scenarioList.map((scenario) => (
                 <option key={scenario.id} value={scenario.id}>
-                  {getScenarioChip(scenario.id)} {scenario.name}
+                  {scenario.name}
                 </option>
               ))}
             </select>
