@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useAtom } from "jotai";
+import { useEffect, useRef, useState } from "react";
+import { atom, useAtom, useSetAtom } from "jotai";
 import { Button } from "~/components/ui/button";
 import {
   Dialog,
@@ -43,10 +43,48 @@ function buildUniqueName(name: string, takenNames: Set<string>) {
   return `${name} ${i}`;
 }
 
+const createScenarioAndSelectAtom = atom(
+  null,
+  (
+    get,
+    set,
+    payload: {
+      id: string;
+      name: string;
+      createdAt: number;
+      color: string;
+      duplicateFromActive: boolean;
+    },
+  ) => {
+    const { id, name, createdAt, color, duplicateFromActive } = payload;
+    const sourceScenarioId = get(activeScenarioIdAtom);
+
+    set(scenariosAtom, (prev) => ({
+      ...prev,
+      [id]: { id, name, createdAt, color },
+    }));
+
+    set(scenarioValuesAtom, (prev) => {
+      const sourceValues = prev[sourceScenarioId] ?? defaultScenarioValues;
+      const nextValues = duplicateFromActive
+        ? structuredClone(sourceValues)
+        : structuredClone(defaultScenarioValues);
+      return {
+        ...prev,
+        [id]: nextValues,
+      };
+    });
+
+    set(activeScenarioIdAtom, id);
+  },
+);
+
 export function ScenarioBar() {
   const [scenarios, setScenarios] = useAtom(scenariosAtom);
   const [activeScenarioId, setActiveScenarioId] = useAtom(activeScenarioIdAtom);
   const [, setScenarioValues] = useAtom(scenarioValuesAtom);
+  const createScenarioAndSelect = useSetAtom(createScenarioAndSelectAtom);
+  const hasValidatedInitialSelectionRef = useRef(false);
   const [isActionsOpen, setIsActionsOpen] = useState(false);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [createDuplicateFromActive, setCreateDuplicateFromActive] =
@@ -62,6 +100,16 @@ export function ScenarioBar() {
     (a, b) => a.createdAt - b.createdAt,
   );
   const activeScenario = scenarios[activeScenarioId];
+  const debugEnabled = process.env.NODE_ENV !== "production";
+
+  function debugLog(message: string, details?: Record<string, unknown>) {
+    if (!debugEnabled) return;
+    console.info("[ScenarioBar]", message, {
+      activeScenarioId,
+      scenarioIds: scenarioList.map((scenario) => scenario.id),
+      ...details,
+    });
+  }
 
   useEffect(() => {
     if (scenarioList.length === 0) {
@@ -74,41 +122,66 @@ export function ScenarioBar() {
       setScenarios({ [defaultScenario.id]: defaultScenario });
       setActiveScenarioId(defaultScenario.id);
       setScenarioValues({ [defaultScenario.id]: defaultScenarioValues });
+      hasValidatedInitialSelectionRef.current = true;
       return;
     }
 
-    if (!activeScenario && scenarioList[0]) {
-      setActiveScenarioId(scenarioList[0].id);
+    if (hasValidatedInitialSelectionRef.current) {
+      return;
     }
+
+    hasValidatedInitialSelectionRef.current = true;
+
+    if (activeScenario) {
+      return;
+    }
+
+    if (!scenarioList[0]) return;
+
+    if (debugEnabled) {
+      console.info("[ScenarioBar]", "fallback to first scenario", {
+        activeScenarioId,
+        scenarioIds: scenarioList.map((scenario) => scenario.id),
+        fallbackScenarioId: scenarioList[0].id,
+      });
+    }
+    setActiveScenarioId(scenarioList[0].id);
   }, [
     activeScenario,
+    activeScenarioId,
+    debugEnabled,
     scenarioList,
     setActiveScenarioId,
     setScenarios,
     setScenarioValues,
   ]);
 
+  useEffect(() => {
+    if (!debugEnabled) return;
+    console.info("[ScenarioBar]", "state snapshot", {
+      activeScenarioId,
+      hasActiveScenario: Boolean(activeScenario),
+      scenarioIds: scenarioList.map((scenario) => scenario.id),
+    });
+  }, [activeScenario, activeScenarioId, debugEnabled, scenarioList]);
+
   function createScenario(name: string, duplicateFromActive = false) {
     const id = createScenarioId();
-    const scenario: Scenario = {
+    const createdAt = Date.now();
+    const color = getNextScenarioColor(scenarioList.map((item) => item.color));
+
+    createScenarioAndSelect({
       id,
       name,
-      createdAt: Date.now(),
-      color: getNextScenarioColor(scenarioList.map((item) => item.color)),
-    };
-
-    setScenarios((prev) => ({ ...prev, [id]: scenario }));
-    setScenarioValues((prev) => {
-      const activeValues = prev[activeScenarioId] ?? defaultScenarioValues;
-      const nextValues = duplicateFromActive
-        ? structuredClone(activeValues)
-        : structuredClone(defaultScenarioValues);
-      return {
-        ...prev,
-        [id]: nextValues,
-      };
+      createdAt,
+      color,
+      duplicateFromActive,
     });
-    setActiveScenarioId(id);
+    debugLog("created scenario", {
+      createdScenarioId: id,
+      createdScenarioName: name,
+      duplicateFromActive,
+    });
   }
 
   function openCreateDialog(duplicateFromActive: boolean) {
@@ -220,7 +293,11 @@ export function ScenarioBar() {
       <select
         className="h-8 min-w-0 flex-1 rounded-md border border-neutral-300 bg-white px-2 text-sm text-black sm:min-w-44 sm:flex-none"
         value={activeScenarioId}
-        onChange={(e) => setActiveScenarioId(e.target.value)}
+        onChange={(e) => {
+          const nextId = e.target.value;
+          debugLog("manual scenario select", { nextScenarioId: nextId });
+          setActiveScenarioId(nextId);
+        }}
       >
         {scenarioList.map((scenario) => (
           <option key={scenario.id} value={scenario.id}>
