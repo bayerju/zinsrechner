@@ -35,6 +35,10 @@ import {
 } from "~/state/liquidity_scenarios_atom";
 import { buildMonthList, monthKeyToIndex } from "~/lib/liquidity";
 import { cn } from "~/lib/utils";
+import {
+  analysisHorizonYearsAtom,
+  includeRefinancingAtom,
+} from "~/state/analysis_settings_atom";
 
 function createItemId() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -66,6 +70,8 @@ export default function LiquiditaetsplanPage() {
   const [values, setValues] = useAtom(activeLiquidityScenarioValuesAtom);
   const creditScenarios = useAtomValue(scenariosAtom);
   const creditScenarioValues = useAtomValue(scenarioValuesAtom);
+  const includeRefinancing = useAtomValue(includeRefinancingAtom);
+  const analysisHorizonYears = useAtomValue(analysisHorizonYearsAtom);
 
   const [newIncomeName, setNewIncomeName] = useState("");
   const [newIncomeAmount, setNewIncomeAmount] = useState(0);
@@ -318,6 +324,7 @@ export default function LiquiditaetsplanPage() {
                 unit="Monate"
                 className="h-9 border-neutral-300 bg-white text-black"
                 value={values.horizonMonths}
+                disabled={includeRefinancing}
                 onChange={(value) =>
                   updateValues((prev) => ({
                     ...prev,
@@ -329,6 +336,13 @@ export default function LiquiditaetsplanPage() {
                 }
               />
             </div>
+            {includeRefinancing && (
+              <p className="text-xs text-neutral-600">
+                Bei aktiver Anschlussfinanzierung nutzt die Auswertung global{" "}
+                {analysisHorizonYears * 12} Monate ({analysisHorizonYears}{" "}
+                Jahre).
+              </p>
+            )}
 
             <label className="text-xs text-neutral-700">
               Kreditszenario fuer Auswertung

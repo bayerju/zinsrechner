@@ -12,6 +12,7 @@ const APP_STORAGE_KEYS = [
   "activeLiquidityScenarioId",
   "liquidityScenarioValues",
   "includeRefinancing",
+  "analysisHorizonYears",
 ] as const;
 
 type AppStorageKey = (typeof APP_STORAGE_KEYS)[number];

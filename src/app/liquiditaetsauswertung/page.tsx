@@ -33,6 +33,10 @@ import {
 } from "~/components/ui/chart";
 import { formatNumber } from "~/lib/number_fromat";
 import { getMonthContributions, simulateLiquidity } from "~/lib/liquidity";
+import {
+  analysisHorizonYearsAtom,
+  includeRefinancingAtom,
+} from "~/state/analysis_settings_atom";
 import { scenarioValuesAtom } from "~/state/scenario_values_atom";
 import { scenariosAtom } from "~/state/scenarios_atom";
 import {
@@ -44,6 +48,8 @@ export default function LiquiditaetsauswertungPage() {
   const [values, setValues] = useAtom(activeLiquidityScenarioValuesAtom);
   const creditScenarioValues = useAtomValue(scenarioValuesAtom);
   const creditScenarios = useAtomValue(scenariosAtom);
+  const includeRefinancing = useAtomValue(includeRefinancingAtom);
+  const analysisHorizonYears = useAtomValue(analysisHorizonYearsAtom);
 
   const selectedCreditScenario =
     creditScenarioValues[values.creditScenarioId] ?? null;
@@ -56,8 +62,12 @@ export default function LiquiditaetsauswertungPage() {
   );
 
   const resultRows = useMemo(
-    () => simulateLiquidity(values, selectedCreditScenario),
-    [values, selectedCreditScenario],
+    () =>
+      simulateLiquidity(values, selectedCreditScenario, {
+        includeRefinancing,
+        analysisHorizonYears,
+      }),
+    [analysisHorizonYears, includeRefinancing, values, selectedCreditScenario],
   );
 
   const endCapital =
@@ -112,6 +122,13 @@ export default function LiquiditaetsauswertungPage() {
         <CardContent className="space-y-3">
           <TopNav />
           <LiquidityScenarioBar />
+
+          {includeRefinancing && (
+            <p className="text-xs text-neutral-600">
+              Globaler Betrachtungszeitraum aktiv: {analysisHorizonYears} Jahre
+              (Anschlussfinanzierung).
+            </p>
+          )}
 
           <div className="rounded-md border border-neutral-300 p-3">
             <label className="text-xs text-neutral-700">

@@ -29,7 +29,7 @@ import {
 } from "~/state/scenario_values_atom";
 import { getCreditSeriesColorByIndex } from "~/lib/scenario_colors";
 import {
-  analysisHorizonYears,
+  analysisHorizonYearsAtom,
   includeRefinancingAtom,
 } from "~/state/analysis_settings_atom";
 
@@ -844,13 +844,14 @@ export default function FinanzplanPage() {
   const scenarios = useAtomValue(scenariosAtom);
   const scenarioValues = useAtomValue(scenarioValuesAtom);
   const includeRefinancing = useAtomValue(includeRefinancingAtom);
+  const analysisHorizonYears = useAtomValue(analysisHorizonYearsAtom);
   const [activeScenarioId] = useAtom(activeScenarioIdAtom);
   const calculationOptions = useMemo(
     () => ({
       includeRefinancing,
       analysisHorizonYears,
     }),
-    [includeRefinancing],
+    [analysisHorizonYears, includeRefinancing],
   );
   const scenarioList = useMemo(
     () => Object.values(scenarios).sort((a, b) => a.createdAt - b.createdAt),

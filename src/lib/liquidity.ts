@@ -1,6 +1,9 @@
 import {
+  calculateFullPaymentTime,
   calculateMonthlyRate,
   calculateNettodarlehensbetragBank,
+  calculateRestschuld,
+  calculateTilgungszuschussBetrag,
 } from "~/lib/calculations";
 import { type ScenarioValues } from "~/state/scenario_values_atom";
 import {
@@ -67,7 +70,46 @@ export function occursInMonth(item: LiquidityItem, month: string) {
   return diff === 0;
 }
 
-function getCreditMonthlySegments(values: ScenarioValues) {
+function getRefinancingSegment({
+  principal,
+  startYear,
+  effzins,
+  tilgungssatz,
+  horizonYears,
+}: {
+  principal: number;
+  startYear: number;
+  effzins: number;
+  tilgungssatz: number;
+  horizonYears: number;
+}) {
+  if (principal <= 0 || startYear >= horizonYears) return null;
+  const monthlyRate = calculateMonthlyRate({
+    darlehensbetrag: principal,
+    effzins,
+    tilgungssatz,
+  });
+  const payoff = calculateFullPaymentTime({
+    darlehensbetrag: principal,
+    monthlyRate,
+    effzins,
+  });
+  if (!payoff.canBePaidOff) {
+    return {
+      monthlyRate,
+      endYear: horizonYears,
+    };
+  }
+  return {
+    monthlyRate,
+    endYear: Math.min(horizonYears, startYear + payoff.yearsAufgerundet),
+  };
+}
+
+function getCreditMonthlySegments(
+  values: ScenarioValues,
+  options: { includeRefinancing: boolean; analysisHorizonYears: number },
+) {
   const credits = Object.values(values.credits ?? {});
   const nettodarlehensbetrag = calculateNettodarlehensbetragBank({
     kaufpreis: values.kaufpreis,
@@ -87,6 +129,29 @@ function getCreditMonthlySegments(values: ScenarioValues) {
     { startYear: 0, endYear: values.zinsbindung, rate: bankRate },
   ];
 
+  if (options.includeRefinancing) {
+    const bankRestschuldAtBinding = calculateRestschuld({
+      nettodarlehensbetrag: nettodarlehensbetrag,
+      monthlyRate: bankRate,
+      effZins: values.effzins,
+      years: values.zinsbindung,
+    });
+    const bankRefinancing = getRefinancingSegment({
+      principal: bankRestschuldAtBinding,
+      startYear: values.zinsbindung,
+      effzins: values.effzins,
+      tilgungssatz: values.tilgungssatz,
+      horizonYears: options.analysisHorizonYears,
+    });
+    if (bankRefinancing) {
+      result.push({
+        startYear: values.zinsbindung,
+        endYear: bankRefinancing.endYear,
+        rate: bankRefinancing.monthlyRate,
+      });
+    }
+  }
+
   credits.forEach((credit) => {
     credit.rates.forEach((rate) => {
       result.push({
@@ -95,6 +160,43 @@ function getCreditMonthlySegments(values: ScenarioValues) {
         rate: rate.rate,
       });
     });
+
+    if (options.includeRefinancing) {
+      const tilgungszuschuss = calculateTilgungszuschussBetrag({
+        darlehensbetrag: credit.summeDarlehen,
+        foerderfaehigerAnteilProzent: credit.foerderfaehigerAnteilProzent ?? 0,
+        tilgungszuschussProzent: credit.tilgungszuschussProzent ?? 0,
+      });
+      const principal = Math.max(0, credit.summeDarlehen - tilgungszuschuss);
+      const monthlyRate = calculateMonthlyRate({
+        darlehensbetrag: principal,
+        effzins: credit.effektiverZinssatz,
+        tilgungssatz: credit.tilgungssatz,
+        rückzahlungsfreieZeit: credit.rückzahlungsfreieZeit,
+      });
+      const restschuldAtBinding = calculateRestschuld({
+        nettodarlehensbetrag: principal,
+        monthlyRate,
+        effZins: credit.effektiverZinssatz,
+        years: credit.zinsbindung,
+        tilgungsfreieZeit: credit.tilgungsFreieZeit,
+        rückzahlungsfreieZeit: credit.rückzahlungsfreieZeit,
+      });
+      const refinancing = getRefinancingSegment({
+        principal: restschuldAtBinding,
+        startYear: credit.zinsbindung,
+        effzins: values.effzins,
+        tilgungssatz: values.tilgungssatz,
+        horizonYears: options.analysisHorizonYears,
+      });
+      if (refinancing) {
+        result.push({
+          startYear: credit.zinsbindung,
+          endYear: refinancing.endYear,
+          rate: refinancing.monthlyRate,
+        });
+      }
+    }
   });
 
   return result;
@@ -115,10 +217,24 @@ function creditRateByMonth(
 export function simulateLiquidity(
   values: LiquidityScenarioValues,
   creditValues: ScenarioValues | null,
+  options?: {
+    includeRefinancing?: boolean;
+    analysisHorizonYears?: number;
+  },
 ) {
-  const months = buildMonthList(values.startMonth, values.horizonMonths);
+  const includeRefinancing = options?.includeRefinancing ?? false;
+  const analysisHorizonYears = options?.analysisHorizonYears ?? 30;
+  const months = buildMonthList(
+    values.startMonth,
+    includeRefinancing
+      ? Math.max(1, Math.round(analysisHorizonYears * 12))
+      : values.horizonMonths,
+  );
   const creditSegments = creditValues
-    ? getCreditMonthlySegments(creditValues)
+    ? getCreditMonthlySegments(creditValues, {
+        includeRefinancing,
+        analysisHorizonYears,
+      })
     : [];
   let capital = values.startCapital;
 

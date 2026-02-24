@@ -22,7 +22,7 @@ import { creditsAtom } from "~/state/credits_atom";
 import { TopNav } from "./top_nav";
 import { ScenarioBar } from "./scenario_bar";
 import {
-  analysisHorizonYears,
+  analysisHorizonYearsAtom,
   includeRefinancingAtom,
 } from "~/state/analysis_settings_atom";
 
@@ -31,11 +31,13 @@ function buildRefinancingEndYear({
   startYear,
   effzins,
   tilgungssatz,
+  analysisHorizonYears,
 }: {
   restschuld: number;
   startYear: number;
   effzins: number;
   tilgungssatz: number;
+  analysisHorizonYears: number;
 }) {
   if (restschuld <= 0 || startYear >= analysisHorizonYears) return null;
   const monthlyRate = calculateMonthlyRate({
@@ -80,6 +82,7 @@ export default function InfosHeader() {
   // );
   const credits = useAtomValue(creditsAtom);
   const includeRefinancing = useAtomValue(includeRefinancingAtom);
+  const analysisHorizonYears = useAtomValue(analysisHorizonYearsAtom);
   // const tilgungssatz = useAtomValue(tilgungssatzAtom);
 
   const nettoDarlehensbetrag = useAtomValue(nettoDarlehensBetragAtom);
@@ -131,6 +134,7 @@ export default function InfosHeader() {
             startYear: zinsbindung,
             effzins,
             tilgungssatz,
+            analysisHorizonYears,
           });
 
           if (bankRefinancing) {
@@ -173,6 +177,7 @@ export default function InfosHeader() {
               startYear: credit.zinsbindung,
               effzins,
               tilgungssatz,
+              analysisHorizonYears,
             });
 
             if (refinancing) {
@@ -221,6 +226,7 @@ export default function InfosHeader() {
                 startYear: zinsbindung,
                 effzins,
                 tilgungssatz,
+                analysisHorizonYears,
               });
               if (!refinancing) return bankBaseRestschuld;
               const refinanceYears =
@@ -281,6 +287,7 @@ export default function InfosHeader() {
             startYear: credit.zinsbindung,
             effzins,
             tilgungssatz,
+            analysisHorizonYears,
           });
           if (!refinancing) return sum + baseRestschuld;
 
