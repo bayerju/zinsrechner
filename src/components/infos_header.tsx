@@ -21,6 +21,48 @@ import {
 import { creditsAtom } from "~/state/credits_atom";
 import { TopNav } from "./top_nav";
 import { ScenarioBar } from "./scenario_bar";
+import {
+  analysisHorizonYears,
+  includeRefinancingAtom,
+} from "~/state/analysis_settings_atom";
+
+function buildRefinancingEndYear({
+  restschuld,
+  startYear,
+  effzins,
+  tilgungssatz,
+}: {
+  restschuld: number;
+  startYear: number;
+  effzins: number;
+  tilgungssatz: number;
+}) {
+  if (restschuld <= 0 || startYear >= analysisHorizonYears) return null;
+  const monthlyRate = calculateMonthlyRate({
+    darlehensbetrag: restschuld,
+    effzins,
+    tilgungssatz,
+  });
+  const payoff = calculateFullPaymentTime({
+    darlehensbetrag: restschuld,
+    monthlyRate,
+    effzins,
+  });
+  if (!payoff.canBePaidOff) {
+    return {
+      monthlyRate,
+      endYear: analysisHorizonYears,
+    };
+  }
+
+  return {
+    monthlyRate,
+    endYear: Math.min(
+      analysisHorizonYears,
+      startYear + payoff.yearsAufgerundet,
+    ),
+  };
+}
 
 export default function InfosHeader() {
   const [effzins, setEffzins] = useAtom(effzinsAtom);
@@ -37,6 +79,7 @@ export default function InfosHeader() {
   //   }),
   // );
   const credits = useAtomValue(creditsAtom);
+  const includeRefinancing = useAtomValue(includeRefinancingAtom);
   // const tilgungssatz = useAtomValue(tilgungssatzAtom);
 
   const nettoDarlehensbetrag = useAtomValue(nettoDarlehensBetragAtom);
@@ -51,6 +94,17 @@ export default function InfosHeader() {
     }),
     effzins: effzins,
   });
+  const bankRestschuldAtBinding = calculateRestschuld({
+    nettodarlehensbetrag: nettoDarlehensbetrag,
+    monthlyRate: calculateMonthlyRate({
+      darlehensbetrag: nettoDarlehensbetrag,
+      effzins,
+      tilgungssatz,
+    }),
+    effZins: effzins,
+    years: zinsbindung,
+  });
+
   const ratesByTime = calculateTotalRatesByTimeframe([
     ...Object.values(credits ?? {}).flatMap((credit) => credit.rates),
     {
@@ -63,6 +117,77 @@ export default function InfosHeader() {
       }),
       key: "bankrate",
     },
+    ...(includeRefinancing
+      ? (() => {
+          const segments: Array<{
+            startYear: number;
+            endYear: number;
+            rate: number;
+            key: string;
+          }> = [];
+
+          const bankRefinancing = buildRefinancingEndYear({
+            restschuld: bankRestschuldAtBinding,
+            startYear: zinsbindung,
+            effzins,
+            tilgungssatz,
+          });
+
+          if (bankRefinancing) {
+            segments.push({
+              startYear: zinsbindung,
+              endYear: bankRefinancing.endYear,
+              rate: bankRefinancing.monthlyRate,
+              key: "bank_anschluss",
+            });
+          }
+
+          Object.values(credits ?? {}).forEach((credit, index) => {
+            const tilgungszuschussBetrag = calculateTilgungszuschussBetrag({
+              darlehensbetrag: credit.summeDarlehen,
+              foerderfaehigerAnteilProzent:
+                credit.foerderfaehigerAnteilProzent ?? 0,
+              tilgungszuschussProzent: credit.tilgungszuschussProzent ?? 0,
+            });
+            const rueckzahlungsRelevanterBetrag = Math.max(
+              0,
+              credit.summeDarlehen - tilgungszuschussBetrag,
+            );
+            const monthlyRate = calculateMonthlyRate({
+              darlehensbetrag: rueckzahlungsRelevanterBetrag,
+              effzins: credit.effektiverZinssatz,
+              tilgungssatz: credit.tilgungssatz,
+              rückzahlungsfreieZeit: credit.rückzahlungsfreieZeit,
+            });
+            const restschuldAtBinding = calculateRestschuld({
+              nettodarlehensbetrag: rueckzahlungsRelevanterBetrag,
+              monthlyRate,
+              effZins: credit.effektiverZinssatz,
+              years: credit.zinsbindung,
+              tilgungsfreieZeit: credit.tilgungsFreieZeit,
+              rückzahlungsfreieZeit: credit.rückzahlungsfreieZeit,
+            });
+
+            const refinancing = buildRefinancingEndYear({
+              restschuld: restschuldAtBinding,
+              startYear: credit.zinsbindung,
+              effzins,
+              tilgungssatz,
+            });
+
+            if (refinancing) {
+              segments.push({
+                startYear: credit.zinsbindung,
+                endYear: refinancing.endYear,
+                rate: refinancing.monthlyRate,
+                key: `credit_${index}_anschluss`,
+              });
+            }
+          });
+
+          return segments;
+        })()
+      : []),
   ]);
 
   const bankMonatsrate = calculateMonthlyRate({
@@ -75,17 +200,40 @@ export default function InfosHeader() {
     new Set([
       zinsbindung,
       ...Object.values(credits ?? {}).map((credit) => credit.zinsbindung),
+      ...(includeRefinancing ? [analysisHorizonYears] : []),
     ]),
   )
     .filter((stichtag) => stichtag > 0)
     .sort((a, b) => a - b)
     .map((stichtag) => {
-      const bankRestschuld = calculateRestschuld({
+      const bankBaseYears = Math.min(stichtag, zinsbindung);
+      const bankBaseRestschuld = calculateRestschuld({
         nettodarlehensbetrag: nettoDarlehensbetrag,
         monthlyRate: bankMonatsrate,
         effZins: effzins,
-        years: Math.min(stichtag, zinsbindung),
+        years: bankBaseYears,
       });
+      const bankRestschuld =
+        includeRefinancing && stichtag > zinsbindung
+          ? (() => {
+              const refinancing = buildRefinancingEndYear({
+                restschuld: bankRestschuldAtBinding,
+                startYear: zinsbindung,
+                effzins,
+                tilgungssatz,
+              });
+              if (!refinancing) return bankBaseRestschuld;
+              const refinanceYears =
+                Math.min(stichtag, refinancing.endYear) - zinsbindung;
+              if (refinanceYears <= 0) return bankRestschuldAtBinding;
+              return calculateRestschuld({
+                nettodarlehensbetrag: bankRestschuldAtBinding,
+                monthlyRate: refinancing.monthlyRate,
+                effZins: effzins,
+                years: refinanceYears,
+              });
+            })()
+          : bankBaseRestschuld;
 
       const restschuldCredits = Object.values(credits ?? {}).reduce(
         (sum, credit) => {
@@ -106,15 +254,47 @@ export default function InfosHeader() {
             rückzahlungsfreieZeit: credit.rückzahlungsfreieZeit,
           });
 
+          const baseYears = Math.min(stichtag, credit.zinsbindung);
+          const baseRestschuld = calculateRestschuld({
+            nettodarlehensbetrag: rueckzahlungsRelevanterBetrag,
+            monthlyRate,
+            effZins: credit.effektiverZinssatz,
+            years: baseYears,
+            tilgungsfreieZeit: credit.tilgungsFreieZeit,
+            rückzahlungsfreieZeit: credit.rückzahlungsfreieZeit,
+          });
+
+          if (!includeRefinancing || stichtag <= credit.zinsbindung) {
+            return sum + baseRestschuld;
+          }
+
+          const restschuldAtBinding = calculateRestschuld({
+            nettodarlehensbetrag: rueckzahlungsRelevanterBetrag,
+            monthlyRate,
+            effZins: credit.effektiverZinssatz,
+            years: credit.zinsbindung,
+            tilgungsfreieZeit: credit.tilgungsFreieZeit,
+            rückzahlungsfreieZeit: credit.rückzahlungsfreieZeit,
+          });
+          const refinancing = buildRefinancingEndYear({
+            restschuld: restschuldAtBinding,
+            startYear: credit.zinsbindung,
+            effzins,
+            tilgungssatz,
+          });
+          if (!refinancing) return sum + baseRestschuld;
+
+          const refinanceYears =
+            Math.min(stichtag, refinancing.endYear) - credit.zinsbindung;
+          if (refinanceYears <= 0) return sum + restschuldAtBinding;
+
           return (
             sum +
             calculateRestschuld({
-              nettodarlehensbetrag: rueckzahlungsRelevanterBetrag,
-              monthlyRate,
-              effZins: credit.effektiverZinssatz,
-              years: Math.min(stichtag, credit.zinsbindung),
-              tilgungsfreieZeit: credit.tilgungsFreieZeit,
-              rückzahlungsfreieZeit: credit.rückzahlungsfreieZeit,
+              nettodarlehensbetrag: restschuldAtBinding,
+              monthlyRate: refinancing.monthlyRate,
+              effZins: effzins,
+              years: refinanceYears,
             })
           );
         },
@@ -128,11 +308,54 @@ export default function InfosHeader() {
     });
 
   const restschuldGesamtStichtag =
-    restSchuldByTime.find((item) => item.endYear === zinsbindung)?.restschuld ??
+    restSchuldByTime.find(
+      (item) =>
+        item.endYear ===
+        (includeRefinancing ? analysisHorizonYears : zinsbindung),
+    )?.restschuld ??
     restSchuldByTime[restSchuldByTime.length - 1]?.restschuld ??
     0;
 
   const showRestschulden = restSchuldByTime.length > 1;
+
+  const dueAmountsWithoutRefinancing = Object.values(credits ?? {})
+    .map((credit) => {
+      const tilgungszuschussBetrag = calculateTilgungszuschussBetrag({
+        darlehensbetrag: credit.summeDarlehen,
+        foerderfaehigerAnteilProzent: credit.foerderfaehigerAnteilProzent ?? 0,
+        tilgungszuschussProzent: credit.tilgungszuschussProzent ?? 0,
+      });
+      const rueckzahlungsRelevanterBetrag = Math.max(
+        0,
+        credit.summeDarlehen - tilgungszuschussBetrag,
+      );
+      const monthlyRate = calculateMonthlyRate({
+        darlehensbetrag: rueckzahlungsRelevanterBetrag,
+        effzins: credit.effektiverZinssatz,
+        tilgungssatz: credit.tilgungssatz,
+        rückzahlungsfreieZeit: credit.rückzahlungsfreieZeit,
+      });
+      const dueAmount = calculateRestschuld({
+        nettodarlehensbetrag: rueckzahlungsRelevanterBetrag,
+        monthlyRate,
+        effZins: credit.effektiverZinssatz,
+        years: credit.zinsbindung,
+        tilgungsfreieZeit: credit.tilgungsFreieZeit,
+        rückzahlungsfreieZeit: credit.rückzahlungsfreieZeit,
+      });
+      return {
+        name: credit.name,
+        dueYear: credit.zinsbindung,
+        dueAmount,
+      };
+    })
+    .concat({
+      name: "Bankkredit",
+      dueYear: zinsbindung,
+      dueAmount: bankRestschuldAtBinding,
+    })
+    .filter((item) => item.dueAmount > 0)
+    .sort((a, b) => a.dueYear - b.dueYear);
 
   return (
     <Card className="mb-4 w-full">
@@ -188,9 +411,24 @@ export default function InfosHeader() {
           <div className="flex w-full items-center gap-2">
             <div className="flex w-full flex-col items-center gap-2">
               <p className="text-muted-foreground text-sm">
-                Restschuld gesamt nach {zinsbindung} Jahren:{" "}
-                {formatNumber(restschuldGesamtStichtag)}€
+                Restschuld gesamt nach{" "}
+                {includeRefinancing ? analysisHorizonYears : zinsbindung}{" "}
+                Jahren: {formatNumber(restschuldGesamtStichtag)}€
               </p>
+              {!includeRefinancing &&
+                dueAmountsWithoutRefinancing.length > 0 && (
+                  <div className="w-full rounded-md border border-neutral-300 bg-white p-2 text-xs text-neutral-700">
+                    <p className="mb-1 font-medium text-black">
+                      Faellige Restschuld ohne Anschlussfinanzierung
+                    </p>
+                    {dueAmountsWithoutRefinancing.map((item) => (
+                      <p key={`${item.name}-${item.dueYear}`}>
+                        {item.name}: {formatNumber(item.dueAmount)}€ in Jahr{" "}
+                        {item.dueYear}
+                      </p>
+                    ))}
+                  </div>
+                )}
             </div>
           </div>
 
