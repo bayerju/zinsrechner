@@ -118,7 +118,8 @@ export function calculateTilgungssatz({
   rückzahlungsfreieZeit?: number;
 }) {
   const tilgungsDauer = kreditdauer - tilgungsfreieZeit - rückzahlungsfreieZeit;
-  if (tilgungsDauer <= 0) return NaN; // oder wirf einen Fehler
+  if (tilgungsDauer < 0) return NaN;
+  if (tilgungsDauer === 0) return 0;
 
   if (Math.abs(effzins / 100) < 1e-12) {
     return 100 / tilgungsDauer;

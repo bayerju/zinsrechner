@@ -162,6 +162,10 @@ function NewCreditDialog({
   );
   const [creditFoerderfaehigerAnteil, setCreditFoerderfaehigerAnteil] =
     useState(credit?.foerderfaehigerAnteilProzent ?? 0);
+  const [hasGovernmentSupport, setHasGovernmentSupport] = useState(
+    (credit?.tilgungszuschussProzent ?? 0) > 0 ||
+      (credit?.foerderfaehigerAnteilProzent ?? 0) > 0,
+  );
   const [creditTilgungssatz, setCreditTilgungssatz] = useState(
     credit?.tilgungssatz ?? 0,
   );
@@ -181,10 +185,16 @@ function NewCreditDialog({
   const [creditZinsbindung, setCreditZinsbindung] = useState(
     credit?.zinsbindung ?? 10,
   );
+  const effectiveTilgungszuschuss = hasGovernmentSupport
+    ? creditTilgungszuschuss
+    : 0;
+  const effectiveFoerderfaehigerAnteil = hasGovernmentSupport
+    ? creditFoerderfaehigerAnteil
+    : 0;
   const tilgungszuschussBetrag = calculateTilgungszuschussBetrag({
     darlehensbetrag: creditSummeDarlehen,
-    foerderfaehigerAnteilProzent: creditFoerderfaehigerAnteil,
-    tilgungszuschussProzent: creditTilgungszuschuss,
+    foerderfaehigerAnteilProzent: effectiveFoerderfaehigerAnteil,
+    tilgungszuschussProzent: effectiveTilgungszuschuss,
   });
   const rueckzahlungsRelevanterBetrag = Math.max(
     0,
@@ -224,8 +234,8 @@ function NewCreditDialog({
           zinsbindung: creditZinsbindung,
           tilgungsFreieZeit: creditTilgungsfreieZeit,
           rückzahlungsfreieZeit: creditRückzahlungsfreieZeit,
-          tilgungszuschussProzent: creditTilgungszuschuss,
-          foerderfaehigerAnteilProzent: creditFoerderfaehigerAnteil,
+          tilgungszuschussProzent: effectiveTilgungszuschuss,
+          foerderfaehigerAnteilProzent: effectiveFoerderfaehigerAnteil,
         })
       : [];
 
@@ -272,8 +282,8 @@ function NewCreditDialog({
     creditTilgungssatz,
     creditTilgungsfreieZeit,
     creditRückzahlungsfreieZeit,
-    creditTilgungszuschuss,
-    creditFoerderfaehigerAnteil,
+    effectiveTilgungszuschuss,
+    effectiveFoerderfaehigerAnteil,
     rueckzahlungsRelevanterBetrag,
     fixDurationOfCredit,
   ]);
@@ -335,17 +345,32 @@ function NewCreditDialog({
           onChange={setCreditEffektiverZinssatz}
           label="Effektiver Zinssatz"
         />
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          <PercentInput
-            value={creditTilgungszuschuss}
-            onChange={setCreditTilgungszuschuss}
-            label="Tilgungszuschuss"
-          />
-          <PercentInput
-            value={creditFoerderfaehigerAnteil}
-            onChange={setCreditFoerderfaehigerAnteil}
-            label="Förderfähiger Anteil"
-          />
+        <div className="rounded-md border border-neutral-700 p-3">
+          <label className="flex cursor-pointer items-center gap-2 text-sm font-medium">
+            <input
+              type="checkbox"
+              checked={hasGovernmentSupport}
+              onChange={(event) =>
+                setHasGovernmentSupport(event.target.checked)
+              }
+              className="h-4 w-4 rounded border-neutral-600 accent-neutral-100"
+            />
+            Staatliche Unterstützung
+          </label>
+          {hasGovernmentSupport && (
+            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <PercentInput
+                value={creditFoerderfaehigerAnteil}
+                onChange={setCreditFoerderfaehigerAnteil}
+                label="Förderfähiger Anteil"
+              />
+              <PercentInput
+                value={creditTilgungszuschuss}
+                onChange={setCreditTilgungszuschuss}
+                label="Tilgungszuschuss"
+              />
+            </div>
+          )}
         </div>
         <div>
           <SwitchInput
@@ -362,11 +387,11 @@ function NewCreditDialog({
             unitRight="Jahre"
             defaultPosition={fixDurationOfCredit ? "right" : "left"}
           />
-          {(creditKreditdauer <= creditTilgungsfreieZeit ||
-            creditKreditdauer <= creditRückzahlungsfreieZeit) && (
+          {(creditKreditdauer < creditTilgungsfreieZeit ||
+            creditKreditdauer < creditRückzahlungsfreieZeit) && (
             <p className="text-red-500">
-              Kreditdauer ist kleiner als Tilgungsfreie Zeit oder
-              Rückzahlungsfreie Zeit
+              Die tilgungsfreie oder rückzahlungsfreie Zeit darf nicht länger
+              als die Kreditdauer sein.
             </p>
           )}
         </div>
@@ -457,8 +482,8 @@ function NewCreditDialog({
                 rückzahlungsfreieZeit: creditRückzahlungsfreieZeit,
                 useKreditDauer: fixDurationOfCredit,
                 zinsbindung: creditZinsbindung,
-                tilgungszuschussProzent: creditTilgungszuschuss,
-                foerderfaehigerAnteilProzent: creditFoerderfaehigerAnteil,
+                tilgungszuschussProzent: effectiveTilgungszuschuss,
+                foerderfaehigerAnteilProzent: effectiveFoerderfaehigerAnteil,
               });
 
               return newCredits;
