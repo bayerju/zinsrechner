@@ -4,6 +4,23 @@ import { parseGermanNumber } from "~/lib/number_fromat";
 import { cn } from "~/lib/utils";
 import { Input } from "./input";
 
+function normalizeDecimalInput(raw: string, locale: string) {
+  const cleaned = raw.replace(/[^\d.,]/g, "");
+  const lastComma = cleaned.lastIndexOf(",");
+  const lastDot = cleaned.lastIndexOf(".");
+  const decimalIndex = Math.max(lastComma, lastDot);
+
+  if (decimalIndex === -1) {
+    return cleaned;
+  }
+
+  const integerPart = cleaned.slice(0, decimalIndex).replace(/[.,]/g, "");
+  const decimalPart = cleaned.slice(decimalIndex + 1).replace(/[.,]/g, "");
+  const decimalSeparator = locale.toLowerCase().startsWith("de") ? "," : ".";
+
+  return `${integerPart}${decimalSeparator}${decimalPart}`;
+}
+
 export function NumberInput({
   value,
   onChange,
@@ -37,14 +54,15 @@ export function NumberInput({
   }, [value, numberFormatter, props.disabled, isFocused]);
 
   function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {
-    // Remove all non-digit except comma and dot, but keep the raw input for display
-    const raw = e.target.value.replace(/[^\d.,]/g, "");
+    const raw = normalizeDecimalInput(e.target.value, locale);
     setInputString(raw);
-    // console.log("raw", raw);
-    // console.log("numberFormatter.format(parseGermanNumber(raw))", parseGermanNumber(raw));
-    // Parse and send the number value to parent
-    const value = parseInput ? parseInput(raw, locale) : parseGermanNumber(raw);
-    onChange(value);
+    const parsedValue = parseInput
+      ? parseInput(raw, locale)
+      : parseGermanNumber(raw);
+
+    if (Number.isFinite(parsedValue)) {
+      onChange(parsedValue);
+    }
   }
 
   return (
@@ -74,7 +92,16 @@ export function NumberInput({
           }}
           onFocus={() => {
             setIsFocused(true);
-            if (inputString === "0") setInputString("");
+            setInputString(
+              value === 0
+                ? ""
+                : value
+                    .toString()
+                    .replace(
+                      ".",
+                      locale.toLowerCase().startsWith("de") ? "," : ".",
+                    ),
+            );
           }}
           {...props}
         />
