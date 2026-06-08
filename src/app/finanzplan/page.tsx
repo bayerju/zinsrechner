@@ -15,6 +15,12 @@ import {
   calculateRestschuld,
   calculateTilgungszuschussBetrag,
 } from "~/lib/calculations";
+import {
+  calculateBridgePaidAtYear,
+  calculateCreditRestschuldAtYear,
+  getCreditEndYear,
+  isBridgeCredit,
+} from "~/lib/credit";
 import { formatNumber } from "~/lib/number_fromat";
 import {
   activeScenarioIdAtom,
@@ -285,6 +291,22 @@ function calculateScenarioFinanzplan(
       };
     })(),
     ...credits.map((credit) => {
+      if (isBridgeCredit(credit)) {
+        const endYear = getCreditEndYear(credit);
+        maturityEvents.push({
+          name: credit.name,
+          dueYear: endYear,
+          dueAmount: credit.summeDarlehen,
+        });
+        return {
+          name: credit.name,
+          stichtag: endYear,
+          bisherBezahlt: calculateBridgePaidAtYear(credit, endYear),
+          restschuld: 0,
+          darlehen: credit.summeDarlehen,
+        };
+      }
+
       const tilgungszuschuss = calculateTilgungszuschussBetrag({
         darlehensbetrag: credit.summeDarlehen,
         foerderfaehigerAnteilProzent: credit.foerderfaehigerAnteilProzent ?? 0,
@@ -367,7 +389,7 @@ function calculateScenarioFinanzplan(
   const stichtage = Array.from(
     new Set([
       values.zinsbindung,
-      ...credits.map((credit) => credit.zinsbindung),
+      ...credits.map(getCreditEndYear),
       ...(options.includeRefinancing ? [options.analysisHorizonYears] : []),
     ]),
   )
@@ -390,6 +412,20 @@ function calculateScenarioFinanzplan(
 
     const creditsTotals = credits.reduce(
       (acc, credit) => {
+        if (isBridgeCredit(credit)) {
+          const restschuld = calculateCreditRestschuldAtYear(credit, stichtag);
+          const bisherBezahlt = calculateBridgePaidAtYear(credit, stichtag);
+          const getilgt = credit.summeDarlehen - restschuld;
+          const zinsen = Math.max(0, bisherBezahlt - getilgt);
+
+          return {
+            bisherBezahlt: acc.bisherBezahlt + bisherBezahlt,
+            darlehen: acc.darlehen + credit.summeDarlehen,
+            restschuld: acc.restschuld + restschuld,
+            zinsen: acc.zinsen + zinsen,
+          };
+        }
+
         const tilgungszuschuss = calculateTilgungszuschussBetrag({
           darlehensbetrag: credit.summeDarlehen,
           foerderfaehigerAnteilProzent:
@@ -503,12 +539,12 @@ function calculateScenarioMonthlyRateSeries(
     credit.rates.forEach((rate) => {
       segments.push({
         startYear: rate.startYear,
-        endYear: Math.min(rate.endYear, credit.zinsbindung),
+        endYear: Math.min(rate.endYear, getCreditEndYear(credit)),
         rate: rate.rate,
       });
     });
 
-    if (options.includeRefinancing) {
+    if (options.includeRefinancing && !isBridgeCredit(credit)) {
       const tilgungszuschuss = calculateTilgungszuschussBetrag({
         darlehensbetrag: credit.summeDarlehen,
         foerderfaehigerAnteilProzent: credit.foerderfaehigerAnteilProzent ?? 0,
@@ -642,6 +678,10 @@ function calculateDetailRestschuldStack(
         label: credit.name,
         color: getCreditSeriesColorByIndex(index + 1),
         restschuldAt: (year: number) => {
+          if (isBridgeCredit(credit)) {
+            return calculateCreditRestschuldAtYear(credit, year);
+          }
+
           const baseYears = Math.min(year, credit.zinsbindung);
           const baseRest = calculateRestschuld({
             nettodarlehensbetrag: rueckzahlungsRelevanterBetrag,
@@ -760,11 +800,11 @@ function calculateDetailMonthlyRateStack(
         monthlyRate: number;
       }> = credit.rates.map((rate) => ({
         startYear: rate.startYear,
-        endYear: Math.min(rate.endYear, credit.zinsbindung),
+        endYear: Math.min(rate.endYear, getCreditEndYear(credit)),
         monthlyRate: rate.rate,
       }));
 
-      if (options.includeRefinancing) {
+      if (options.includeRefinancing && !isBridgeCredit(credit)) {
         const tilgungszuschuss = calculateTilgungszuschussBetrag({
           darlehensbetrag: credit.summeDarlehen,
           foerderfaehigerAnteilProzent:

@@ -18,6 +18,11 @@ import {
   calculateTotalRatesByTimeframe,
   calculateFullPaymentTime,
 } from "~/lib/calculations";
+import {
+  calculateCreditRestschuldAtYear,
+  getCreditEndYear,
+  isBridgeCredit,
+} from "~/lib/credit";
 import { creditsAtom } from "~/state/credits_atom";
 import { TopNav } from "./top_nav";
 import { ScenarioBar } from "./scenario_bar";
@@ -147,6 +152,7 @@ export default function InfosHeader() {
           }
 
           Object.values(credits ?? {}).forEach((credit, index) => {
+            if (isBridgeCredit(credit)) return;
             const tilgungszuschussBetrag = calculateTilgungszuschussBetrag({
               darlehensbetrag: credit.summeDarlehen,
               foerderfaehigerAnteilProzent:
@@ -204,7 +210,7 @@ export default function InfosHeader() {
   const restSchuldByTime = Array.from(
     new Set([
       zinsbindung,
-      ...Object.values(credits ?? {}).map((credit) => credit.zinsbindung),
+      ...Object.values(credits ?? {}).map(getCreditEndYear),
       ...(includeRefinancing ? [analysisHorizonYears] : []),
     ]),
   )
@@ -243,6 +249,10 @@ export default function InfosHeader() {
 
       const restschuldCredits = Object.values(credits ?? {}).reduce(
         (sum, credit) => {
+          if (isBridgeCredit(credit)) {
+            return sum + calculateCreditRestschuldAtYear(credit, stichtag);
+          }
+
           const tilgungszuschussBetrag = calculateTilgungszuschussBetrag({
             darlehensbetrag: credit.summeDarlehen,
             foerderfaehigerAnteilProzent:
@@ -327,6 +337,14 @@ export default function InfosHeader() {
 
   const dueAmountsWithoutRefinancing = Object.values(credits ?? {})
     .map((credit) => {
+      if (isBridgeCredit(credit)) {
+        return {
+          name: credit.name,
+          dueYear: getCreditEndYear(credit),
+          dueAmount: credit.summeDarlehen,
+        };
+      }
+
       const tilgungszuschussBetrag = calculateTilgungszuschussBetrag({
         darlehensbetrag: credit.summeDarlehen,
         foerderfaehigerAnteilProzent: credit.foerderfaehigerAnteilProzent ?? 0,

@@ -5,6 +5,7 @@ import {
   calculateRestschuld,
   calculateTilgungszuschussBetrag,
 } from "~/lib/calculations";
+import { getCreditEndYear, isBridgeCredit } from "~/lib/credit";
 import { type ScenarioValues } from "~/state/scenario_values_atom";
 import {
   type LiquidityItem,
@@ -156,12 +157,12 @@ function getCreditMonthlySegments(
     credit.rates.forEach((rate) => {
       result.push({
         startYear: rate.startYear,
-        endYear: Math.min(rate.endYear, credit.zinsbindung),
+        endYear: Math.min(rate.endYear, getCreditEndYear(credit)),
         rate: rate.rate,
       });
     });
 
-    if (options.includeRefinancing) {
+    if (options.includeRefinancing && !isBridgeCredit(credit)) {
       const tilgungszuschuss = calculateTilgungszuschussBetrag({
         darlehensbetrag: credit.summeDarlehen,
         foerderfaehigerAnteilProzent: credit.foerderfaehigerAnteilProzent ?? 0,

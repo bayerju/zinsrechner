@@ -5,8 +5,10 @@ import { creditsAtom } from "~/state/credits_atom";
 import { Button } from "./ui/button";
 import { Dialog, DialogContent, DialogTrigger, DialogTitle } from "./ui/dialog";
 import {
+  calculateBridgeMonthlyInterest,
   createCredit,
   createRatesByTime,
+  isBridgeCredit,
   type CreditCreate,
 } from "~/lib/credit";
 import { Input } from "./ui/input";
@@ -77,7 +79,14 @@ export default function Credits() {
                   key={key}
                   className="border-t border-neutral-700 bg-neutral-900"
                 >
-                  <td className="px-3 py-2 text-neutral-100">{credit.name}</td>
+                  <td className="px-3 py-2 text-neutral-100">
+                    <div>{credit.name}</div>
+                    {isBridgeCredit(credit) && (
+                      <div className="text-xs text-neutral-400">
+                        Zwischenfinanzierung, {credit.laufzeitMonate} Monate
+                      </div>
+                    )}
+                  </td>
                   <td className="px-3 py-2 text-neutral-100">
                     {formatNumber(credit.summeDarlehen)} €
                   </td>
@@ -151,6 +160,9 @@ function NewCreditDialog({
   setOpen: (open: boolean) => void;
 }) {
   const [creditName, setCreditName] = useState(credit?.name ?? "");
+  const [creditType, setCreditType] = useState<
+    "standard" | "zwischenfinanzierung"
+  >(credit?.kreditart ?? "standard");
   const [creditSummeDarlehen, setCreditSummeDarlehen] = useState(
     credit?.summeDarlehen ?? 0,
   );
@@ -185,6 +197,10 @@ function NewCreditDialog({
   const [creditZinsbindung, setCreditZinsbindung] = useState(
     credit?.zinsbindung ?? 10,
   );
+  const [creditLaufzeitMonate, setCreditLaufzeitMonate] = useState(
+    credit?.laufzeitMonate ?? 12,
+  );
+  const isBridge = creditType === "zwischenfinanzierung";
   const effectiveTilgungszuschuss = hasGovernmentSupport
     ? creditTilgungszuschuss
     : 0;
@@ -221,6 +237,7 @@ function NewCreditDialog({
       : null;
 
   const rates =
+    !isBridge &&
     creditSummeDarlehen > 0 &&
     creditEffektiverZinssatz > 0 &&
     creditTilgungssatz > 0 &&
@@ -238,6 +255,12 @@ function NewCreditDialog({
           foerderfaehigerAnteilProzent: effectiveFoerderfaehigerAnteil,
         })
       : [];
+  const bridgeMonthlyInterest = isBridge
+    ? calculateBridgeMonthlyInterest({
+        summeDarlehen: creditSummeDarlehen,
+        effektiverZinssatz: creditEffektiverZinssatz,
+      })
+    : 0;
 
   useEffect(() => {
     if (fixDurationOfCredit && creditKreditdauer > 0) {
@@ -335,6 +358,21 @@ function NewCreditDialog({
             <p className="mt-1 text-sm text-red-500">{nameError}</p>
           )}
         </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium">Kreditart</label>
+          <select
+            className="w-full rounded-md border border-neutral-700 bg-neutral-800 px-3 py-1 text-white"
+            value={creditType}
+            onChange={(event) =>
+              setCreditType(
+                event.target.value as "standard" | "zwischenfinanzierung",
+              )
+            }
+          >
+            <option value="standard">Normaler Kredit</option>
+            <option value="zwischenfinanzierung">Zwischenfinanzierung</option>
+          </select>
+        </div>
         <NumberInput
           value={creditSummeDarlehen}
           onChange={setCreditSummeDarlehen}
@@ -345,118 +383,148 @@ function NewCreditDialog({
           onChange={setCreditEffektiverZinssatz}
           label="Effektiver Zinssatz"
         />
-        <div className="rounded-md border border-neutral-700 p-3">
-          <label className="flex cursor-pointer items-center gap-2 text-sm font-medium">
-            <input
-              type="checkbox"
-              checked={hasGovernmentSupport}
-              onChange={(event) =>
-                setHasGovernmentSupport(event.target.checked)
-              }
-              className="h-4 w-4 rounded border-neutral-600 accent-neutral-100"
+        {isBridge ? (
+          <>
+            <NumberInput
+              value={creditLaufzeitMonate}
+              onChange={setCreditLaufzeitMonate}
+              label="Laufzeit der Zwischenfinanzierung"
+              unit="Monate"
             />
-            Staatliche Unterstützung
-          </label>
-          {hasGovernmentSupport && (
-            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <PercentInput
-                value={creditFoerderfaehigerAnteil}
-                onChange={setCreditFoerderfaehigerAnteil}
-                label="Förderfähiger Anteil"
+            <div className="rounded-md border border-neutral-700 p-3 text-sm">
+              <p>
+                Monatliche Zinszahlung: {formatNumber(bridgeMonthlyInterest)} €
+              </p>
+              <p>
+                Vollständige Rückzahlung nach{" "}
+                {Math.max(1, Math.round(creditLaufzeitMonate))} Monaten:{" "}
+                {formatNumber(creditSummeDarlehen)} €
+              </p>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="rounded-md border border-neutral-700 p-3">
+              <label className="flex cursor-pointer items-center gap-2 text-sm font-medium">
+                <input
+                  type="checkbox"
+                  checked={hasGovernmentSupport}
+                  onChange={(event) =>
+                    setHasGovernmentSupport(event.target.checked)
+                  }
+                  className="h-4 w-4 rounded border-neutral-600 accent-neutral-100"
+                />
+                Staatliche Unterstützung
+              </label>
+              {hasGovernmentSupport && (
+                <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <PercentInput
+                    value={creditFoerderfaehigerAnteil}
+                    onChange={setCreditFoerderfaehigerAnteil}
+                    label="Förderfähiger Anteil"
+                  />
+                  <PercentInput
+                    value={creditTilgungszuschuss}
+                    onChange={setCreditTilgungszuschuss}
+                    label="Tilgungszuschuss"
+                  />
+                </div>
+              )}
+            </div>
+            <div>
+              <SwitchInput
+                valueLeft={creditTilgungssatz}
+                setLeft={setCreditTilgungssatz}
+                valueRight={creditKreditdauer}
+                setRight={setcreditKreditdauer}
+                onCheckedChange={(value) => {
+                  setFixDurationOfCredit(value);
+                }}
+                labelLeft="Tilgungssatz"
+                labelRight="Kreditdauer in Jahren"
+                unitLeft="%"
+                unitRight="Jahre"
+                defaultPosition={fixDurationOfCredit ? "right" : "left"}
               />
-              <PercentInput
-                value={creditTilgungszuschuss}
-                onChange={setCreditTilgungszuschuss}
-                label="Tilgungszuschuss"
+              {(creditKreditdauer < creditTilgungsfreieZeit ||
+                creditKreditdauer < creditRückzahlungsfreieZeit) && (
+                <p className="text-red-500">
+                  Die tilgungsfreie oder rückzahlungsfreie Zeit darf nicht
+                  länger als die Kreditdauer sein.
+                </p>
+              )}
+            </div>
+            {/* Sollzinsbindung */}
+            <div>
+              <label className="mb-1 block text-sm font-medium">
+                Sollzinsbindung
+                {/* <span title="Info">ⓘ</span> */}
+              </label>
+              <select
+                className="w-full rounded-md border border-neutral-700 bg-neutral-800 px-3 py-1 text-white"
+                value={creditZinsbindung}
+                onChange={(e) => setCreditZinsbindung(Number(e.target.value))}
+              >
+                <option value={5}>5 Jahre</option>
+                <option value={10}>10 Jahre</option>
+                <option value={15}>15 Jahre</option>
+                <option value={20}>20 Jahre</option>
+              </select>
+            </div>
+
+            {/* Restschuld */}
+            {restschuld && restschuld > 0 ? (
+              <div>
+                <label className="mb-1 block text-sm font-medium">
+                  Restschuld
+                  {/* <span title="Info">ⓘ</span> */}
+                </label>
+                <span>{formatNumber(restschuld)} €</span>
+              </div>
+            ) : null}
+            {/* rate */}
+            <div>
+              {rates.length > 0
+                ? rates.map((rate) => (
+                    <p key={rate.key}>{Math.round(rate.rate)} €</p>
+                  ))
+                : null}
+            </div>
+
+            <div>
+              <h3 className="text-lg font-semibold">
+                Sonderkonditionen zu Zahlungsbeginn
+              </h3>
+              <SwitchInput
+                labelLeft="Tilgungsfreie Zeit"
+                labelRight="Rückzahlungsfreie Zeit"
+                valueLeft={creditTilgungsfreieZeit}
+                valueRight={creditRückzahlungsfreieZeit}
+                setLeft={(value) => {
+                  setCreditTilgungsfreieZeit(value);
+                  setCreditRückzahlungsfreieZeit(0);
+                }}
+                setRight={(value) => {
+                  setCreditRückzahlungsfreieZeit(value);
+                  setCreditTilgungsfreieZeit(0);
+                }}
+                unitLeft="Jahre"
+                unitRight="Jahre"
+                defaultPosition={
+                  creditRückzahlungsfreieZeit > 0 ? "right" : "left"
+                }
               />
             </div>
-          )}
-        </div>
-        <div>
-          <SwitchInput
-            valueLeft={creditTilgungssatz}
-            setLeft={setCreditTilgungssatz}
-            valueRight={creditKreditdauer}
-            setRight={setcreditKreditdauer}
-            onCheckedChange={(value) => {
-              setFixDurationOfCredit(value);
-            }}
-            labelLeft="Tilgungssatz"
-            labelRight="Kreditdauer in Jahren"
-            unitLeft="%"
-            unitRight="Jahre"
-            defaultPosition={fixDurationOfCredit ? "right" : "left"}
-          />
-          {(creditKreditdauer < creditTilgungsfreieZeit ||
-            creditKreditdauer < creditRückzahlungsfreieZeit) && (
-            <p className="text-red-500">
-              Die tilgungsfreie oder rückzahlungsfreie Zeit darf nicht länger
-              als die Kreditdauer sein.
-            </p>
-          )}
-        </div>
-        {/* Sollzinsbindung */}
-        <div>
-          <label className="mb-1 block text-sm font-medium">
-            Sollzinsbindung
-            {/* <span title="Info">ⓘ</span> */}
-          </label>
-          <select
-            className="w-full rounded-md border border-neutral-700 bg-neutral-800 px-3 py-1 text-white"
-            value={creditZinsbindung}
-            onChange={(e) => setCreditZinsbindung(Number(e.target.value))}
-          >
-            <option value={5}>5 Jahre</option>
-            <option value={10}>10 Jahre</option>
-            <option value={15}>15 Jahre</option>
-            <option value={20}>20 Jahre</option>
-          </select>
-        </div>
-
-        {/* Restschuld */}
-        {restschuld && restschuld > 0 ? (
-          <div>
-            <label className="mb-1 block text-sm font-medium">
-              Restschuld
-              {/* <span title="Info">ⓘ</span> */}
-            </label>
-            <span>{formatNumber(restschuld)} €</span>
-          </div>
-        ) : null}
-        {/* rate */}
-        <div>
-          {rates.length > 0
-            ? rates.map((rate) => (
-                <p key={rate.key}>{Math.round(rate.rate)} €</p>
-              ))
-            : null}
-        </div>
-
-        <div>
-          <h3 className="text-lg font-semibold">
-            Sonderkonditionen zu Zahlungsbeginn
-          </h3>
-          <SwitchInput
-            labelLeft="Tilgungsfreie Zeit"
-            labelRight="Rückzahlungsfreie Zeit"
-            valueLeft={creditTilgungsfreieZeit}
-            valueRight={creditRückzahlungsfreieZeit}
-            setLeft={(value) => {
-              setCreditTilgungsfreieZeit(value);
-              setCreditRückzahlungsfreieZeit(0);
-            }}
-            setRight={(value) => {
-              setCreditRückzahlungsfreieZeit(value);
-              setCreditTilgungsfreieZeit(0);
-            }}
-            unitLeft="Jahre"
-            unitRight="Jahre"
-            defaultPosition={creditRückzahlungsfreieZeit > 0 ? "right" : "left"}
-          />
-        </div>
+          </>
+        )}
 
         <Button
-          disabled={!canSave}
+          disabled={
+            !canSave ||
+            creditSummeDarlehen <= 0 ||
+            creditEffektiverZinssatz < 0 ||
+            (isBridge && creditLaufzeitMonate <= 0)
+          }
           onClick={() => {
             // Final validation before saving
             if (!validateName(creditName)) {
@@ -474,6 +542,7 @@ function NewCreditDialog({
               // Add/update the credit with the current values
               newCredits[creditName] = createCredit({
                 name: creditName,
+                kreditart: creditType,
                 summeDarlehen: creditSummeDarlehen,
                 effektiverZinssatz: creditEffektiverZinssatz,
                 tilgungssatz: creditTilgungssatz,
@@ -484,6 +553,9 @@ function NewCreditDialog({
                 zinsbindung: creditZinsbindung,
                 tilgungszuschussProzent: effectiveTilgungszuschuss,
                 foerderfaehigerAnteilProzent: effectiveFoerderfaehigerAnteil,
+                laufzeitMonate: isBridge
+                  ? Math.max(1, Math.round(creditLaufzeitMonate))
+                  : undefined,
               });
 
               return newCredits;
