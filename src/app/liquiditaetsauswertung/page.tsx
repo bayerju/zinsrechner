@@ -1,7 +1,7 @@
 "use client";
 
 import { useAtom, useAtomValue } from "jotai";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   CartesianGrid,
   Line,
@@ -60,6 +60,15 @@ export default function LiquiditaetsauswertungPage() {
   const [chartMode, setChartMode] = useState<"capitalEnd" | "net">(
     "capitalEnd",
   );
+  const [isMobileChart, setIsMobileChart] = useState(false);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(max-width: 639px)");
+    const update = () => setIsMobileChart(mediaQuery.matches);
+    update();
+    mediaQuery.addEventListener("change", update);
+    return () => mediaQuery.removeEventListener("change", update);
+  }, []);
 
   const resultRows = useMemo(
     () =>
@@ -171,7 +180,7 @@ export default function LiquiditaetsauswertungPage() {
             </div>
           </div>
 
-          <div className="rounded-md border border-neutral-700 bg-neutral-800 p-3">
+          <div className="rounded-md border border-neutral-700 bg-neutral-800 p-2 sm:p-3">
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
               <p className="text-sm font-medium text-neutral-100">
                 {chartMode === "capitalEnd"
@@ -205,11 +214,16 @@ export default function LiquiditaetsauswertungPage() {
             </div>
             <ChartContainer
               config={liquidityChartConfig}
-              className="h-72 w-full"
+              className="h-52 w-full sm:h-72"
             >
               <LineChart
                 data={liquidityChartData}
-                margin={{ left: 8, right: 8, top: 8, bottom: 8 }}
+                margin={{
+                  left: isMobileChart ? 0 : 8,
+                  right: isMobileChart ? 2 : 8,
+                  top: 8,
+                  bottom: 8,
+                }}
               >
                 <CartesianGrid vertical={false} />
                 <XAxis
@@ -217,16 +231,25 @@ export default function LiquiditaetsauswertungPage() {
                   tickLine={false}
                   axisLine={false}
                   tickMargin={8}
-                  minTickGap={28}
+                  minTickGap={isMobileChart ? 42 : 28}
+                  tick={{ fontSize: isMobileChart ? 10 : 12 }}
                 />
                 <YAxis
-                  width={96}
+                  width={isMobileChart ? 58 : 96}
                   tickLine={false}
                   axisLine={false}
-                  tickMargin={8}
-                  tickFormatter={(value) =>
-                    `${Math.round(Number(value)).toLocaleString("de-DE")} €`
-                  }
+                  tickMargin={isMobileChart ? 4 : 8}
+                  tick={{ fontSize: isMobileChart ? 10 : 12 }}
+                  tickCount={isMobileChart ? 4 : 5}
+                  tickFormatter={(value) => {
+                    const numeric = Number(value);
+                    if (isMobileChart && Math.abs(numeric) >= 1_000) {
+                      return `${(numeric / 1_000).toLocaleString("de-DE", {
+                        maximumFractionDigits: 0,
+                      })} T€`;
+                    }
+                    return `${Math.round(numeric).toLocaleString("de-DE")} €`;
+                  }}
                 />
                 <Tooltip content={<ChartTooltipContent />} />
                 <Line

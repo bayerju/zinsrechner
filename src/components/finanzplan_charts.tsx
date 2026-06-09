@@ -20,6 +20,35 @@ import {
 
 type YearRow = Record<string, number> & { year: number };
 
+function useMobileChart() {
+  const [isMobile, setIsMobile] = React.useState(false);
+
+  React.useEffect(() => {
+    const mediaQuery = window.matchMedia("(max-width: 639px)");
+    const update = () => setIsMobile(mediaQuery.matches);
+    update();
+    mediaQuery.addEventListener("change", update);
+    return () => mediaQuery.removeEventListener("change", update);
+  }, []);
+
+  return isMobile;
+}
+
+function formatAxisEuro(
+  value: number,
+  compact: boolean,
+  options?: { noBreak?: boolean },
+) {
+  if (compact && Math.abs(value) >= 1_000) {
+    const shortened = value / 1_000;
+    const formatted = shortened.toLocaleString("de-DE", {
+      maximumFractionDigits: shortened < 10 ? 1 : 0,
+    });
+    return options?.noBreak ? `${formatted}T€` : `${formatted} T€`;
+  }
+  return `${Math.round(value).toLocaleString("de-DE")} €`;
+}
+
 export function ScenarioMonthlyRateChart({
   chartConfig,
   chartData,
@@ -29,15 +58,22 @@ export function ScenarioMonthlyRateChart({
   chartData: YearRow[];
   scenarioIds: string[];
 }) {
+  const isMobile = useMobileChart();
+
   return (
-    <div className="rounded-md border border-neutral-700 bg-neutral-800 p-3">
+    <div className="rounded-md border border-neutral-700 bg-neutral-800 p-2 sm:p-3">
       <p className="mb-2 text-sm font-medium text-neutral-100">
         Monatliche Gesamt-Rate im Zeitverlauf
       </p>
-      <ChartContainer config={chartConfig} className="h-72 w-full">
+      <ChartContainer config={chartConfig} className="h-52 w-full sm:h-72">
         <LineChart
           data={chartData}
-          margin={{ left: 8, right: 8, top: 8, bottom: 8 }}
+          margin={{
+            left: isMobile ? 0 : 8,
+            right: isMobile ? 2 : 8,
+            top: 8,
+            bottom: 8,
+          }}
         >
           <CartesianGrid vertical={false} />
           <XAxis
@@ -45,16 +81,20 @@ export function ScenarioMonthlyRateChart({
             tickLine={false}
             axisLine={false}
             tickMargin={8}
+            minTickGap={isMobile ? 20 : 8}
+            tick={{ fontSize: isMobile ? 11 : 12 }}
             label={{ value: "Jahr", position: "insideBottom", offset: -5 }}
           />
           <YAxis
-            width={96}
+            width={isMobile ? 54 : 96}
             tickLine={false}
             axisLine={false}
-            tickMargin={8}
+            tickMargin={isMobile ? 4 : 8}
+            tick={{ fontSize: isMobile ? 11 : 12 }}
+            tickCount={isMobile ? 4 : 5}
             tickFormatter={(value) => {
               const numeric = typeof value === "number" ? value : Number(value);
-              return `${Math.round(numeric).toLocaleString("de-DE")} €`;
+              return formatAxisEuro(numeric, isMobile);
             }}
           />
           <Tooltip content={<ChartTooltipContent />} />
@@ -141,11 +181,12 @@ export function DetailRestschuldStackChart({
   accentColor: string;
 }) {
   const [mode, setMode] = React.useState<"restschuld" | "rate">("restschuld");
+  const isMobile = useMobileChart();
   const active = mode === "restschuld" ? restschuld : monthlyRate;
 
   return (
     <div
-      className="rounded-md border border-neutral-700 bg-neutral-800 p-3"
+      className="min-w-0 overflow-hidden rounded-md border border-neutral-700 bg-neutral-800 p-2 sm:p-3"
       style={{ borderLeft: `4px solid ${accentColor}` }}
     >
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
@@ -177,10 +218,18 @@ export function DetailRestschuldStackChart({
           </button>
         </div>
       </div>
-      <ChartContainer config={active.chartConfig} className="h-72 w-full">
+      <ChartContainer
+        config={active.chartConfig}
+        className="h-52 w-full min-w-0 overflow-hidden sm:h-72"
+      >
         <AreaChart
           data={active.chartData}
-          margin={{ left: 8, right: 8, top: 8, bottom: 8 }}
+          margin={{
+            left: isMobile ? 0 : 8,
+            right: isMobile ? 0 : 8,
+            top: 8,
+            bottom: 8,
+          }}
         >
           <CartesianGrid vertical={false} />
           <XAxis
@@ -188,16 +237,20 @@ export function DetailRestschuldStackChart({
             tickLine={false}
             axisLine={false}
             tickMargin={8}
+            minTickGap={isMobile ? 20 : 8}
+            tick={{ fontSize: isMobile ? 11 : 12 }}
             label={{ value: "Jahr", position: "insideBottom", offset: -5 }}
           />
           <YAxis
-            width={96}
+            width={isMobile ? 48 : 96}
             tickLine={false}
             axisLine={false}
-            tickMargin={8}
+            tickMargin={isMobile ? 2 : 8}
+            tick={{ fontSize: isMobile ? 10 : 12 }}
+            tickCount={isMobile ? 4 : 5}
             tickFormatter={(value) => {
               const numeric = typeof value === "number" ? value : Number(value);
-              return `${Math.round(numeric).toLocaleString("de-DE")} €`;
+              return formatAxisEuro(numeric, isMobile, { noBreak: isMobile });
             }}
           />
           <Tooltip
