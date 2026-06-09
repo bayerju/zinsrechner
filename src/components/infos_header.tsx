@@ -26,7 +26,7 @@ import {
   analysisHorizonYearsAtom,
   includeRefinancingAtom,
 } from "~/state/analysis_settings_atom";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Info } from "lucide-react";
 import { Button } from "./ui/button";
 import {
   Dialog,
@@ -35,6 +35,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "./ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 
 function buildRefinancingEndYear({
   restschuld,
@@ -60,19 +61,31 @@ function buildRefinancingEndYear({
     monthlyRate,
     effzins,
   });
+  const yearsWithinHorizon = analysisHorizonYears - startYear;
+  const remainingDebtAtHorizon = calculateRestschuld({
+    nettodarlehensbetrag: restschuld,
+    monthlyRate,
+    effZins: effzins,
+    years: yearsWithinHorizon,
+  });
   if (!payoff.canBePaidOff) {
     return {
       monthlyRate,
       endYear: analysisHorizonYears,
+      paidOffWithinHorizon: false,
+      projectedPayoffYear: null,
+      remainingDebtAtHorizon,
     };
   }
 
+  const payoffYear = startYear + payoff.yearsAufgerundet;
   return {
     monthlyRate,
-    endYear: Math.min(
-      analysisHorizonYears,
-      startYear + payoff.yearsAufgerundet,
-    ),
+    endYear: Math.min(analysisHorizonYears, payoffYear),
+    paidOffWithinHorizon: payoffYear <= analysisHorizonYears,
+    projectedPayoffYear: payoffYear,
+    remainingDebtAtHorizon:
+      payoffYear <= analysisHorizonYears ? 0 : remainingDebtAtHorizon,
   };
 }
 
@@ -85,6 +98,87 @@ function formatDueTime(year: number) {
     return `in Jahr ${months / 12}`;
   }
   return `nach ${months} Monaten`;
+}
+
+function capitalize(value: string) {
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+function formatYear(year: number) {
+  return Number.isInteger(year) ? year.toString() : year.toFixed(1);
+}
+
+type RefinancingDetail = {
+  key: string;
+  name: string;
+  amount: number;
+  startYear: number;
+  endYear: number;
+  paidOffWithinHorizon: boolean;
+  projectedPayoffYear: number | null;
+  remainingDebtAtHorizon: number;
+};
+
+function RefinancingAssumptionInfo({
+  details,
+}: {
+  details: RefinancingDetail[];
+}) {
+  const explanation =
+    "Für diesen Zeitraum wird angenommen, dass Effektivzins und Tilgungssatz nach der Zinsbindung unverändert bleiben.";
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="inline-flex h-6 w-6 items-center justify-center rounded-full text-amber-500 transition-colors hover:bg-amber-50 hover:text-amber-600 focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:outline-none"
+          title={explanation}
+          aria-label="Annahme zur Weiterfinanzierung anzeigen"
+        >
+          <AlertTriangle className="h-4 w-4" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        className="w-72 border-amber-300 bg-amber-50 p-3 text-sm text-amber-950"
+      >
+        <p className="font-medium">Angenommene Weiterfinanzierung</p>
+        <p className="mt-1 text-amber-900">{explanation}</p>
+        <div className="mt-3 divide-y divide-amber-200 rounded-md border border-amber-200 bg-white/70">
+          {details.map((detail) => (
+            <div key={detail.key} className="p-2.5">
+              <div className="flex items-start justify-between gap-3">
+                <p className="font-medium">{detail.name}</p>
+                <p className="shrink-0 font-semibold">
+                  {formatNumber(detail.amount)} €
+                </p>
+              </div>
+              <p className="mt-0.5 text-xs text-amber-800">
+                Weiterfinanziert ab Jahr {formatYear(detail.startYear)} ·{" "}
+                {detail.paidOffWithinHorizon
+                  ? `berechnet abbezahlt in Jahr ${formatYear(detail.endYear)}`
+                  : detail.projectedPayoffYear
+                    ? `voraussichtlich abbezahlt in Jahr ${formatYear(detail.projectedPayoffYear)}`
+                    : "mit dieser Rate nicht vollständig tilgbar"}
+              </p>
+              {!detail.paidOffWithinHorizon && (
+                <div className="mt-1.5 rounded bg-amber-100 px-2 py-1.5 text-xs text-amber-900">
+                  <span className="block">
+                    Restschuld am Ende der Betrachtungszeit (Jahr{" "}
+                    {formatYear(detail.endYear)}):
+                  </span>
+                  <span className="font-semibold">
+                    {formatNumber(detail.remainingDebtAtHorizon)} €
+                  </span>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
 }
 
 export default function InfosHeader() {
@@ -110,14 +204,15 @@ export default function InfosHeader() {
 
   const nettoDarlehensbetrag = useAtomValue(nettoDarlehensBetragAtom);
   const restschuldBank = useAtomValue(restschuldBankAtom);
+  const bankMonthlyRate = calculateMonthlyRate({
+    darlehensbetrag: nettoDarlehensbetrag,
+    effzins,
+    tilgungssatz,
+  });
 
   const fullPayment = calculateFullPaymentTime({
     darlehensbetrag: nettoDarlehensbetrag,
-    monthlyRate: calculateMonthlyRate({
-      darlehensbetrag: nettoDarlehensbetrag,
-      effzins: effzins,
-      tilgungssatz: tilgungssatz,
-    }),
+    monthlyRate: bankMonthlyRate,
     effzins: effzins,
   });
   const bankRestschuldAtBinding = calculateRestschuld({
@@ -131,7 +226,8 @@ export default function InfosHeader() {
     years: zinsbindung,
   });
 
-  const ratesByTime = calculateTotalRatesByTimeframe([
+  const refinancingDetails: RefinancingDetail[] = [];
+  const individualRates = [
     ...Object.values(credits ?? {}).flatMap((credit) => credit.rates),
     {
       startYear: 0,
@@ -161,6 +257,16 @@ export default function InfosHeader() {
           });
 
           if (bankRefinancing) {
+            refinancingDetails.push({
+              key: "bank_anschluss",
+              name: "Bankkredit",
+              amount: bankRestschuldAtBinding,
+              startYear: zinsbindung,
+              endYear: bankRefinancing.endYear,
+              paidOffWithinHorizon: bankRefinancing.paidOffWithinHorizon,
+              projectedPayoffYear: bankRefinancing.projectedPayoffYear,
+              remainingDebtAtHorizon: bankRefinancing.remainingDebtAtHorizon,
+            });
             segments.push({
               startYear: zinsbindung,
               endYear: bankRefinancing.endYear,
@@ -205,11 +311,22 @@ export default function InfosHeader() {
             });
 
             if (refinancing) {
+              const key = `credit_${index}_anschluss`;
+              refinancingDetails.push({
+                key,
+                name: credit.name,
+                amount: restschuldAtBinding,
+                startYear: credit.zinsbindung,
+                endYear: refinancing.endYear,
+                paidOffWithinHorizon: refinancing.paidOffWithinHorizon,
+                projectedPayoffYear: refinancing.projectedPayoffYear,
+                remainingDebtAtHorizon: refinancing.remainingDebtAtHorizon,
+              });
               segments.push({
                 startYear: credit.zinsbindung,
                 endYear: refinancing.endYear,
                 rate: refinancing.monthlyRate,
-                key: `credit_${index}_anschluss`,
+                key,
               });
             }
           });
@@ -217,7 +334,14 @@ export default function InfosHeader() {
           return segments;
         })()
       : []),
-  ]);
+  ];
+  const ratesByTime = calculateTotalRatesByTimeframe(individualRates);
+
+  function getRefinancingDetailsForPeriod(startYear: number, endYear: number) {
+    return refinancingDetails.filter(
+      (detail) => detail.startYear <= startYear && detail.endYear >= endYear,
+    );
+  }
 
   const dueAmountsWithoutRefinancing = Object.values(credits ?? {})
     .map((credit) => {
@@ -282,19 +406,35 @@ export default function InfosHeader() {
             <h3 className="text-center">Raten </h3>
             {/* Raten */}
             <div className="col-span-2 flex w-full flex-row flex-wrap justify-start gap-2">
-              {ratesByTime.map((iRate, index) => (
-                <div
-                  key={iRate.key + index}
-                  className="flex min-w-fit flex-col items-start"
-                >
-                  <span className="text-base font-semibold text-green-300 sm:text-2xl">
-                    {formatNumber(iRate.rate)}€
-                  </span>
-                  <span className="text-muted-foreground text-sm">
-                    {iRate.startYear + 1} - {iRate.endYear} Jahre
-                  </span>
-                </div>
-              ))}
+              {ratesByTime.map((iRate, index) =>
+                (() => {
+                  const refinancingDetailsForPeriod =
+                    getRefinancingDetailsForPeriod(
+                      iRate.startYear,
+                      iRate.endYear,
+                    );
+                  return (
+                    <div
+                      key={iRate.key + index}
+                      className="flex min-w-fit flex-col items-start"
+                    >
+                      <span className="flex items-center gap-1">
+                        <span className="text-base font-semibold text-green-300 sm:text-2xl">
+                          {formatNumber(iRate.rate)}€
+                        </span>
+                        {refinancingDetailsForPeriod.length > 0 && (
+                          <RefinancingAssumptionInfo
+                            details={refinancingDetailsForPeriod}
+                          />
+                        )}
+                      </span>
+                      <span className="text-muted-foreground text-sm">
+                        {iRate.startYear + 1} - {iRate.endYear} Jahre
+                      </span>
+                    </div>
+                  );
+                })(),
+              )}
             </div>
           </div>
           {!includeRefinancing && dueAmountsWithoutRefinancing.length > 0 && (
@@ -303,13 +443,13 @@ export default function InfosHeader() {
               <div className="min-w-0 flex-1">
                 <p className="font-semibold">
                   {dueAmountsWithoutRefinancing.length === 1
-                    ? "Anschlussfinanzierung erforderlich"
-                    : `${dueAmountsWithoutRefinancing.length} Finanzierungen werden fällig`}
+                    ? `${formatNumber(totalDueWithoutRefinancing)} € bleiben offen`
+                    : `${formatNumber(totalDueWithoutRefinancing)} € bleiben insgesamt offen`}
                 </p>
                 <p className="mt-0.5 text-sm text-amber-900">
                   {dueAmountsWithoutRefinancing.length === 1
-                    ? `${formatNumber(totalDueWithoutRefinancing)} € werden ${formatDueTime(earliestDueYear)} fällig.`
-                    : `Gesamte Restschuld: ${formatNumber(totalDueWithoutRefinancing)} €. Erste Fälligkeit ${formatDueTime(earliestDueYear)}.`}
+                    ? `${capitalize(formatDueTime(earliestDueYear))} ist für diesen Betrag eine weitere Finanzierung nötig.`
+                    : `Die erste Restschuld wird ${formatDueTime(earliestDueYear)} fällig. Dafür ist eine weitere Finanzierung nötig.`}
                 </p>
                 <div className="mt-2 grid grid-cols-2 gap-2">
                   <Button
@@ -318,7 +458,7 @@ export default function InfosHeader() {
                     className="w-full bg-amber-900 text-white hover:bg-amber-800"
                     onClick={() => setIncludeRefinancing(true)}
                   >
-                    Aktivieren
+                    Einrechnen
                   </Button>
                   <Dialog>
                     <DialogTrigger asChild>
@@ -428,13 +568,46 @@ export default function InfosHeader() {
             </span>
             <span>{formatNumber(restschuldBank)} €</span>
           </div>
-          <div className="flex w-full justify-between py-2 text-sm">
-            <span className="flex items-center gap-1">
-              Bankkredit vollständig abbezahlt nach{" "}
-              {fullPayment.canBePaidOff
-                ? `${fullPayment.yearsAufgerundet} Jahren`
-                : "nie (Rate zu niedrig)"}
+          <div className="mt-2 flex w-full items-center gap-1 text-sm">
+            <span>
+              Langfristige Tilgungsprognose:{" "}
+              <span className="font-medium">
+                {fullPayment.canBePaidOff
+                  ? `ca. ${fullPayment.yearsAufgerundet} Jahre`
+                  : "nicht vollständig tilgbar"}
+              </span>
             </span>
+            <Popover>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-blue-600 transition-colors hover:bg-blue-50 hover:text-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none"
+                  title="Annahmen zur langfristigen Tilgungsprognose anzeigen"
+                  aria-label="Annahmen zur langfristigen Tilgungsprognose anzeigen"
+                >
+                  <Info className="h-4 w-4" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent
+                align="end"
+                className="w-72 border-blue-200 bg-blue-50 p-3 text-sm text-blue-950"
+              >
+                <p className="font-medium">Langfristige Tilgungsprognose</p>
+                <p className="mt-1 text-blue-900">
+                  Wenn die aktuelle monatliche Rate von{" "}
+                  {formatNumber(bankMonthlyRate)} € und der Effektivzins
+                  unverändert blieben, wäre der Bankkredit{" "}
+                  {fullPayment.canBePaidOff
+                    ? `nach etwa ${fullPayment.yearsAufgerundet} Jahren vollständig abbezahlt.`
+                    : "mit dieser Rate nicht vollständig abzahlbar."}
+                </p>
+                <p className="mt-2 text-xs text-blue-700">
+                  Bei einer Weiterfinanzierung wird die Rate nach der
+                  Zinsbindung anhand der verbleibenden Restschuld neu berechnet.
+                  Deshalb kann dort ein anderes Tilgungsjahr entstehen.
+                </p>
+              </PopoverContent>
+            </Popover>
           </div>
           {/* <div className="flex w-full justify-between py-2 text-sm">
             <span className="flex items-center gap-1">

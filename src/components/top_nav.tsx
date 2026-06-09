@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 import { useAtom } from "jotai";
 import { StorageTransfer } from "~/components/storage_transfer";
 import { NumberInput } from "~/components/ui/number_input";
-import { Switch } from "~/components/ui/switch";
 import { Button } from "~/components/ui/button";
 import {
   Dialog,
@@ -14,7 +13,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "~/components/ui/dialog";
-import { Settings } from "lucide-react";
+import { Pencil } from "lucide-react";
 import {
   analysisHorizonYearsAtom,
   includeRefinancingAtom,
@@ -94,63 +93,92 @@ export function TopNav() {
       </div>
 
       <div className="flex items-center justify-between gap-3 rounded-md bg-neutral-50 px-3 py-2">
-        <div className="min-w-0 text-xs whitespace-nowrap text-neutral-600">
-          <span className="font-medium text-neutral-800">
-            Anschluss: {includeRefinancing ? "an" : "aus"}
-          </span>
-          <span className="mx-1.5 text-neutral-300">·</span>
-          <span>{analysisHorizonYears} Jahre</span>
-        </div>
+        <p className="min-w-0 text-xs font-medium text-neutral-700">
+          {includeRefinancing
+            ? `Berechnet über ${analysisHorizonYears} Jahre`
+            : "Berechnet bis Zinsbindung"}
+        </p>
         <Dialog>
           <DialogTrigger asChild>
             <Button
               type="button"
               variant="outline"
-              size="icon"
-              className="h-8 w-8 shrink-0 border-neutral-300 bg-white text-neutral-700"
-              title="Einstellungen"
+              size="sm"
+              className="h-8 shrink-0 border-neutral-300 bg-white px-2.5 text-neutral-700"
             >
-              <Settings className="h-4 w-4" />
-              <span className="sr-only">Einstellungen</span>
+              <Pencil className="h-3.5 w-3.5" />
+              Ändern
             </Button>
           </DialogTrigger>
           <DialogContent className="border-neutral-300 bg-white text-black shadow-2xl sm:max-w-md">
-            <DialogTitle>Einstellungen</DialogTitle>
+            <DialogTitle>Berechnung anpassen</DialogTitle>
             <DialogDescription className="text-neutral-600">
-              Berechnungszeitraum und gespeicherte Daten verwalten.
+              Lege fest, wie Restschulden nach dem Ende der Zinsbindung
+              behandelt werden.
             </DialogDescription>
 
             <div className="space-y-4">
               <section className="space-y-3 rounded-lg border border-neutral-200 p-4">
-                <h3 className="font-medium">Berechnung</h3>
-                <label className="flex items-center justify-between gap-4 text-sm">
-                  <span>
-                    <span className="block font-medium">
-                      Anschlussfinanzierung
+                <h3 className="font-medium">Berechnungsumfang</h3>
+                <div className="space-y-2" role="radiogroup">
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={!includeRefinancing}
+                    className={`flex w-full gap-3 rounded-lg border p-3 text-left transition-colors ${
+                      !includeRefinancing
+                        ? "border-neutral-900 bg-neutral-50"
+                        : "border-neutral-200 hover:border-neutral-400"
+                    }`}
+                    onClick={() => setIncludeRefinancing(false)}
+                  >
+                    <SelectionIndicator selected={!includeRefinancing} />
+                    <span>
+                      <span className="block text-sm font-medium">
+                        Nur bis zum Ende der Zinsbindung
+                      </span>
+                      <span className="mt-0.5 block text-xs text-neutral-500">
+                        Danach verbleibende Schulden werden als fällig
+                        angezeigt.
+                      </span>
                     </span>
-                    <span className="block text-xs text-neutral-500">
-                      Restschulden nach der Zinsbindung weiterfinanzieren
+                  </button>
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={includeRefinancing}
+                    className={`flex w-full gap-3 rounded-lg border p-3 text-left transition-colors ${
+                      includeRefinancing
+                        ? "border-neutral-900 bg-neutral-50"
+                        : "border-neutral-200 hover:border-neutral-400"
+                    }`}
+                    onClick={() => setIncludeRefinancing(true)}
+                  >
+                    <SelectionIndicator selected={includeRefinancing} />
+                    <span>
+                      <span className="block text-sm font-medium">
+                        Mit Weiterfinanzierung
+                      </span>
+                      <span className="mt-0.5 block text-xs text-neutral-500">
+                        Verbleibende Schulden werden mit den aktuellen
+                        Konditionen weiterberechnet.
+                      </span>
                     </span>
-                  </span>
-                  <Switch
-                    checked={includeRefinancing}
-                    onCheckedChange={setIncludeRefinancing}
-                    className="data-[state=checked]:bg-neutral-700"
-                    thumbClasses="bg-white"
-                  />
-                </label>
-                <div>
-                  <label className="mb-1 block text-sm font-medium">
-                    Betrachtungszeitraum
-                  </label>
-                  <NumberInput
-                    value={analysisHorizonYears}
-                    onChange={updateHorizon}
-                    unit="J"
-                    disabled={!includeRefinancing}
-                    className="h-9 border-neutral-300 bg-white text-right text-black disabled:cursor-not-allowed disabled:opacity-60"
-                  />
+                  </button>
                 </div>
+                {includeRefinancing && (
+                  <div>
+                    <label className="mb-1 block text-sm font-medium">
+                      Betrachtungszeitraum
+                    </label>
+                    <NumberInput
+                      value={analysisHorizonYears}
+                      onChange={updateHorizon}
+                      unit="J"
+                      className="h-9 border-neutral-300 bg-white text-right text-black"
+                    />
+                  </div>
+                )}
               </section>
 
               <section className="space-y-3 rounded-lg border border-neutral-200 p-4">
@@ -168,6 +196,18 @@ export function TopNav() {
         </Dialog>
       </div>
     </nav>
+  );
+}
+
+function SelectionIndicator({ selected }: { selected: boolean }) {
+  return (
+    <span
+      className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${
+        selected ? "border-neutral-900" : "border-neutral-400"
+      }`}
+    >
+      {selected && <span className="h-2 w-2 rounded-full bg-neutral-900" />}
+    </span>
   );
 }
 
