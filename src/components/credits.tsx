@@ -180,11 +180,11 @@ export default function Credits() {
                     </div>
                   ))}
                 </div>
-                <div className="mt-3 flex justify-end gap-2">
+                <div className="mt-3 grid grid-cols-2 gap-2">
                   <Button
                     type="button"
-                    variant="outline"
                     size="sm"
+                    className="h-10 border border-neutral-200 bg-neutral-100 text-neutral-950 shadow-sm hover:bg-white hover:text-black"
                     onClick={() => {
                       setCreditToEdit(credit);
                       OnOpenChange(true);
@@ -197,6 +197,7 @@ export default function Credits() {
                     type="button"
                     variant="outline"
                     size="sm"
+                    className="h-10 border-red-400 bg-red-950/40 text-red-100 shadow-sm hover:bg-red-900/70 hover:text-white"
                     onClick={() =>
                       setCredits((prev) => {
                         const newCredits = { ...prev };
@@ -255,12 +256,13 @@ export default function Credits() {
                           type="button"
                           variant="outline"
                           size="icon"
-                          className="h-8 w-8"
+                          className="h-9 w-9 border-neutral-300 bg-neutral-100 text-neutral-950 hover:bg-white hover:text-black"
                           onClick={() => {
                             setCreditToEdit(credit);
                             OnOpenChange(true);
                           }}
                           title="Bearbeiten"
+                          aria-label={`${credit.name} bearbeiten`}
                         >
                           <Edit className="h-4 w-4" />
                         </Button>
@@ -268,7 +270,7 @@ export default function Credits() {
                           type="button"
                           variant="outline"
                           size="icon"
-                          className="h-8 w-8"
+                          className="h-9 w-9 border-red-400 bg-red-950/40 text-red-100 hover:bg-red-900/70 hover:text-white"
                           onClick={() =>
                             setCredits((prev) => {
                               const newCredits = { ...prev };
@@ -277,6 +279,7 @@ export default function Credits() {
                             })
                           }
                           title="Löschen"
+                          aria-label={`${credit.name} löschen`}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
