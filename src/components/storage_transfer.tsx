@@ -2,6 +2,7 @@
 
 import { useRef } from "react";
 import { Button } from "~/components/ui/button";
+import { cn } from "~/lib/utils";
 
 const APP_STORAGE_KEYS = [
   "scenarios",
@@ -61,7 +62,7 @@ function buildExportPayload(): ExportPayload {
   };
 }
 
-export function StorageTransfer() {
+export function StorageTransfer({ className }: { className?: string }) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   function handleExport() {
@@ -119,14 +120,21 @@ export function StorageTransfer() {
   }
 
   return (
-    <div className="ml-auto flex items-center gap-2">
-      <Button type="button" variant="outline" size="sm" onClick={handleExport}>
+    <div className={cn("flex items-center gap-2", className)}>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="flex-1"
+        onClick={handleExport}
+      >
         Export JSON
       </Button>
       <Button
         type="button"
         variant="outline"
         size="sm"
+        className="flex-1"
         onClick={openImportDialog}
       >
         Import JSON
