@@ -30,6 +30,7 @@ import {
   ChartContainer,
   ChartTooltipContent,
   type ChartConfig,
+  useDismissibleChartTooltip,
 } from "~/components/ui/chart";
 import { formatNumber } from "~/lib/number_fromat";
 import { getMonthContributions, simulateLiquidity } from "~/lib/liquidity";
@@ -61,6 +62,8 @@ export default function LiquiditaetsauswertungPage() {
     "capitalEnd",
   );
   const [isMobileChart, setIsMobileChart] = useState(false);
+  const { chartRef, tooltipActive, reactivateTooltip } =
+    useDismissibleChartTooltip();
 
   useEffect(() => {
     const mediaQuery = window.matchMedia("(max-width: 639px)");
@@ -213,8 +216,11 @@ export default function LiquiditaetsauswertungPage() {
               </div>
             </div>
             <ChartContainer
+              ref={chartRef}
               config={liquidityChartConfig}
               className="h-52 w-full sm:h-72"
+              onMouseMove={reactivateTooltip}
+              onTouchStart={reactivateTooltip}
             >
               <LineChart
                 data={liquidityChartData}
@@ -251,7 +257,10 @@ export default function LiquiditaetsauswertungPage() {
                     return `${Math.round(numeric).toLocaleString("de-DE")} €`;
                   }}
                 />
-                <Tooltip content={<ChartTooltipContent />} />
+                <Tooltip
+                  active={tooltipActive}
+                  content={<ChartTooltipContent />}
+                />
                 <Line
                   dataKey={chartMode}
                   type="monotone"

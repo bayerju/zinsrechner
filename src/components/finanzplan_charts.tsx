@@ -16,6 +16,7 @@ import {
   ChartContainer,
   ChartTooltipContent,
   type ChartConfig,
+  useDismissibleChartTooltip,
 } from "~/components/ui/chart";
 
 type YearRow = Record<string, number> & { year: number };
@@ -59,13 +60,21 @@ export function ScenarioMonthlyRateChart({
   scenarioIds: string[];
 }) {
   const isMobile = useMobileChart();
+  const { chartRef, tooltipActive, reactivateTooltip } =
+    useDismissibleChartTooltip();
 
   return (
     <div className="rounded-md border border-neutral-700 bg-neutral-800 p-2 sm:p-3">
       <p className="mb-2 text-sm font-medium text-neutral-100">
         Monatliche Gesamt-Rate im Zeitverlauf
       </p>
-      <ChartContainer config={chartConfig} className="h-52 w-full sm:h-72">
+      <ChartContainer
+        ref={chartRef}
+        config={chartConfig}
+        className="h-52 w-full sm:h-72"
+        onMouseMove={reactivateTooltip}
+        onTouchStart={reactivateTooltip}
+      >
         <LineChart
           data={chartData}
           margin={{
@@ -97,7 +106,7 @@ export function ScenarioMonthlyRateChart({
               return formatAxisEuro(numeric, isMobile);
             }}
           />
-          <Tooltip content={<ChartTooltipContent />} />
+          <Tooltip active={tooltipActive} content={<ChartTooltipContent />} />
           {scenarioIds.map((scenarioId) => (
             <Line
               key={scenarioId}
@@ -182,6 +191,8 @@ export function DetailRestschuldStackChart({
 }) {
   const [mode, setMode] = React.useState<"restschuld" | "rate">("restschuld");
   const isMobile = useMobileChart();
+  const { chartRef, tooltipActive, reactivateTooltip } =
+    useDismissibleChartTooltip();
   const active = mode === "restschuld" ? restschuld : monthlyRate;
 
   return (
@@ -219,8 +230,11 @@ export function DetailRestschuldStackChart({
         </div>
       </div>
       <ChartContainer
+        ref={chartRef}
         config={active.chartConfig}
         className="h-52 w-full min-w-0 overflow-hidden sm:h-72"
+        onMouseMove={reactivateTooltip}
+        onTouchStart={reactivateTooltip}
       >
         <AreaChart
           data={active.chartData}
@@ -254,6 +268,7 @@ export function DetailRestschuldStackChart({
             }}
           />
           <Tooltip
+            active={tooltipActive}
             content={<StackedCreditTooltip chartConfig={active.chartConfig} />}
           />
           {active.seriesKeys.map((key) => (

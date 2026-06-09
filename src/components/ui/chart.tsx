@@ -26,6 +26,42 @@ function useChart() {
   return context;
 }
 
+function useDismissibleChartTooltip() {
+  const chartRef = React.useRef<HTMLDivElement>(null);
+  const [tooltipActive, setTooltipActive] = React.useState<boolean | undefined>(
+    undefined,
+  );
+  const reactivateTooltip = React.useCallback(
+    () => setTooltipActive(undefined),
+    [],
+  );
+
+  React.useEffect(() => {
+    const dismissOutside = (event: PointerEvent) => {
+      if (
+        event.target instanceof Node &&
+        !chartRef.current?.contains(event.target)
+      ) {
+        setTooltipActive(false);
+      }
+    };
+    const dismissOnScroll = () => setTooltipActive(false);
+
+    document.addEventListener("pointerdown", dismissOutside, true);
+    window.addEventListener("scroll", dismissOnScroll, true);
+    return () => {
+      document.removeEventListener("pointerdown", dismissOutside, true);
+      window.removeEventListener("scroll", dismissOnScroll, true);
+    };
+  }, []);
+
+  return {
+    chartRef,
+    tooltipActive,
+    reactivateTooltip,
+  };
+}
+
 function ChartContainer({
   id,
   className,
@@ -121,4 +157,4 @@ function ChartTooltipContent({
   );
 }
 
-export { ChartContainer, ChartTooltipContent };
+export { ChartContainer, ChartTooltipContent, useDismissibleChartTooltip };
