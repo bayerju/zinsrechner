@@ -417,23 +417,25 @@ export default function LiquiditaetsplanPage() {
                   </Button>
                 )}
               </div>
-              <div className="grid grid-cols-[1fr_180px_auto] gap-2">
+              <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 sm:grid-cols-[1fr_180px_auto]">
                 <Input
-                  className="h-9 border-neutral-300 bg-white text-black"
+                  className="col-span-2 h-10 border-neutral-300 bg-white text-black sm:col-span-1 sm:h-9"
                   placeholder="Name"
                   value={newIncomeName}
                   onChange={(e) => setNewIncomeName(e.target.value)}
                 />
                 <NumberInput
                   unit="€"
-                  className="h-9 border-neutral-300 bg-white text-black"
+                  className="h-10 border-neutral-300 bg-white text-black sm:h-9"
                   value={newIncomeAmount}
                   onChange={setNewIncomeAmount}
                 />
                 <Button
                   type="button"
                   size="icon"
+                  className="h-10 w-10 sm:h-9 sm:w-9"
                   onClick={() => addItem("income")}
+                  aria-label="Einnahme hinzufügen"
                 >
                   <Plus className="h-4 w-4" />
                 </Button>
@@ -442,9 +444,9 @@ export default function LiquiditaetsplanPage() {
               {incomeItems.map((item) => (
                 <div
                   key={item.id}
-                  className="grid grid-cols-[1fr_180px_auto_auto] gap-2"
+                  className="grid grid-cols-[minmax(0,1fr)_auto_auto] gap-2 rounded-md border border-neutral-200 bg-neutral-50 p-2 sm:grid-cols-[1fr_180px_auto_auto] sm:border-0 sm:bg-transparent sm:p-0"
                 >
-                  <div className="relative">
+                  <div className="relative col-span-3 sm:col-span-1">
                     {item.labels.length > 0 && (
                       <div className="pointer-events-none absolute inset-y-0 left-2 flex items-center gap-0.5">
                         {item.labels.slice(0, 2).map((label) => (
@@ -465,7 +467,7 @@ export default function LiquiditaetsplanPage() {
                     )}
                     <Input
                       className={cn(
-                        "h-9 border-neutral-300 bg-white text-black",
+                        "h-10 border-neutral-300 bg-white text-black sm:h-9",
                         item.labels.length > 0 && "pl-10",
                       )}
                       value={item.name}
@@ -479,7 +481,7 @@ export default function LiquiditaetsplanPage() {
                   </div>
                   <NumberInput
                     unit="€"
-                    className="h-9 border-neutral-300 bg-white text-black"
+                    className="h-10 border-neutral-300 bg-white text-black sm:h-9"
                     value={item.defaultAmount}
                     onChange={(value) =>
                       updateItem(item.id, (old) => ({
@@ -492,8 +494,10 @@ export default function LiquiditaetsplanPage() {
                     type="button"
                     variant="outline"
                     size="icon"
+                    className="h-10 w-10 bg-white sm:h-9 sm:w-9"
                     onClick={() => openSettings(item)}
                     title="Einstellungen"
+                    aria-label={`${item.name} bearbeiten`}
                   >
                     <Settings2 className="h-4 w-4" />
                   </Button>
@@ -501,8 +505,10 @@ export default function LiquiditaetsplanPage() {
                     type="button"
                     variant="outline"
                     size="icon"
+                    className="h-10 w-10 border-red-300 bg-white text-red-700 hover:bg-red-50 hover:text-red-800 sm:h-9 sm:w-9"
                     onClick={() => removeItem(item.id)}
                     title="Entfernen"
+                    aria-label={`${item.name} entfernen`}
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
@@ -551,23 +557,25 @@ export default function LiquiditaetsplanPage() {
                   </Button>
                 )}
               </div>
-              <div className="grid grid-cols-[1fr_180px_auto] gap-2">
+              <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 sm:grid-cols-[1fr_180px_auto]">
                 <Input
-                  className="h-9 border-neutral-300 bg-white text-black"
+                  className="col-span-2 h-10 border-neutral-300 bg-white text-black sm:col-span-1 sm:h-9"
                   placeholder="Name"
                   value={newExpenseName}
                   onChange={(e) => setNewExpenseName(e.target.value)}
                 />
                 <NumberInput
                   unit="€"
-                  className="h-9 border-neutral-300 bg-white text-black"
+                  className="h-10 border-neutral-300 bg-white text-black sm:h-9"
                   value={newExpenseAmount}
                   onChange={setNewExpenseAmount}
                 />
                 <Button
                   type="button"
                   size="icon"
+                  className="h-10 w-10 sm:h-9 sm:w-9"
                   onClick={() => addItem("expense")}
+                  aria-label="Ausgabe hinzufügen"
                 >
                   <Plus className="h-4 w-4" />
                 </Button>
@@ -576,9 +584,9 @@ export default function LiquiditaetsplanPage() {
               {expenseItems.map((item) => (
                 <div
                   key={item.id}
-                  className="grid grid-cols-[1fr_180px_auto_auto] gap-2"
+                  className="grid grid-cols-[minmax(0,1fr)_auto_auto] gap-2 rounded-md border border-neutral-200 bg-neutral-50 p-2 sm:grid-cols-[1fr_180px_auto_auto] sm:border-0 sm:bg-transparent sm:p-0"
                 >
-                  <div className="relative">
+                  <div className="relative col-span-3 sm:col-span-1">
                     {item.labels.length > 0 && (
                       <div className="pointer-events-none absolute inset-y-0 left-2 flex items-center gap-0.5">
                         {item.labels.slice(0, 2).map((label) => (
@@ -599,7 +607,7 @@ export default function LiquiditaetsplanPage() {
                     )}
                     <Input
                       className={cn(
-                        "h-9 border-neutral-300 bg-white text-black",
+                        "h-10 border-neutral-300 bg-white text-black sm:h-9",
                         item.labels.length > 0 && "pl-10",
                       )}
                       value={item.name}
@@ -613,7 +621,7 @@ export default function LiquiditaetsplanPage() {
                   </div>
                   <NumberInput
                     unit="€"
-                    className="h-9 border-neutral-300 bg-white text-black"
+                    className="h-10 border-neutral-300 bg-white text-black sm:h-9"
                     value={item.defaultAmount}
                     onChange={(value) =>
                       updateItem(item.id, (old) => ({
@@ -626,8 +634,10 @@ export default function LiquiditaetsplanPage() {
                     type="button"
                     variant="outline"
                     size="icon"
+                    className="h-10 w-10 bg-white sm:h-9 sm:w-9"
                     onClick={() => openSettings(item)}
                     title="Einstellungen"
+                    aria-label={`${item.name} bearbeiten`}
                   >
                     <Settings2 className="h-4 w-4" />
                   </Button>
@@ -635,8 +645,10 @@ export default function LiquiditaetsplanPage() {
                     type="button"
                     variant="outline"
                     size="icon"
+                    className="h-10 w-10 border-red-300 bg-white text-red-700 hover:bg-red-50 hover:text-red-800 sm:h-9 sm:w-9"
                     onClick={() => removeItem(item.id)}
                     title="Entfernen"
+                    aria-label={`${item.name} entfernen`}
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
