@@ -45,6 +45,7 @@ export function LiquidityScenarioBar() {
   );
   const [, setScenarioValues] = useAtom(liquidityScenarioValuesAtom);
 
+  const [isActionsOpen, setIsActionsOpen] = useState(false);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isRenameOpen, setIsRenameOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
@@ -88,6 +89,7 @@ export function LiquidityScenarioBar() {
     setCreateDuplicate(duplicate);
     setCreateName(buildUniqueName(baseName, names));
     setError(null);
+    setIsActionsOpen(false);
     setIsCreateOpen(true);
   }
 
@@ -131,6 +133,7 @@ export function LiquidityScenarioBar() {
 
   function openRename() {
     if (!active) return;
+    setIsActionsOpen(false);
     setRenameName(active.name);
     setError(null);
     setIsRenameOpen(true);
@@ -185,13 +188,19 @@ export function LiquidityScenarioBar() {
     setIsDeleteOpen(false);
   }
 
+  function openDelete() {
+    if (!active || scenarioList.length <= 1) return;
+    setIsActionsOpen(false);
+    setIsDeleteOpen(true);
+  }
+
   return (
-    <div className="mb-3 flex flex-wrap items-center gap-2 rounded-md border border-neutral-300 p-2">
-      <span className="text-sm font-medium text-black">
+    <div className="mb-3 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-md border border-neutral-300 p-2 sm:flex sm:flex-wrap">
+      <span className="col-span-2 text-sm font-medium text-black sm:col-span-1">
         Liquiditaetsszenario
       </span>
       <select
-        className="h-8 min-w-0 flex-1 rounded-md border border-neutral-300 bg-white px-2 text-sm text-black sm:min-w-44 sm:flex-none"
+        className="h-10 w-full min-w-0 rounded-md border border-neutral-300 bg-white px-2 text-sm text-black sm:h-8 sm:w-auto sm:min-w-44 sm:flex-none"
         value={activeScenarioId}
         onChange={(e) => setActiveScenarioId(e.target.value)}
       >
@@ -205,37 +214,92 @@ export function LiquidityScenarioBar() {
         type="button"
         size="sm"
         variant="outline"
-        onClick={() => openCreate(false)}
+        className="h-10 px-3 sm:hidden"
+        onClick={() => setIsActionsOpen(true)}
       >
-        Neu
+        Aktionen
       </Button>
-      <Button
-        type="button"
-        size="sm"
-        variant="outline"
-        onClick={() => openCreate(true)}
-        disabled={!active}
-      >
-        Duplizieren
-      </Button>
-      <Button
-        type="button"
-        size="sm"
-        variant="outline"
-        onClick={openRename}
-        disabled={!active}
-      >
-        Umbenennen
-      </Button>
-      <Button
-        type="button"
-        size="sm"
-        variant="outline"
-        onClick={() => setIsDeleteOpen(true)}
-        disabled={!active || scenarioList.length <= 1}
-      >
-        Loeschen
-      </Button>
+      <div className="hidden items-center gap-2 sm:flex">
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => openCreate(false)}
+        >
+          Neu
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => openCreate(true)}
+          disabled={!active}
+        >
+          Duplizieren
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={openRename}
+          disabled={!active}
+        >
+          Umbenennen
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={openDelete}
+          disabled={!active || scenarioList.length <= 1}
+        >
+          Loeschen
+        </Button>
+      </div>
+
+      <Dialog open={isActionsOpen} onOpenChange={setIsActionsOpen}>
+        <DialogContent className="sm:hidden">
+          <DialogHeader>
+            <DialogTitle>Liquiditaetsszenario-Aktionen</DialogTitle>
+            <DialogDescription>
+              Aktionen fuer das aktive Szenario auswaehlen.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => openCreate(false)}
+            >
+              Neu
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => openCreate(true)}
+              disabled={!active}
+            >
+              Duplizieren
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={openRename}
+              disabled={!active}
+            >
+              Umbenennen
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={openDelete}
+              disabled={!active || scenarioList.length <= 1}
+            >
+              Loeschen
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
         <DialogContent className="sm:max-w-md">

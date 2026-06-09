@@ -288,10 +288,12 @@ export function ScenarioBar() {
   }
 
   return (
-    <div className="mb-3 flex flex-wrap items-center gap-2 rounded-md border border-neutral-300 p-2">
-      <span className="text-sm font-medium text-black">Szenario</span>
+    <div className="mb-3 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-md border border-neutral-300 p-2 sm:flex sm:flex-wrap">
+      <span className="col-span-2 text-sm font-medium text-black sm:col-span-1">
+        Szenario
+      </span>
       <select
-        className="h-8 min-w-0 flex-1 rounded-md border border-neutral-300 bg-white px-2 text-sm text-black sm:min-w-44 sm:flex-none"
+        className="h-10 w-full min-w-0 rounded-md border border-neutral-300 bg-white px-2 text-sm text-black sm:h-8 sm:w-auto sm:min-w-44 sm:flex-none"
         value={activeScenarioId}
         onChange={(e) => {
           const nextId = e.target.value;
@@ -309,7 +311,7 @@ export function ScenarioBar() {
         type="button"
         size="sm"
         variant="outline"
-        className="sm:hidden"
+        className="h-10 px-3 sm:hidden"
         onClick={() => setIsActionsOpen(true)}
       >
         Aktionen
