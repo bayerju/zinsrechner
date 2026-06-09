@@ -18,11 +18,7 @@ import {
   calculateTotalRatesByTimeframe,
   calculateFullPaymentTime,
 } from "~/lib/calculations";
-import {
-  calculateCreditRestschuldAtYear,
-  getCreditEndYear,
-  isBridgeCredit,
-} from "~/lib/credit";
+import { getCreditEndYear, isBridgeCredit } from "~/lib/credit";
 import { creditsAtom } from "~/state/credits_atom";
 import { TopNav } from "./top_nav";
 import { ScenarioBar } from "./scenario_bar";
@@ -30,6 +26,15 @@ import {
   analysisHorizonYearsAtom,
   includeRefinancingAtom,
 } from "~/state/analysis_settings_atom";
+import { AlertTriangle } from "lucide-react";
+import { Button } from "./ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+  DialogTrigger,
+} from "./ui/dialog";
 
 function buildRefinancingEndYear({
   restschuld,
@@ -71,6 +76,17 @@ function buildRefinancingEndYear({
   };
 }
 
+function formatDueTime(year: number) {
+  const months = Math.round(year * 12);
+  if (months < 12) {
+    return `nach ${months} Monaten`;
+  }
+  if (months % 12 === 0) {
+    return `in Jahr ${months / 12}`;
+  }
+  return `nach ${months} Monaten`;
+}
+
 export default function InfosHeader() {
   const [effzins, setEffzins] = useAtom(effzinsAtom);
   // const zinsbindung = useAtomValue(zinsbindungAtom);
@@ -86,7 +102,9 @@ export default function InfosHeader() {
   //   }),
   // );
   const credits = useAtomValue(creditsAtom);
-  const includeRefinancing = useAtomValue(includeRefinancingAtom);
+  const [includeRefinancing, setIncludeRefinancing] = useAtom(
+    includeRefinancingAtom,
+  );
   const analysisHorizonYears = useAtomValue(analysisHorizonYearsAtom);
   // const tilgungssatz = useAtomValue(tilgungssatzAtom);
 
@@ -201,140 +219,6 @@ export default function InfosHeader() {
       : []),
   ]);
 
-  const bankMonatsrate = calculateMonthlyRate({
-    darlehensbetrag: nettoDarlehensbetrag,
-    effzins,
-    tilgungssatz,
-  });
-
-  const restSchuldByTime = Array.from(
-    new Set([
-      zinsbindung,
-      ...Object.values(credits ?? {}).map(getCreditEndYear),
-      ...(includeRefinancing ? [analysisHorizonYears] : []),
-    ]),
-  )
-    .filter((stichtag) => stichtag > 0)
-    .sort((a, b) => a - b)
-    .map((stichtag) => {
-      const bankBaseYears = Math.min(stichtag, zinsbindung);
-      const bankBaseRestschuld = calculateRestschuld({
-        nettodarlehensbetrag: nettoDarlehensbetrag,
-        monthlyRate: bankMonatsrate,
-        effZins: effzins,
-        years: bankBaseYears,
-      });
-      const bankRestschuld =
-        includeRefinancing && stichtag > zinsbindung
-          ? (() => {
-              const refinancing = buildRefinancingEndYear({
-                restschuld: bankRestschuldAtBinding,
-                startYear: zinsbindung,
-                effzins,
-                tilgungssatz,
-                analysisHorizonYears,
-              });
-              if (!refinancing) return bankBaseRestschuld;
-              const refinanceYears =
-                Math.min(stichtag, refinancing.endYear) - zinsbindung;
-              if (refinanceYears <= 0) return bankRestschuldAtBinding;
-              return calculateRestschuld({
-                nettodarlehensbetrag: bankRestschuldAtBinding,
-                monthlyRate: refinancing.monthlyRate,
-                effZins: effzins,
-                years: refinanceYears,
-              });
-            })()
-          : bankBaseRestschuld;
-
-      const restschuldCredits = Object.values(credits ?? {}).reduce(
-        (sum, credit) => {
-          if (isBridgeCredit(credit)) {
-            return sum + calculateCreditRestschuldAtYear(credit, stichtag);
-          }
-
-          const tilgungszuschussBetrag = calculateTilgungszuschussBetrag({
-            darlehensbetrag: credit.summeDarlehen,
-            foerderfaehigerAnteilProzent:
-              credit.foerderfaehigerAnteilProzent ?? 0,
-            tilgungszuschussProzent: credit.tilgungszuschussProzent ?? 0,
-          });
-          const rueckzahlungsRelevanterBetrag = Math.max(
-            0,
-            credit.summeDarlehen - tilgungszuschussBetrag,
-          );
-          const monthlyRate = calculateMonthlyRate({
-            darlehensbetrag: rueckzahlungsRelevanterBetrag,
-            effzins: credit.effektiverZinssatz,
-            tilgungssatz: credit.tilgungssatz,
-            rückzahlungsfreieZeit: credit.rückzahlungsfreieZeit,
-          });
-
-          const baseYears = Math.min(stichtag, credit.zinsbindung);
-          const baseRestschuld = calculateRestschuld({
-            nettodarlehensbetrag: rueckzahlungsRelevanterBetrag,
-            monthlyRate,
-            effZins: credit.effektiverZinssatz,
-            years: baseYears,
-            tilgungsfreieZeit: credit.tilgungsFreieZeit,
-            rückzahlungsfreieZeit: credit.rückzahlungsfreieZeit,
-          });
-
-          if (!includeRefinancing || stichtag <= credit.zinsbindung) {
-            return sum + baseRestschuld;
-          }
-
-          const restschuldAtBinding = calculateRestschuld({
-            nettodarlehensbetrag: rueckzahlungsRelevanterBetrag,
-            monthlyRate,
-            effZins: credit.effektiverZinssatz,
-            years: credit.zinsbindung,
-            tilgungsfreieZeit: credit.tilgungsFreieZeit,
-            rückzahlungsfreieZeit: credit.rückzahlungsfreieZeit,
-          });
-          const refinancing = buildRefinancingEndYear({
-            restschuld: restschuldAtBinding,
-            startYear: credit.zinsbindung,
-            effzins,
-            tilgungssatz,
-            analysisHorizonYears,
-          });
-          if (!refinancing) return sum + baseRestschuld;
-
-          const refinanceYears =
-            Math.min(stichtag, refinancing.endYear) - credit.zinsbindung;
-          if (refinanceYears <= 0) return sum + restschuldAtBinding;
-
-          return (
-            sum +
-            calculateRestschuld({
-              nettodarlehensbetrag: restschuldAtBinding,
-              monthlyRate: refinancing.monthlyRate,
-              effZins: effzins,
-              years: refinanceYears,
-            })
-          );
-        },
-        0,
-      );
-
-      return {
-        endYear: stichtag,
-        restschuld: bankRestschuld + restschuldCredits,
-      };
-    });
-
-  const restschuldGesamtStichtag =
-    restSchuldByTime.find(
-      (item) =>
-        item.endYear ===
-        (includeRefinancing ? analysisHorizonYears : zinsbindung),
-    )?.restschuld ??
-    restSchuldByTime[restSchuldByTime.length - 1]?.restschuld ??
-    0;
-
-  const showRestschulden = restSchuldByTime.length > 1;
-
   const dueAmountsWithoutRefinancing = Object.values(credits ?? {})
     .map((credit) => {
       if (isBridgeCredit(credit)) {
@@ -381,6 +265,11 @@ export default function InfosHeader() {
     })
     .filter((item) => item.dueAmount > 0)
     .sort((a, b) => a.dueYear - b.dueYear);
+  const totalDueWithoutRefinancing = dueAmountsWithoutRefinancing.reduce(
+    (sum, item) => sum + item.dueAmount,
+    0,
+  );
+  const earliestDueYear = dueAmountsWithoutRefinancing[0]?.dueYear ?? 0;
 
   return (
     <Card className="mb-4 w-full">
@@ -388,7 +277,7 @@ export default function InfosHeader() {
         <TopNav />
         <ScenarioBar />
         <div className="flex flex-col items-center py-2">
-          <div className="relative grid w-full grid-cols-3 grid-rows-2 items-center justify-items-start gap-y-2 before:absolute before:top-1/2 before:right-0 before:left-0 before:-translate-y-1/2 before:border-t before:border-dashed before:border-neutral-700 before:content-['']">
+          <div className="grid w-full grid-cols-3 items-center justify-items-start gap-y-2 border-b border-dashed border-neutral-400 pb-2">
             {/* Raten header*/}
             <h3 className="text-center">Raten </h3>
             {/* Raten */}
@@ -407,55 +296,77 @@ export default function InfosHeader() {
                 </div>
               ))}
             </div>
-            {/* Restschulden header*/}
-            <h3 className={`text-sm ${showRestschulden ? "" : "hidden"}`}>
-              Restschulden
-            </h3>
-            {/* Restschulden */}
-            <div
-              className={`col-span-2 flex w-full flex-row flex-wrap justify-start gap-2 ${showRestschulden ? "" : "hidden"}`}
-            >
-              {restSchuldByTime
-                .sort((a, b) => a.endYear - b.endYear)
-                .map((iRestSchuld, index) => (
-                  <div
-                    key={iRestSchuld.endYear + index}
-                    className="flex min-w-fit flex-col items-start"
+          </div>
+          {!includeRefinancing && dueAmountsWithoutRefinancing.length > 0 && (
+            <div className="mt-3 flex w-full gap-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-amber-950">
+              <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+              <div className="min-w-0 flex-1">
+                <p className="font-semibold">
+                  {dueAmountsWithoutRefinancing.length === 1
+                    ? "Anschlussfinanzierung erforderlich"
+                    : `${dueAmountsWithoutRefinancing.length} Finanzierungen werden fällig`}
+                </p>
+                <p className="mt-0.5 text-sm text-amber-900">
+                  {dueAmountsWithoutRefinancing.length === 1
+                    ? `${formatNumber(totalDueWithoutRefinancing)} € werden ${formatDueTime(earliestDueYear)} fällig.`
+                    : `Gesamte Restschuld: ${formatNumber(totalDueWithoutRefinancing)} €. Erste Fälligkeit ${formatDueTime(earliestDueYear)}.`}
+                </p>
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="w-full bg-amber-900 text-white hover:bg-amber-800"
+                    onClick={() => setIncludeRefinancing(true)}
                   >
-                    <span className="text-sm">
-                      {formatNumber(iRestSchuld.restschuld)}€
-                    </span>
-                    <p className="text-muted-foreground text-sm">
-                      {iRestSchuld.endYear} Jahre
-                    </p>
-                  </div>
-                ))}
+                    Aktivieren
+                  </Button>
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="w-full border-amber-400 bg-white text-amber-950 hover:bg-amber-100"
+                      >
+                        Details
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="border-neutral-300 bg-white text-black shadow-2xl sm:max-w-md">
+                      <DialogTitle>Fällige Restschulden</DialogTitle>
+                      <DialogDescription className="text-neutral-600">
+                        Diese Beträge sind ohne Anschlussfinanzierung zum
+                        jeweiligen Zeitpunkt vollständig fällig.
+                      </DialogDescription>
+                      <div className="divide-y divide-neutral-200 rounded-lg border border-neutral-200">
+                        {dueAmountsWithoutRefinancing.map((item) => (
+                          <div
+                            key={`${item.name}-${item.dueYear}`}
+                            className="flex items-start justify-between gap-4 p-3 text-sm"
+                          >
+                            <div>
+                              <p className="font-medium">{item.name}</p>
+                              <p className="text-neutral-500">
+                                Fällig {formatDueTime(item.dueYear)}
+                              </p>
+                            </div>
+                            <p className="shrink-0 font-semibold">
+                              {formatNumber(item.dueAmount)} €
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="flex items-center justify-between border-t border-neutral-200 pt-3 font-semibold">
+                        <span>Gesamte Restschuld</span>
+                        <span>
+                          {formatNumber(totalDueWithoutRefinancing)} €
+                        </span>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+              </div>
             </div>
-          </div>
-          <div className="flex w-full flex-row items-center gap-2"></div>
-          <div className="flex w-full items-center gap-2">
-            <div className="flex w-full flex-col items-center gap-2">
-              <p className="text-muted-foreground text-sm">
-                Restschuld gesamt nach{" "}
-                {includeRefinancing ? analysisHorizonYears : zinsbindung}{" "}
-                Jahren: {formatNumber(restschuldGesamtStichtag)}€
-              </p>
-              {!includeRefinancing &&
-                dueAmountsWithoutRefinancing.length > 0 && (
-                  <div className="w-full rounded-md border border-neutral-300 bg-white p-2 text-xs text-neutral-700">
-                    <p className="mb-1 font-medium text-black">
-                      Faellige Restschuld ohne Anschlussfinanzierung
-                    </p>
-                    {dueAmountsWithoutRefinancing.map((item) => (
-                      <p key={`${item.name}-${item.dueYear}`}>
-                        {item.name}: {formatNumber(item.dueAmount)}€ in Jahr{" "}
-                        {item.dueYear}
-                      </p>
-                    ))}
-                  </div>
-                )}
-            </div>
-          </div>
+          )}
 
           <div className="my-2 w-full border-t border-neutral-700" />
           <h2 className="w-full justify-self-start font-semibold">
