@@ -70,6 +70,32 @@ type MaturityEvent = {
   dueAmount: number;
 };
 
+function MobileMetric({
+  label,
+  value,
+  valueClassName = "text-neutral-100",
+  detail,
+}: {
+  label: string;
+  value: string;
+  valueClassName?: string;
+  detail?: string;
+}) {
+  return (
+    <div className="flex items-start justify-between gap-3 py-1.5 text-sm">
+      <span className="text-neutral-400">{label}</span>
+      <span className={`text-right font-medium ${valueClassName}`}>
+        {value}
+        {detail && (
+          <span className="block text-xs font-normal text-neutral-400">
+            {detail}
+          </span>
+        )}
+      </span>
+    </div>
+  );
+}
+
 function getRefinancingSegment({
   principal,
   startYear,
@@ -1122,7 +1148,91 @@ export default function FinanzplanPage() {
             scenarioIds={comparisonRows.map((scenario) => scenario.id)}
           />
 
-          <div className="overflow-x-auto rounded-md border border-neutral-700 bg-neutral-800">
+          <div className="space-y-2 sm:hidden">
+            {comparisonRows.map((row) => (
+              <div
+                key={row.id}
+                className="rounded-lg border border-neutral-700 bg-neutral-800 p-3"
+                style={{
+                  borderLeft: `4px solid ${chartConfig[row.id]?.color ?? "#a3a3a3"}`,
+                }}
+              >
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <p className="font-medium text-neutral-100">{row.name}</p>
+                  <p className="text-sm text-neutral-300">
+                    {row.stichtag} Jahre
+                  </p>
+                </div>
+                <div className="divide-y divide-neutral-700">
+                  <MobileMetric
+                    label="Bisher bezahlt"
+                    value={`${formatNumber(row.bisherBezahltGesamt)} €`}
+                    detail={
+                      comparisonBaseRow && row.id !== comparisonBaseRow.id
+                        ? `Δ ${renderDelta(
+                            row.bisherBezahltGesamt,
+                            comparisonBaseRow.bisherBezahltGesamt,
+                          )}`
+                        : undefined
+                    }
+                  />
+                  <MobileMetric
+                    label="Bisher getilgt"
+                    value={`${formatNumber(row.getilgtGesamt)} €`}
+                    valueClassName="text-green-300"
+                    detail={
+                      comparisonBaseRow && row.id !== comparisonBaseRow.id
+                        ? `Δ ${renderDelta(
+                            row.getilgtGesamt,
+                            comparisonBaseRow.getilgtGesamt,
+                          )}`
+                        : undefined
+                    }
+                  />
+                  <MobileMetric
+                    label="Noch offen"
+                    value={`${formatNumber(row.restschuldGesamt)} €`}
+                    detail={
+                      comparisonBaseRow && row.id !== comparisonBaseRow.id
+                        ? `Δ ${renderDelta(
+                            row.restschuldGesamt,
+                            comparisonBaseRow.restschuldGesamt,
+                          )}`
+                        : undefined
+                    }
+                  />
+                  <MobileMetric
+                    label="Bisher Zinsen"
+                    value={`${formatNumber(row.zinsenGesamt)} €`}
+                    valueClassName="text-amber-300"
+                    detail={
+                      comparisonBaseRow && row.id !== comparisonBaseRow.id
+                        ? `Δ ${renderDelta(
+                            row.zinsenGesamt,
+                            comparisonBaseRow.zinsenGesamt,
+                          )}`
+                        : undefined
+                    }
+                  />
+                  <MobileMetric
+                    label="Ø Zinsen / Monat"
+                    value={`${formatNumber(
+                      row.durchschnittMonatlicheZinsen,
+                    )} €`}
+                    detail={
+                      comparisonBaseRow && row.id !== comparisonBaseRow.id
+                        ? `Δ ${renderDelta(
+                            row.durchschnittMonatlicheZinsen,
+                            comparisonBaseRow.durchschnittMonatlicheZinsen,
+                          )}`
+                        : undefined
+                    }
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="hidden overflow-x-auto rounded-md border border-neutral-700 bg-neutral-800 sm:block">
             <table className="w-full min-w-[820px] text-sm">
               <thead>
                 <tr className="border-b border-neutral-700 text-left text-neutral-300">
@@ -1280,8 +1390,50 @@ export default function FinanzplanPage() {
             }}
             accentColor={detailAccentColor}
           />
+          <div className="space-y-2 sm:hidden">
+            {kreditRows.map((row) => (
+              <div
+                key={`${row.name}-${row.stichtag}`}
+                className="rounded-lg border border-neutral-700 bg-neutral-800 p-3"
+                style={{ borderLeft: `4px solid ${detailAccentColor}` }}
+              >
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <p className="font-medium text-neutral-100">{row.name}</p>
+                  <p className="text-sm text-neutral-300">
+                    {row.stichtag} Jahre
+                  </p>
+                </div>
+                <div className="divide-y divide-neutral-700">
+                  <MobileMetric
+                    label="Bisher bezahlt"
+                    value={`${formatNumber(row.bisherBezahlt)} €`}
+                  />
+                  <MobileMetric
+                    label="Bisher getilgt"
+                    value={`${formatNumber(row.getilgt)} €`}
+                    valueClassName="text-green-300"
+                  />
+                  <MobileMetric
+                    label="Noch offen"
+                    value={`${formatNumber(row.restschuld)} €`}
+                  />
+                  <MobileMetric
+                    label="Bisher Zinsen"
+                    value={`${formatNumber(row.zinsen)} €`}
+                    valueClassName="text-amber-300"
+                  />
+                  <MobileMetric
+                    label="Ø Zinsen / Monat"
+                    value={`${formatNumber(
+                      row.durchschnittMonatlicheZinsen,
+                    )} €`}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
           <div
-            className="overflow-x-auto rounded-md border border-neutral-700 bg-neutral-800"
+            className="hidden overflow-x-auto rounded-md border border-neutral-700 bg-neutral-800 sm:block"
             style={{ borderLeft: `4px solid ${detailAccentColor}` }}
           >
             <table className="w-full min-w-[780px] text-sm">
@@ -1335,67 +1487,137 @@ export default function FinanzplanPage() {
               : "Je Stichtag wird pro Kredit maximal bis zu seiner Zinsbindung gerechnet. Danach bleiben die Werte eingefroren."}
           </p>
           {!includeRefinancing && maturityEvents.length > 0 && (
-            <div className="overflow-x-auto rounded-md border border-neutral-700 bg-neutral-800">
-              <table className="w-full min-w-[680px] text-sm">
-                <thead>
-                  <tr className="border-b border-neutral-700 text-left text-neutral-300">
-                    <th className="px-3 py-2 font-medium">Kredit</th>
-                    <th className="px-3 py-2 font-medium">Faellig in</th>
-                    <th className="px-3 py-2 font-medium">
-                      Faellige Restschuld
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {maturityEvents.map((event) => (
-                    <tr
-                      key={`${event.name}-${event.dueYear}`}
-                      className="border-b border-neutral-700/60"
-                    >
-                      <td className="px-3 py-2 text-neutral-100">
-                        {event.name}
-                      </td>
-                      <td className="px-3 py-2 text-neutral-100">
-                        Jahr {event.dueYear}
-                      </td>
-                      <td className="px-3 py-2 text-neutral-100">
-                        {formatNumber(event.dueAmount)} €
-                      </td>
+            <>
+              <div className="space-y-2 sm:hidden">
+                {maturityEvents.map((event) => (
+                  <div
+                    key={`${event.name}-${event.dueYear}`}
+                    className="rounded-lg border border-neutral-700 bg-neutral-800 p-3"
+                  >
+                    <p className="font-medium text-neutral-100">{event.name}</p>
+                    <MobileMetric
+                      label={`Fällig in Jahr ${event.dueYear}`}
+                      value={`${formatNumber(event.dueAmount)} €`}
+                    />
+                  </div>
+                ))}
+              </div>
+              <div className="hidden overflow-x-auto rounded-md border border-neutral-700 bg-neutral-800 sm:block">
+                <table className="w-full min-w-[680px] text-sm">
+                  <thead>
+                    <tr className="border-b border-neutral-700 text-left text-neutral-300">
+                      <th className="px-3 py-2 font-medium">Kredit</th>
+                      <th className="px-3 py-2 font-medium">Faellig in</th>
+                      <th className="px-3 py-2 font-medium">
+                        Faellige Restschuld
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {maturityEvents.map((event) => (
+                      <tr
+                        key={`${event.name}-${event.dueYear}`}
+                        className="border-b border-neutral-700/60"
+                      >
+                        <td className="px-3 py-2 text-neutral-100">
+                          {event.name}
+                        </td>
+                        <td className="px-3 py-2 text-neutral-100">
+                          Jahr {event.dueYear}
+                        </td>
+                        <td className="px-3 py-2 text-neutral-100">
+                          {formatNumber(event.dueAmount)} €
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
           {!includeRefinancing && maturityByYear.length > 0 && (
-            <div className="overflow-x-auto rounded-md border border-neutral-700 bg-neutral-800">
-              <table className="w-full min-w-[520px] text-sm">
-                <thead>
-                  <tr className="border-b border-neutral-700 text-left text-neutral-300">
-                    <th className="px-3 py-2 font-medium">Jahr</th>
-                    <th className="px-3 py-2 font-medium">Summe faellig</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {maturityByYear.map((row) => (
-                    <tr
-                      key={row.dueYear}
-                      className="border-b border-neutral-700/60"
-                    >
-                      <td className="px-3 py-2 text-neutral-100">
-                        {row.dueYear}
-                      </td>
-                      <td className="px-3 py-2 text-neutral-100">
-                        {formatNumber(row.dueAmount)} €
-                      </td>
+            <>
+              <div className="space-y-2 sm:hidden">
+                {maturityByYear.map((row) => (
+                  <div
+                    key={row.dueYear}
+                    className="rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2"
+                  >
+                    <MobileMetric
+                      label={`Jahr ${row.dueYear}`}
+                      value={`${formatNumber(row.dueAmount)} € fällig`}
+                    />
+                  </div>
+                ))}
+              </div>
+              <div className="hidden overflow-x-auto rounded-md border border-neutral-700 bg-neutral-800 sm:block">
+                <table className="w-full min-w-[520px] text-sm">
+                  <thead>
+                    <tr className="border-b border-neutral-700 text-left text-neutral-300">
+                      <th className="px-3 py-2 font-medium">Jahr</th>
+                      <th className="px-3 py-2 font-medium">Summe faellig</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {maturityByYear.map((row) => (
+                      <tr
+                        key={row.dueYear}
+                        className="border-b border-neutral-700/60"
+                      >
+                        <td className="px-3 py-2 text-neutral-100">
+                          {row.dueYear}
+                        </td>
+                        <td className="px-3 py-2 text-neutral-100">
+                          {formatNumber(row.dueAmount)} €
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
+          <div className="space-y-2 sm:hidden">
+            {finanzplanRows.map((row) => (
+              <div
+                key={row.stichtag}
+                className="rounded-lg border border-neutral-700 bg-neutral-800 p-3"
+                style={{ borderLeft: `4px solid ${detailAccentColor}` }}
+              >
+                <p className="mb-2 font-medium text-neutral-100">
+                  Stichtag: {row.stichtag} Jahre
+                </p>
+                <div className="divide-y divide-neutral-700">
+                  <MobileMetric
+                    label="Bisher bezahlt"
+                    value={`${formatNumber(row.bisherBezahltGesamt)} €`}
+                  />
+                  <MobileMetric
+                    label="Bisher getilgt"
+                    value={`${formatNumber(row.getilgtGesamt)} €`}
+                    valueClassName="text-green-300"
+                  />
+                  <MobileMetric
+                    label="Noch offen"
+                    value={`${formatNumber(row.restschuldGesamt)} €`}
+                  />
+                  <MobileMetric
+                    label="Bisher Zinsen"
+                    value={`${formatNumber(row.zinsenGesamt)} €`}
+                    valueClassName="text-amber-300"
+                  />
+                  <MobileMetric
+                    label="Ø Zinsen / Monat"
+                    value={`${formatNumber(
+                      row.durchschnittMonatlicheZinsen,
+                    )} €`}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
           <div
-            className="overflow-x-auto rounded-md border border-neutral-700 bg-neutral-800"
+            className="hidden overflow-x-auto rounded-md border border-neutral-700 bg-neutral-800 sm:block"
             style={{ borderLeft: `4px solid ${detailAccentColor}` }}
           >
             <table className="w-full min-w-[720px] text-sm">

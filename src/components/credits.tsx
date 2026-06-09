@@ -147,81 +147,147 @@ export default function Credits() {
           Noch keine weiteren Kredite angelegt.
         </p>
       ) : (
-        <div className="overflow-x-auto rounded-md border border-neutral-700">
-          <table className="w-full min-w-[680px] text-sm">
-            <thead>
-              <tr className="bg-neutral-800 text-left text-neutral-300">
-                <th className="px-3 py-2 font-medium">Kredit</th>
-                <th className="px-3 py-2 font-medium">Darlehenssumme</th>
-                <th className="px-3 py-2 font-medium">Raten</th>
-                <th className="px-3 py-2 font-medium">Aktionen</th>
-              </tr>
-            </thead>
-            <tbody>
-              {creditEntries.map(([key, credit]) => (
-                <tr
-                  key={key}
-                  className="border-t border-neutral-700 bg-neutral-900"
-                >
-                  <td className="px-3 py-2 text-neutral-100">
-                    <div>{credit.name}</div>
-                    {isBridgeCredit(credit) && (
-                      <div className="text-xs text-neutral-400">
-                        Zwischenfinanzierung, {credit.laufzeitMonate} Monate
-                      </div>
-                    )}
-                  </td>
-                  <td className="px-3 py-2 text-neutral-100">
+        <>
+          <div className="space-y-2 sm:hidden">
+            {creditEntries.map(([key, credit]) => (
+              <div
+                key={key}
+                className="rounded-lg border border-neutral-700 bg-neutral-900 p-3 text-neutral-100"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-medium">{credit.name}</p>
+                    <p className="text-xs text-neutral-400">
+                      {isBridgeCredit(credit)
+                        ? `Zwischenfinanzierung · ${credit.laufzeitMonate} Monate`
+                        : "Kredit"}
+                    </p>
+                  </div>
+                  <p className="shrink-0 font-semibold">
                     {formatNumber(credit.summeDarlehen)} €
-                  </td>
-                  <td className="px-3 py-2">
-                    <div className="space-y-1 text-sm text-neutral-100">
-                      {credit.rates.map((rate) => (
-                        <p key={rate.key + key}>
-                          {rate.startYear}-{rate.endYear}J:{" "}
-                          {Number(rate.rate).toFixed(2)} €
-                        </p>
-                      ))}
+                  </p>
+                </div>
+                <div className="mt-3 space-y-1 border-t border-neutral-700 pt-2 text-sm">
+                  {credit.rates.map((rate) => (
+                    <div
+                      key={rate.key + key}
+                      className="flex items-center justify-between gap-3"
+                    >
+                      <span className="text-neutral-400">
+                        Jahr {rate.startYear}-{rate.endYear}
+                      </span>
+                      <span>{formatNumber(rate.rate)} € / Monat</span>
                     </div>
-                  </td>
-                  <td className="px-3 py-2">
-                    <div className="flex items-center gap-1">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={() => {
-                          setCreditToEdit(credit);
-                          OnOpenChange(true);
-                        }}
-                        title="Bearbeiten"
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={() =>
-                          setCredits((prev) => {
-                            const newCredits = { ...prev };
-                            delete newCredits[key];
-                            return newCredits;
-                          })
-                        }
-                        title="Löschen"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </td>
+                  ))}
+                </div>
+                <div className="mt-3 flex justify-end gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setCreditToEdit(credit);
+                      OnOpenChange(true);
+                    }}
+                  >
+                    <Edit className="h-4 w-4" />
+                    Bearbeiten
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      setCredits((prev) => {
+                        const newCredits = { ...prev };
+                        delete newCredits[key];
+                        return newCredits;
+                      })
+                    }
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Löschen
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="hidden overflow-x-auto rounded-md border border-neutral-700 sm:block">
+            <table className="w-full min-w-[680px] text-sm">
+              <thead>
+                <tr className="bg-neutral-800 text-left text-neutral-300">
+                  <th className="px-3 py-2 font-medium">Kredit</th>
+                  <th className="px-3 py-2 font-medium">Darlehenssumme</th>
+                  <th className="px-3 py-2 font-medium">Raten</th>
+                  <th className="px-3 py-2 font-medium">Aktionen</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {creditEntries.map(([key, credit]) => (
+                  <tr
+                    key={key}
+                    className="border-t border-neutral-700 bg-neutral-900"
+                  >
+                    <td className="px-3 py-2 text-neutral-100">
+                      <div>{credit.name}</div>
+                      {isBridgeCredit(credit) && (
+                        <div className="text-xs text-neutral-400">
+                          Zwischenfinanzierung, {credit.laufzeitMonate} Monate
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 text-neutral-100">
+                      {formatNumber(credit.summeDarlehen)} €
+                    </td>
+                    <td className="px-3 py-2">
+                      <div className="space-y-1 text-sm text-neutral-100">
+                        {credit.rates.map((rate) => (
+                          <p key={rate.key + key}>
+                            {rate.startYear}-{rate.endYear}J:{" "}
+                            {Number(rate.rate).toFixed(2)} €
+                          </p>
+                        ))}
+                      </div>
+                    </td>
+                    <td className="px-3 py-2">
+                      <div className="flex items-center gap-1">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => {
+                            setCreditToEdit(credit);
+                            OnOpenChange(true);
+                          }}
+                          title="Bearbeiten"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() =>
+                            setCredits((prev) => {
+                              const newCredits = { ...prev };
+                              delete newCredits[key];
+                              return newCredits;
+                            })
+                          }
+                          title="Löschen"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
 
       <NewCreditDialog
