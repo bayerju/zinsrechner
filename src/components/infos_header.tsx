@@ -512,29 +512,31 @@ export default function InfosHeader() {
           <h2 className="w-full justify-self-start font-semibold">
             Konditionen bei der Bank
           </h2>
-          <div className="flex w-full justify-between py-2 text-sm">
-            <span className="flex items-center gap-1">
+          <div className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-3 py-2 text-sm">
+            <span className="min-w-0">
               Nettodarlehensbetrag bei der Bank
               {/* <span title="Info">ⓘ</span> */}
             </span>
-            <span>{formatNumber(nettoDarlehensbetrag)} €</span>
+            <span className="text-right font-medium whitespace-nowrap">
+              {formatNumber(nettoDarlehensbetrag)} €
+            </span>
           </div>
-          <div className="flex w-full justify-between py-2 text-sm">
+          <div className="flex w-full flex-col gap-1.5 py-2 text-sm sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-1">
               Gebundener Effektivzins p.a.
               {/* <span title="Info">ⓘ</span> */}
             </div>
-            <div className="w-32">
+            <div className="w-full sm:w-32">
               <PercentInput
                 value={effzins}
                 onChange={(value) => setEffzins(value)}
               />
             </div>
           </div>
-          <div className="flex w-full justify-between py-2 text-sm">
+          <div className="flex w-full flex-col gap-1.5 py-2 text-sm sm:flex-row sm:items-center sm:justify-between">
             <span className="flex items-center gap-1">Sollzinsbindung</span>
             <select
-              className="w-32 rounded-md border border-neutral-700 bg-neutral-800 px-3 py-1 text-white"
+              className="h-10 w-full rounded-md border border-neutral-700 bg-neutral-800 px-3 py-1 text-white sm:h-auto sm:w-32"
               value={zinsbindung}
               onChange={(e) => setzinsbindung(Number(e.target.value))}
             >
@@ -544,10 +546,10 @@ export default function InfosHeader() {
               <option value={20}>20 Jahre</option>
             </select>
           </div>
-          <div className="flex w-full justify-between py-2 text-sm">
+          <div className="flex w-full flex-col gap-1.5 py-2 text-sm sm:flex-row sm:items-center sm:justify-between">
             <span className="flex items-center gap-1">Tilgungssatz</span>
             <select
-              className="w-32 rounded-md border border-neutral-700 bg-neutral-800 px-3 py-1 text-white"
+              className="h-10 w-full rounded-md border border-neutral-700 bg-neutral-800 px-3 py-1 text-white sm:h-auto sm:w-32"
               value={tilgungssatz}
               onChange={(e) => setTilgungssatz(Number(e.target.value))}
             >
@@ -561,15 +563,17 @@ export default function InfosHeader() {
 
           {/* <div className="my-2 w-full border-t border-neutral-700" /> */}
           {/* Restschuld nach x Jahren */}
-          <div className="flex w-full justify-between py-2 text-sm">
-            <span className="flex items-center gap-1">
+          <div className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-3 border-t border-neutral-200 py-3 text-sm">
+            <span className="min-w-0">
               Restschuld nach {zinsbindung} Jahren
               {/* <span title="Info">ⓘ</span> */}
             </span>
-            <span>{formatNumber(restschuldBank)} €</span>
+            <span className="text-right font-medium whitespace-nowrap">
+              {formatNumber(restschuldBank)} €
+            </span>
           </div>
-          <div className="mt-2 flex w-full items-center gap-1 text-sm">
-            <span>
+          <div className="mt-1 flex w-full items-start justify-between gap-2 text-sm">
+            <span className="min-w-0">
               Langfristige Tilgungsprognose:{" "}
               <span className="font-medium">
                 {fullPayment.canBePaidOff
