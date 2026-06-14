@@ -3,6 +3,7 @@ import "~/styles/globals.css";
 import { type Metadata } from "next";
 import { Geist } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
+import { deDE } from "@clerk/localizations";
 
 import { TRPCReactProvider } from "~/trpc/react";
 import JotaiProvider from "~/state/jotai_provider";
@@ -27,7 +28,7 @@ export default function RootLayout({
   return (
     <html lang="de-DE" className={`${geist.variable}`}>
       <body>
-        <ClerkProvider>
+        <ClerkProvider localization={deDE}>
           <ConvexClientProvider>
             <PostHogProvider>
               <TRPCReactProvider>
