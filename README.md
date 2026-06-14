@@ -14,13 +14,23 @@ after sign-in. Signed-out usage remains local to the browser.
 - While signed in, data is synchronized through Convex using separate
   `userSettings`, `financingScenarios`, `credits`, `liquidityScenarios`, and
   `liquidityItems` tables.
-- After authenticated import or synchronization, the app removes its browser
-  storage so Convex is the only source of truth while signed in.
-- If scenarios are created or changed while signed out, signing in keeps the
-  cloud versions and imports the local versions as additional scenarios named
-  `... (lokal importiert)`.
+- If browser data is present during sign-in, the app opens a review dialog
+  before changing anything. It lists every local financing and liquidity
+  scenario as either new or already present in Convex.
+- The user can explicitly import the new scenarios or discard all local data.
+  Duplicate scenarios are never imported again.
+- The generated `Basis` financing and liquidity scenarios are not import
+  candidates. If no additional local scenarios exist, the review dialog is
+  skipped.
+- After the user makes that choice, the app removes its browser storage so
+  Convex is the only source of truth while signed in.
+- Imported scenarios keep the cloud versions and add genuinely different local
+  versions as additional scenarios named `... (lokal importiert)`.
 - Convex stores an account-specific SHA-256 import fingerprint, making this
   import idempotent across refreshes and devices.
+- Convex also compares the actual calculator values, credits, and liquidity
+  items. Renamed scenarios with otherwise identical content are shown as
+  duplicates.
 - If the same scenario changed both locally and on another device, both
   versions are preserved instead of silently overwriting the local version.
 

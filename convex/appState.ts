@@ -366,6 +366,95 @@ function sameLiquidityContent(
   );
 }
 
+export const previewLocalScenarios = query({
+  args: {
+    financing: v.array(localFinancingImportValidator),
+    liquidity: v.array(localLiquidityImportValidator),
+  },
+  handler: async (ctx, args) => {
+    const identity = await requireIdentity(ctx);
+    const userIdentifier = identity.tokenIdentifier;
+    const [financingRows, creditRows, liquidityRows, liquidityItemRows] =
+      await Promise.all([
+        ctx.db
+          .query("financingScenarios")
+          .withIndex("by_userIdentifier", (q) =>
+            q.eq("userIdentifier", userIdentifier),
+          )
+          .take(500),
+        ctx.db
+          .query("credits")
+          .withIndex("by_userIdentifier", (q) =>
+            q.eq("userIdentifier", userIdentifier),
+          )
+          .take(2000),
+        ctx.db
+          .query("liquidityScenarios")
+          .withIndex("by_userIdentifier", (q) =>
+            q.eq("userIdentifier", userIdentifier),
+          )
+          .take(500),
+        ctx.db
+          .query("liquidityItems")
+          .withIndex("by_userIdentifier", (q) =>
+            q.eq("userIdentifier", userIdentifier),
+          )
+          .take(5000),
+      ]);
+    const financingIdMap = new Map<string, string>();
+
+    const financing = args.financing.map((candidate) => {
+      const match = financingRows.find((row) =>
+        sameFinancingContent(
+          row,
+          candidate,
+          creditRows
+            .filter((credit) => credit.scenarioId === row.scenarioId)
+            .map((credit) => credit.data),
+        ),
+      );
+      if (match) {
+        financingIdMap.set(candidate.scenario.scenarioId, match.scenarioId);
+      }
+      return {
+        scenarioId: candidate.scenario.scenarioId,
+        name: candidate.scenario.name,
+        status: match ? ("duplicate" as const) : ("new" as const),
+        matchingScenarioId: match?.scenarioId ?? null,
+        matchingName: match?.name ?? null,
+      };
+    });
+
+    const liquidity = args.liquidity.map((candidate) => {
+      const expectedCreditScenarioId =
+        financingIdMap.get(candidate.scenario.creditScenarioId) ??
+        candidate.scenario.creditScenarioId;
+      const match = liquidityRows.find((row) =>
+        sameLiquidityContent(
+          row,
+          candidate,
+          expectedCreditScenarioId,
+          liquidityItemRows
+            .filter((item) => item.scenarioId === row.scenarioId)
+            .map((item) => ({
+              position: item.position,
+              data: item.data,
+            })),
+        ),
+      );
+      return {
+        scenarioId: candidate.scenario.scenarioId,
+        name: candidate.scenario.name,
+        status: match ? ("duplicate" as const) : ("new" as const),
+        matchingScenarioId: match?.scenarioId ?? null,
+        matchingName: match?.name ?? null,
+      };
+    });
+
+    return { financing, liquidity };
+  },
+});
+
 export const importLocalScenarios = mutation({
   args: {
     financing: v.array(localFinancingImportValidator),

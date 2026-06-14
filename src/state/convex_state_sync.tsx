@@ -4,12 +4,25 @@ import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import { useAtom } from "jotai";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../../convex/_generated/api";
+import { Button } from "~/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "~/components/ui/dialog";
+import { defaultScenarioColor } from "~/lib/scenario_colors";
 import {
   analysisHorizonYearsAtom,
+  defaultAnalysisHorizonYears,
   includeRefinancingAtom,
 } from "./analysis_settings_atom";
 import {
   activeLiquidityScenarioIdAtom,
+  defaultLiquidityScenarioId,
+  defaultLiquidityScenarioValues,
   liquidityScenariosAtom,
   liquidityScenarioValuesAtom,
   type LiquidityScenario,
@@ -18,10 +31,12 @@ import {
 import {
   activeScenarioIdAtom,
   comparedScenarioIdsAtom,
+  defaultScenarioId,
   scenariosAtom,
   type Scenario,
 } from "./scenarios_atom";
 import {
+  defaultScenarioValues,
   scenarioValuesAtom,
   type ScenarioValues,
 } from "./scenario_values_atom";
@@ -58,6 +73,8 @@ type RemoteState = {
   needsMigration: boolean;
 };
 
+type LocalImports = Awaited<ReturnType<typeof toLocalImports>>;
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
@@ -86,46 +103,47 @@ function clearLocalAppData() {
   for (const key of APP_STORAGE_KEYS) localStorage.removeItem(key);
 }
 
-function sameFinancingScenario(
-  left: SyncedState,
-  right: SyncedState,
-  scenarioId: string,
-) {
-  return (
-    JSON.stringify({
-      scenario: left.scenarios[scenarioId],
-      values: left.scenarioValues[scenarioId],
-    }) ===
-    JSON.stringify({
-      scenario: right.scenarios[scenarioId],
-      values: right.scenarioValues[scenarioId],
-    })
-  );
-}
-
-function sameLiquidityScenario(
-  left: SyncedState,
-  right: SyncedState,
-  scenarioId: string,
-) {
-  return (
-    JSON.stringify({
-      scenario: left.liquidityScenarios[scenarioId],
-      values: left.liquidityScenarioValues[scenarioId],
-    }) ===
-    JSON.stringify({
-      scenario: right.liquidityScenarios[scenarioId],
-      values: right.liquidityScenarioValues[scenarioId],
-    })
-  );
-}
-
 async function fingerprint(value: unknown) {
   const bytes = new TextEncoder().encode(JSON.stringify(value));
   const digest = await crypto.subtle.digest("SHA-256", bytes);
   return Array.from(new Uint8Array(digest))
     .map((byte) => byte.toString(16).padStart(2, "0"))
     .join("");
+}
+
+function defaultSyncedState(): SyncedState {
+  return {
+    version: 1,
+    scenarios: {
+      [defaultScenarioId]: {
+        id: defaultScenarioId,
+        name: "Basis",
+        createdAt: 0,
+        color: defaultScenarioColor,
+      },
+    },
+    activeScenarioId: defaultScenarioId,
+    scenarioValues: {
+      [defaultScenarioId]: structuredClone(defaultScenarioValues),
+    },
+    comparedScenarioIds: [],
+    liquidityScenarios: {
+      [defaultLiquidityScenarioId]: {
+        id: defaultLiquidityScenarioId,
+        name: "Basis",
+        createdAt: 0,
+        color: defaultScenarioColor,
+      },
+    },
+    activeLiquidityScenarioId: defaultLiquidityScenarioId,
+    liquidityScenarioValues: {
+      [defaultLiquidityScenarioId]: structuredClone(
+        defaultLiquidityScenarioValues,
+      ),
+    },
+    includeRefinancing: false,
+    analysisHorizonYears: defaultAnalysisHorizonYears,
+  };
 }
 
 function toConvexSnapshot(state: SyncedState) {
@@ -208,9 +226,9 @@ async function toLocalImports(local: SyncedState, remote: SyncedState) {
         scenario.id.startsWith("financing-local-") &&
         !remote.scenarios[scenario.id];
       if (
+        scenario.id === defaultScenarioId ||
         !values ||
-        isRemovedImportArtifact ||
-        sameFinancingScenario(local, remote, scenario.id)
+        isRemovedImportArtifact
       ) {
         return [];
       }
@@ -245,9 +263,9 @@ async function toLocalImports(local: SyncedState, remote: SyncedState) {
         scenario.id.startsWith("liquidity-local-") &&
         !remote.liquidityScenarios[scenario.id];
       if (
+        scenario.id === defaultLiquidityScenarioId ||
         !values ||
-        isRemovedImportArtifact ||
-        sameLiquidityScenario(local, remote, scenario.id)
+        isRemovedImportArtifact
       ) {
         return [];
       }
@@ -311,6 +329,17 @@ export function ConvexStateSync() {
   const [pendingRemoteTimestamp, setPendingRemoteTimestamp] = useState<
     number | null
   >(null);
+  const [importReview, setImportReview] = useState<{
+    imports: LocalImports;
+    remoteState: SyncedState;
+    remoteWasNull: boolean;
+    needsMigration: boolean;
+  } | null>(null);
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
+  const importPreview = useQuery(
+    api.appState.previewLocalScenarios,
+    importReview?.imports ?? "skip",
+  );
   const initializationRunning = useRef(false);
   const lastSyncedPayload = useRef<string | null>(null);
 
@@ -383,6 +412,7 @@ export function ConvexStateSync() {
       !storageHydrated ||
       remoteResult === undefined ||
       readyToSave ||
+      importReview !== null ||
       initializationRunning.current
     ) {
       return;
@@ -407,13 +437,42 @@ export function ConvexStateSync() {
     const localDataExists = hasLocalAppData();
 
     if (remoteResult === null) {
-      void replaceState(toConvexSnapshot(localState))
-        .then((updatedAt) => {
-          clearLocalAppData();
-          setPendingRemoteTimestamp(updatedAt);
+      const remoteState = defaultSyncedState();
+      if (!localDataExists) {
+        void replaceState(toConvexSnapshot(remoteState))
+          .then((updatedAt) => {
+            clearLocalAppData();
+            setPendingRemoteTimestamp(updatedAt);
+          })
+          .catch((error: unknown) => {
+            console.error("Failed to create Convex state", error);
+          })
+          .finally(() => {
+            initializationRunning.current = false;
+          });
+        return;
+      }
+
+      void toLocalImports(localState, remoteState)
+        .then(async (imports) => {
+          if (
+            imports.financing.length === 0 &&
+            imports.liquidity.length === 0
+          ) {
+            const updatedAt = await replaceState(toConvexSnapshot(remoteState));
+            clearLocalAppData();
+            setPendingRemoteTimestamp(updatedAt);
+            return;
+          }
+          setImportReview({
+            imports,
+            remoteState,
+            remoteWasNull: true,
+            needsMigration: false,
+          });
         })
         .catch((error: unknown) => {
-          console.error("Failed to create Convex state", error);
+          console.error("Failed to prepare local import", error);
         })
         .finally(() => {
           initializationRunning.current = false;
@@ -452,19 +511,26 @@ export function ConvexStateSync() {
     void toLocalImports(localState, remoteResult.state)
       .then(async (imports) => {
         if (imports.financing.length === 0 && imports.liquidity.length === 0) {
-          return null;
-        }
-        return await importLocalScenarios(imports);
-      })
-      .then((updatedAt) => {
-        clearLocalAppData();
-        if (updatedAt === null) {
+          if (remoteResult.needsMigration) {
+            const updatedAt = await replaceState(
+              toConvexSnapshot(remoteResult.state as SyncedState),
+            );
+            clearLocalAppData();
+            setPendingRemoteTimestamp(updatedAt);
+            return;
+          }
           applyState(remoteResult.state as SyncedState);
           lastSyncedPayload.current = JSON.stringify(remoteResult.state);
+          clearLocalAppData();
           setReadyToSave(true);
-        } else {
-          setPendingRemoteTimestamp(updatedAt);
+          return;
         }
+        setImportReview({
+          imports,
+          remoteState: remoteResult.state as SyncedState,
+          remoteWasNull: false,
+          needsMigration: remoteResult.needsMigration,
+        });
       })
       .catch((error: unknown) => {
         console.error("Failed to import local scenarios", error);
@@ -475,6 +541,7 @@ export function ConvexStateSync() {
   }, [
     applyState,
     importLocalScenarios,
+    importReview,
     isAuthenticated,
     localState,
     pendingRemoteTimestamp,
@@ -483,6 +550,71 @@ export function ConvexStateSync() {
     replaceState,
     storageHydrated,
   ]);
+
+  async function finishWithoutImport() {
+    if (!importReview) return;
+    setReviewSubmitting(true);
+    try {
+      if (importReview.remoteWasNull || importReview.needsMigration) {
+        const updatedAt = await replaceState(
+          toConvexSnapshot(importReview.remoteState),
+        );
+        clearLocalAppData();
+        setImportReview(null);
+        setPendingRemoteTimestamp(updatedAt);
+        return;
+      }
+
+      applyState(importReview.remoteState);
+      lastSyncedPayload.current = JSON.stringify(importReview.remoteState);
+      clearLocalAppData();
+      setImportReview(null);
+      setReadyToSave(true);
+    } catch (error) {
+      console.error("Failed to discard local scenarios", error);
+    } finally {
+      setReviewSubmitting(false);
+    }
+  }
+
+  async function importReviewedScenarios() {
+    if (!importReview) return;
+    setReviewSubmitting(true);
+    try {
+      if (importReview.remoteWasNull) {
+        const defaultUpdatedAt = await replaceState(
+          toConvexSnapshot(importReview.remoteState),
+        );
+        const importUpdatedAt = await importLocalScenarios(
+          importReview.imports,
+        );
+        clearLocalAppData();
+        setImportReview(null);
+        setPendingRemoteTimestamp(importUpdatedAt ?? defaultUpdatedAt);
+        return;
+      }
+
+      const updatedAt = await importLocalScenarios(importReview.imports);
+      clearLocalAppData();
+      setImportReview(null);
+      if (updatedAt !== null) {
+        setPendingRemoteTimestamp(updatedAt);
+      } else if (importReview.needsMigration) {
+        const migrationTimestamp = await replaceState(
+          toConvexSnapshot(importReview.remoteState),
+        );
+        setPendingRemoteTimestamp(migrationTimestamp);
+      } else {
+        applyState(importReview.remoteState);
+        lastSyncedPayload.current = JSON.stringify(importReview.remoteState);
+        setReadyToSave(true);
+      }
+    } catch (error) {
+      console.error("Failed to import local scenarios", error);
+    } finally {
+      setReviewSubmitting(false);
+    }
+  }
 
   useEffect(() => {
     if (!isAuthenticated || !readyToSave) return;
@@ -520,5 +652,100 @@ export function ConvexStateSync() {
     applyState(remoteResult.state);
   }, [applyState, readyToSave, remoteResult]);
 
-  return null;
+  const previewRows = importPreview
+    ? [...importPreview.financing, ...importPreview.liquidity]
+    : [];
+  const newCount = previewRows.filter((row) => row.status === "new").length;
+
+  return (
+    <Dialog open={importReview !== null}>
+      <DialogContent
+        showCloseButton={false}
+        className="border-neutral-300 bg-white text-black sm:max-w-xl"
+        onEscapeKeyDown={(event) => event.preventDefault()}
+        onPointerDownOutside={(event) => event.preventDefault()}
+      >
+        <DialogHeader>
+          <DialogTitle>Lokale Szenarien prüfen</DialogTitle>
+          <DialogDescription>
+            Im Browser wurden lokale Daten gefunden. Prüfe, welche Szenarien
+            zusätzlich in Convex übernommen werden sollen.
+          </DialogDescription>
+        </DialogHeader>
+
+        {importPreview === undefined ? (
+          <p className="text-sm text-neutral-600">
+            Szenarien werden geprüft...
+          </p>
+        ) : (
+          <div className="space-y-4">
+            <ImportSection
+              title="Finanzierung"
+              rows={importPreview.financing}
+            />
+            <ImportSection title="Liquidität" rows={importPreview.liquidity} />
+          </div>
+        )}
+
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={reviewSubmitting || importPreview === undefined}
+            onClick={() => void finishWithoutImport()}
+          >
+            Lokale Daten verwerfen
+          </Button>
+          <Button
+            type="button"
+            disabled={reviewSubmitting || importPreview === undefined}
+            onClick={() => void importReviewedScenarios()}
+          >
+            {newCount > 0
+              ? `${newCount} neue importieren`
+              : "Ohne Import fortfahren"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ImportSection({
+  title,
+  rows,
+}: {
+  title: string;
+  rows: Array<{
+    scenarioId: string;
+    name: string;
+    status: "new" | "duplicate";
+    matchingName: string | null;
+  }>;
+}) {
+  if (rows.length === 0) return null;
+
+  return (
+    <section className="space-y-2">
+      <h3 className="text-sm font-medium">{title}</h3>
+      <div className="divide-y rounded-md border border-neutral-200">
+        {rows.map((row) => (
+          <div
+            key={row.scenarioId}
+            className="flex items-start justify-between gap-3 px-3 py-2 text-sm"
+          >
+            <span>{row.name}</span>
+            {row.status === "duplicate" ? (
+              <span className="text-right text-xs text-neutral-500">
+                Bereits vorhanden
+                {row.matchingName ? ` als „${row.matchingName}“` : ""}
+              </span>
+            ) : (
+              <span className="text-xs font-medium text-emerald-700">Neu</span>
+            )}
+          </div>
+        ))}
+      </div>
+    </section>
+  );
 }
