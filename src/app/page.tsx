@@ -24,7 +24,7 @@ export default function Home() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <form className="space-y-2">
+          <form className="space-y-2 lg:mx-auto lg:grid lg:max-w-5xl lg:grid-cols-2 lg:space-y-0 lg:gap-x-4 lg:gap-y-3">
             <Conditions />
             <Credits />
           </form>

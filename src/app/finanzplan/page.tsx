@@ -1105,7 +1105,7 @@ export default function FinanzplanPage() {
               ? `Anschlussfinanzierung ist aktiv: Restschulden laufen bis zu ${analysisHorizonYears} Jahren mit Bankkonditionen weiter.`
               : "Anschlussfinanzierung ist aus: Restschulden bleiben am Ende der Zinsbindung faellig."}
           </p>
-          <div className="rounded-md border border-neutral-300 p-3">
+          <div className="rounded-md border border-neutral-300 p-3 lg:w-fit lg:min-w-80">
             <div className="mb-2 flex items-center justify-between">
               <p className="text-sm font-medium text-black">
                 Szenarien vergleichen

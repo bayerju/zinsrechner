@@ -195,12 +195,12 @@ export function LiquidityScenarioBar() {
   }
 
   return (
-    <div className="mb-3 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-md border border-neutral-300 p-2 sm:flex sm:flex-wrap">
+    <div className="mb-3 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-md border border-neutral-300 p-2 sm:flex sm:flex-wrap lg:w-fit lg:pr-3">
       <span className="col-span-2 text-sm font-medium text-black sm:col-span-1">
         Liquiditaetsszenario
       </span>
       <select
-        className="h-10 w-full min-w-0 rounded-md border border-neutral-300 bg-white px-2 text-sm text-black sm:h-8 sm:w-auto sm:min-w-44 sm:flex-none"
+        className="h-10 w-full min-w-0 rounded-md border border-neutral-300 bg-white px-2 text-sm text-black sm:h-8 sm:w-auto sm:min-w-44 sm:flex-none lg:w-56"
         value={activeScenarioId}
         onChange={(e) => setActiveScenarioId(e.target.value)}
       >
