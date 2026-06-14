@@ -14,6 +14,8 @@ import {
   DialogTrigger,
 } from "~/components/ui/dialog";
 import { Pencil } from "lucide-react";
+import { SignInButton, UserButton, useUser } from "@clerk/nextjs";
+import { useConvexAuth } from "convex/react";
 import {
   analysisHorizonYearsAtom,
   includeRefinancingAtom,
@@ -29,6 +31,9 @@ export function TopNav() {
   const [analysisHorizonYears, setAnalysisHorizonYears] = useAtom(
     analysisHorizonYearsAtom,
   );
+  const { isLoaded, isSignedIn } = useUser();
+  const { isAuthenticated: isConvexAuthenticated, isLoading: isConvexLoading } =
+    useConvexAuth();
 
   function updateHorizon(value: number) {
     if (!Number.isFinite(value)) return;
@@ -38,27 +43,48 @@ export function TopNav() {
 
   return (
     <nav className="mb-3 space-y-3 border-b border-neutral-300 pb-3 text-sm">
-      <div className="grid grid-cols-2 rounded-lg bg-neutral-100 p-1">
-        <Link
-          href="/"
-          className={`rounded-md px-3 py-2 text-center font-medium transition-colors ${
-            !isLiquiditySection
-              ? "bg-white text-black shadow-sm"
-              : "text-neutral-600 hover:text-black"
-          }`}
-        >
-          Finanzierung
-        </Link>
-        <Link
-          href="/liquiditaetsplan"
-          className={`rounded-md px-3 py-2 text-center font-medium transition-colors ${
-            isLiquiditySection
-              ? "bg-white text-black shadow-sm"
-              : "text-neutral-600 hover:text-black"
-          }`}
-        >
-          Liquidität
-        </Link>
+      <div className="flex items-center gap-2">
+        <div className="grid min-w-0 flex-1 grid-cols-2 rounded-lg bg-neutral-100 p-1">
+          <Link
+            href="/"
+            className={`rounded-md px-3 py-2 text-center font-medium transition-colors ${
+              !isLiquiditySection
+                ? "bg-white text-black shadow-sm"
+                : "text-neutral-600 hover:text-black"
+            }`}
+          >
+            Finanzierung
+          </Link>
+          <Link
+            href="/liquiditaetsplan"
+            className={`rounded-md px-3 py-2 text-center font-medium transition-colors ${
+              isLiquiditySection
+                ? "bg-white text-black shadow-sm"
+                : "text-neutral-600 hover:text-black"
+            }`}
+          >
+            Liquidität
+          </Link>
+        </div>
+        {isLoaded && !isSignedIn && (
+          <SignInButton mode="modal">
+            <Button type="button" size="sm" variant="outline">
+              Anmelden
+            </Button>
+          </SignInButton>
+        )}
+        {isSignedIn && (
+          <div className="flex items-center gap-2">
+            <span className="hidden text-xs text-neutral-500 sm:inline">
+              {isConvexLoading
+                ? "Verbinde..."
+                : isConvexAuthenticated
+                  ? "Synchronisiert"
+                  : "Sync nicht verbunden"}
+            </span>
+            <UserButton />
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-1 border-b border-neutral-200">

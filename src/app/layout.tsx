@@ -2,10 +2,12 @@ import "~/styles/globals.css";
 
 import { type Metadata } from "next";
 import { Geist } from "next/font/google";
+import { ClerkProvider } from "@clerk/nextjs";
 
 import { TRPCReactProvider } from "~/trpc/react";
 import JotaiProvider from "~/state/jotai_provider";
 import { PostHogProvider } from "~/components/PostHogProvider";
+import { ConvexClientProvider } from "./convex_client_provider";
 // import { DevTools } from "jotai-devtools";
 
 export const metadata: Metadata = {
@@ -25,14 +27,18 @@ export default function RootLayout({
   return (
     <html lang="de-DE" className={`${geist.variable}`}>
       <body>
-        <PostHogProvider>
-          <TRPCReactProvider>
-            <JotaiProvider>
-              {children}
-              {/* <DevTools /> */}
-            </JotaiProvider>
-          </TRPCReactProvider>
-        </PostHogProvider>
+        <ClerkProvider>
+          <ConvexClientProvider>
+            <PostHogProvider>
+              <TRPCReactProvider>
+                <JotaiProvider>
+                  {children}
+                  {/* <DevTools /> */}
+                </JotaiProvider>
+              </TRPCReactProvider>
+            </PostHogProvider>
+          </ConvexClientProvider>
+        </ClerkProvider>
       </body>
     </html>
   );
