@@ -53,11 +53,14 @@ export function TopNav() {
       </div>
 
       <div className="hidden lg:block">
-        <div className="flex items-end gap-8 border-b border-neutral-200">
-          <Link href="/" className="shrink-0 text-lg font-semibold text-black">
+        <div className="flex items-center gap-8 border-b border-neutral-200">
+          <Link
+            href="/"
+            className="shrink-0 pb-3 text-lg font-semibold text-black"
+          >
             Zinsrechner
           </Link>
-          <div className="flex items-end gap-6">
+          <div className="flex items-center gap-6">
             <DesktopNavigationGroup>
               <DesktopMenuLink
                 href="/"
