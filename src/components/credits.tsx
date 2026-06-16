@@ -134,7 +134,7 @@ export default function Credits() {
   );
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2 lg:col-span-2 lg:mt-2 lg:border-t lg:border-neutral-200 lg:pt-4">
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-semibold">Weitere Kredite</h1>
         <p className="text-sm text-neutral-400">

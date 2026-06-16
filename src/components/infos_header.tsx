@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { useAtomValue, useAtom } from "jotai";
 import { Card, CardContent } from "~/components/ui/card";
 import { formatNumber } from "~/lib/number_fromat";
@@ -18,7 +19,7 @@ import {
   calculateTotalRatesByTimeframe,
   calculateFullPaymentTime,
 } from "~/lib/calculations";
-import { getCreditEndYear, isBridgeCredit } from "~/lib/credit";
+import { isBridgeCredit } from "~/lib/credit";
 import { creditsAtom } from "~/state/credits_atom";
 import { TopNav } from "./top_nav";
 import { ScenarioBar } from "./scenario_bar";
@@ -28,13 +29,6 @@ import {
 } from "~/state/analysis_settings_atom";
 import { AlertTriangle, Info } from "lucide-react";
 import { Button } from "./ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogTitle,
-  DialogTrigger,
-} from "./ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 
 function buildRefinancingEndYear({
@@ -119,6 +113,49 @@ type RefinancingDetail = {
   remainingDebtAtHorizon: number;
 };
 
+type DueAmountDetail = {
+  name: string;
+  dueYear: number;
+  dueAmount: number;
+};
+
+function RestschuldWarningPopover({
+  title,
+  description,
+  ariaLabel,
+  children,
+  widthClassName = "w-72",
+}: {
+  title: string;
+  description: ReactNode;
+  ariaLabel: string;
+  children: ReactNode;
+  widthClassName?: string;
+}) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="inline-flex h-6 w-6 items-center justify-center rounded-full text-amber-500 transition-colors hover:bg-amber-50 hover:text-amber-600 focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:outline-none"
+          title={title}
+          aria-label={ariaLabel}
+        >
+          <AlertTriangle className="h-4 w-4" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        className={`${widthClassName} border-amber-300 bg-amber-50 p-3 text-sm text-amber-950`}
+      >
+        <p className="font-medium">{title}</p>
+        <p className="mt-1 text-amber-900">{description}</p>
+        {children}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 function RefinancingAssumptionInfo({
   details,
 }: {
@@ -128,56 +165,107 @@ function RefinancingAssumptionInfo({
     "Für diesen Zeitraum wird angenommen, dass Effektivzins und Tilgungssatz nach der Zinsbindung unverändert bleiben.";
 
   return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          className="inline-flex h-6 w-6 items-center justify-center rounded-full text-amber-500 transition-colors hover:bg-amber-50 hover:text-amber-600 focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:outline-none"
-          title={explanation}
-          aria-label="Annahme zur Weiterfinanzierung anzeigen"
-        >
-          <AlertTriangle className="h-4 w-4" />
-        </button>
-      </PopoverTrigger>
-      <PopoverContent
-        align="start"
-        className="w-72 border-amber-300 bg-amber-50 p-3 text-sm text-amber-950"
-      >
-        <p className="font-medium">Angenommene Weiterfinanzierung</p>
-        <p className="mt-1 text-amber-900">{explanation}</p>
-        <div className="mt-3 divide-y divide-amber-200 rounded-md border border-amber-200 bg-white/70">
-          {details.map((detail) => (
-            <div key={detail.key} className="p-2.5">
-              <div className="flex items-start justify-between gap-3">
-                <p className="font-medium">{detail.name}</p>
-                <p className="shrink-0 font-semibold">
-                  {formatNumber(detail.amount)} €
-                </p>
-              </div>
-              <p className="mt-0.5 text-xs text-amber-800">
-                Weiterfinanziert ab Jahr {formatYear(detail.startYear)} ·{" "}
-                {detail.paidOffWithinHorizon
-                  ? `berechnet abbezahlt in Jahr ${formatYear(detail.endYear)}`
-                  : detail.projectedPayoffYear
-                    ? `voraussichtlich abbezahlt in Jahr ${formatYear(detail.projectedPayoffYear)}`
-                    : "mit dieser Rate nicht vollständig tilgbar"}
+    <RestschuldWarningPopover
+      title="Angenommene Weiterfinanzierung"
+      description={explanation}
+      ariaLabel="Annahme zur Weiterfinanzierung anzeigen"
+    >
+      <div className="mt-3 divide-y divide-amber-200 rounded-md border border-amber-200 bg-white/70">
+        {details.map((detail) => (
+          <div key={detail.key} className="p-2.5">
+            <div className="flex items-start justify-between gap-3">
+              <p className="font-medium">{detail.name}</p>
+              <p className="shrink-0 font-semibold">
+                {formatNumber(detail.amount)} €
               </p>
-              {!detail.paidOffWithinHorizon && (
-                <div className="mt-1.5 rounded bg-amber-100 px-2 py-1.5 text-xs text-amber-900">
-                  <span className="block">
-                    Restschuld am Ende der Betrachtungszeit (Jahr{" "}
-                    {formatYear(detail.endYear)}):
-                  </span>
-                  <span className="font-semibold">
-                    {formatNumber(detail.remainingDebtAtHorizon)} €
-                  </span>
-                </div>
-              )}
             </div>
-          ))}
-        </div>
-      </PopoverContent>
-    </Popover>
+            <p className="mt-0.5 text-xs text-amber-800">
+              Weiterfinanziert ab Jahr {formatYear(detail.startYear)} ·{" "}
+              {detail.paidOffWithinHorizon
+                ? `berechnet abbezahlt in Jahr ${formatYear(detail.endYear)}`
+                : detail.projectedPayoffYear
+                  ? `voraussichtlich abbezahlt in Jahr ${formatYear(detail.projectedPayoffYear)}`
+                  : "mit dieser Rate nicht vollständig tilgbar"}
+            </p>
+            {!detail.paidOffWithinHorizon && (
+              <div className="mt-1.5 rounded bg-amber-100 px-2 py-1.5 text-xs text-amber-900">
+                <span className="block">
+                  Restschuld am Ende der Betrachtungszeit (Jahr{" "}
+                  {formatYear(detail.endYear)}):
+                </span>
+                <span className="font-semibold">
+                  {formatNumber(detail.remainingDebtAtHorizon)} €
+                </span>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </RestschuldWarningPopover>
+  );
+}
+
+function DueRestschuldInfo({
+  details,
+  totalDue,
+  earliestDueYear,
+  actionLabel,
+  onIncludeRefinancing,
+}: {
+  details: DueAmountDetail[];
+  totalDue: number;
+  earliestDueYear: number;
+  actionLabel: string;
+  onIncludeRefinancing: () => void;
+}) {
+  const label =
+    details.length === 1
+      ? `${formatNumber(totalDue)} € bleiben offen`
+      : `${formatNumber(totalDue)} € bleiben insgesamt offen`;
+
+  const description =
+    details.length === 1
+      ? `${capitalize(formatDueTime(earliestDueYear))} ist für diesen Betrag eine weitere Finanzierung nötig.`
+      : `Die erste Restschuld wird ${formatDueTime(earliestDueYear)} fällig. Dafür ist eine weitere Finanzierung nötig.`;
+
+  return (
+    <RestschuldWarningPopover
+      title={label}
+      description={description}
+      ariaLabel="Fällige Restschulden anzeigen"
+      widthClassName="w-80"
+    >
+      <div className="mt-3 divide-y divide-amber-200 rounded-md border border-amber-200 bg-white/70">
+        {details.map((item) => (
+          <div
+            key={`${item.name}-${item.dueYear}`}
+            className="flex items-start justify-between gap-4 p-2.5"
+          >
+            <div className="min-w-0">
+              <p className="font-medium">{item.name}</p>
+              <p className="text-xs text-amber-800">
+                Fällig {formatDueTime(item.dueYear)}
+              </p>
+            </div>
+            <p className="shrink-0 font-semibold">
+              {formatNumber(item.dueAmount)} €
+            </p>
+          </div>
+        ))}
+      </div>
+      <div className="mt-3 flex items-center justify-between gap-3 border-t border-amber-200 pt-3 font-semibold">
+        <span>Gesamte Restschuld</span>
+        <span>{formatNumber(totalDue)} €</span>
+      </div>
+      <Button
+        type="button"
+        size="sm"
+        className="mt-3 w-full bg-amber-900 text-white hover:bg-amber-800"
+        onClick={onIncludeRefinancing}
+      >
+        {actionLabel}
+      </Button>
+    </RestschuldWarningPopover>
   );
 }
 
@@ -199,7 +287,9 @@ export default function InfosHeader() {
   const [includeRefinancing, setIncludeRefinancing] = useAtom(
     includeRefinancingAtom,
   );
-  const analysisHorizonYears = useAtomValue(analysisHorizonYearsAtom);
+  const [analysisHorizonYears, setAnalysisHorizonYears] = useAtom(
+    analysisHorizonYearsAtom,
+  );
   // const tilgungssatz = useAtomValue(tilgungssatzAtom);
 
   const nettoDarlehensbetrag = useAtomValue(nettoDarlehensBetragAtom);
@@ -343,16 +433,15 @@ export default function InfosHeader() {
     );
   }
 
-  const dueAmountsWithoutRefinancing = Object.values(credits ?? {})
-    .map((credit) => {
-      if (isBridgeCredit(credit)) {
-        return {
-          name: credit.name,
-          dueYear: getCreditEndYear(credit),
-          dueAmount: credit.summeDarlehen,
-        };
-      }
+  function getDueAmountsForPeriod(endYear: number) {
+    return dueAmountsWithoutRefinancing.filter(
+      (item) => item.dueYear === endYear,
+    );
+  }
 
+  const dueAmountsWithoutRefinancing = Object.values(credits ?? {})
+    .filter((credit) => !isBridgeCredit(credit))
+    .map((credit) => {
       const tilgungszuschussBetrag = calculateTilgungszuschussBetrag({
         darlehensbetrag: credit.summeDarlehen,
         foerderfaehigerAnteilProzent: credit.foerderfaehigerAnteilProzent ?? 0,
@@ -389,237 +478,219 @@ export default function InfosHeader() {
     })
     .filter((item) => item.dueAmount > 0)
     .sort((a, b) => a.dueYear - b.dueYear);
-  const totalDueWithoutRefinancing = dueAmountsWithoutRefinancing.reduce(
-    (sum, item) => sum + item.dueAmount,
-    0,
-  );
-  const earliestDueYear = dueAmountsWithoutRefinancing[0]?.dueYear ?? 0;
+  const dueWarningCount = new Set(
+    dueAmountsWithoutRefinancing.map((item) => item.dueYear),
+  ).size;
+
+  function calculateFullRefinancingHorizon() {
+    return dueAmountsWithoutRefinancing.reduce((maxYear, item) => {
+      const monthlyRate = calculateMonthlyRate({
+        darlehensbetrag: item.dueAmount,
+        effzins,
+        tilgungssatz,
+      });
+      const payoff = calculateFullPaymentTime({
+        darlehensbetrag: item.dueAmount,
+        monthlyRate,
+        effzins,
+      });
+
+      if (!payoff.canBePaidOff) return maxYear;
+      return Math.max(maxYear, item.dueYear + payoff.yearsAufgerundet);
+    }, 0);
+  }
+
+  function includeAllRestschulden() {
+    const fullRefinancingHorizon = calculateFullRefinancingHorizon();
+    if (fullRefinancingHorizon > 0) {
+      setAnalysisHorizonYears(Math.ceil(fullRefinancingHorizon));
+    }
+    setIncludeRefinancing(true);
+  }
 
   return (
     <Card className="mb-4 w-full">
       <CardContent>
         <TopNav />
-        <ScenarioBar />
-        <div className="flex flex-col items-center py-2">
-          <div className="grid w-full grid-cols-3 items-center justify-items-start gap-y-2 border-b border-dashed border-neutral-400 pb-2">
-            {/* Raten header*/}
-            <h3 className="text-center">Raten </h3>
-            {/* Raten */}
-            <div className="col-span-2 flex w-full flex-row flex-wrap justify-start gap-2">
-              {ratesByTime.map((iRate, index) =>
-                (() => {
-                  const refinancingDetailsForPeriod =
-                    getRefinancingDetailsForPeriod(
-                      iRate.startYear,
-                      iRate.endYear,
+        <div className="lg:mx-auto lg:max-w-5xl">
+          <ScenarioBar />
+          <div className="flex flex-col items-center py-2">
+            <div className="grid w-full grid-cols-3 items-center justify-items-start gap-y-2 border-b border-dashed border-neutral-400 pb-2 lg:grid-cols-[160px_minmax(0,1fr)] lg:rounded-lg lg:border lg:border-solid lg:border-neutral-200 lg:bg-neutral-50 lg:p-4">
+              {/* Raten header*/}
+              <h3 className="text-center lg:text-left lg:font-semibold">
+                Raten
+              </h3>
+              {/* Raten */}
+              <div className="col-span-2 flex w-full flex-row flex-wrap justify-start gap-2 lg:col-span-1">
+                {ratesByTime.map((iRate, index) =>
+                  (() => {
+                    const refinancingDetailsForPeriod =
+                      getRefinancingDetailsForPeriod(
+                        iRate.startYear,
+                        iRate.endYear,
+                      );
+                    const dueAmountsForPeriod = includeRefinancing
+                      ? []
+                      : getDueAmountsForPeriod(iRate.endYear);
+                    const totalDueForPeriod = dueAmountsForPeriod.reduce(
+                      (sum, item) => sum + item.dueAmount,
+                      0,
                     );
-                  return (
-                    <div
-                      key={iRate.key + index}
-                      className="flex min-w-fit flex-col items-start"
-                    >
-                      <span className="flex items-center gap-1">
-                        <span className="text-base font-semibold text-green-300 sm:text-2xl">
-                          {formatNumber(iRate.rate)}€
-                        </span>
-                        {refinancingDetailsForPeriod.length > 0 && (
-                          <RefinancingAssumptionInfo
-                            details={refinancingDetailsForPeriod}
-                          />
-                        )}
-                      </span>
-                      <span className="text-muted-foreground text-sm">
-                        {iRate.startYear + 1} - {iRate.endYear} Jahre
-                      </span>
-                    </div>
-                  );
-                })(),
-              )}
-            </div>
-          </div>
-          {!includeRefinancing && dueAmountsWithoutRefinancing.length > 0 && (
-            <div className="mt-3 flex w-full gap-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-amber-950">
-              <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
-              <div className="min-w-0 flex-1">
-                <p className="font-semibold">
-                  {dueAmountsWithoutRefinancing.length === 1
-                    ? `${formatNumber(totalDueWithoutRefinancing)} € bleiben offen`
-                    : `${formatNumber(totalDueWithoutRefinancing)} € bleiben insgesamt offen`}
-                </p>
-                <p className="mt-0.5 text-sm text-amber-900">
-                  {dueAmountsWithoutRefinancing.length === 1
-                    ? `${capitalize(formatDueTime(earliestDueYear))} ist für diesen Betrag eine weitere Finanzierung nötig.`
-                    : `Die erste Restschuld wird ${formatDueTime(earliestDueYear)} fällig. Dafür ist eine weitere Finanzierung nötig.`}
-                </p>
-                <div className="mt-2 grid grid-cols-2 gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    className="w-full bg-amber-900 text-white hover:bg-amber-800"
-                    onClick={() => setIncludeRefinancing(true)}
-                  >
-                    Einrechnen
-                  </Button>
-                  <Dialog>
-                    <DialogTrigger asChild>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        className="w-full border-amber-400 bg-white text-amber-950 hover:bg-amber-100"
+                    return (
+                      <div
+                        key={iRate.key + index}
+                        className="flex min-w-fit flex-col items-start"
                       >
-                        Details
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent className="border-neutral-300 bg-white text-black shadow-2xl sm:max-w-md">
-                      <DialogTitle>Fällige Restschulden</DialogTitle>
-                      <DialogDescription className="text-neutral-600">
-                        Diese Beträge sind ohne Anschlussfinanzierung zum
-                        jeweiligen Zeitpunkt vollständig fällig.
-                      </DialogDescription>
-                      <div className="divide-y divide-neutral-200 rounded-lg border border-neutral-200">
-                        {dueAmountsWithoutRefinancing.map((item) => (
-                          <div
-                            key={`${item.name}-${item.dueYear}`}
-                            className="flex items-start justify-between gap-4 p-3 text-sm"
-                          >
-                            <div>
-                              <p className="font-medium">{item.name}</p>
-                              <p className="text-neutral-500">
-                                Fällig {formatDueTime(item.dueYear)}
-                              </p>
-                            </div>
-                            <p className="shrink-0 font-semibold">
-                              {formatNumber(item.dueAmount)} €
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                      <div className="flex items-center justify-between border-t border-neutral-200 pt-3 font-semibold">
-                        <span>Gesamte Restschuld</span>
-                        <span>
-                          {formatNumber(totalDueWithoutRefinancing)} €
+                        <span className="flex items-center gap-1">
+                          <span className="text-base font-semibold text-green-300 sm:text-2xl lg:text-green-600">
+                            {formatNumber(iRate.rate)}€
+                          </span>
+                          {refinancingDetailsForPeriod.length > 0 && (
+                            <RefinancingAssumptionInfo
+                              details={refinancingDetailsForPeriod}
+                            />
+                          )}
+                          {dueAmountsForPeriod.length > 0 && (
+                            <DueRestschuldInfo
+                              details={dueAmountsForPeriod}
+                              totalDue={totalDueForPeriod}
+                              earliestDueYear={iRate.endYear}
+                              actionLabel={
+                                dueWarningCount > 1
+                                  ? "Alle Restschulden einrechnen"
+                                  : dueAmountsForPeriod.length > 1
+                                    ? "Restschulden einrechnen"
+                                    : "Restschuld einrechnen"
+                              }
+                              onIncludeRefinancing={includeAllRestschulden}
+                            />
+                          )}
+                        </span>
+                        <span className="text-muted-foreground text-sm">
+                          {iRate.startYear + 1} - {iRate.endYear} Jahre
                         </span>
                       </div>
-                    </DialogContent>
-                  </Dialog>
-                </div>
+                    );
+                  })(),
+                )}
               </div>
             </div>
-          )}
-
-          <div className="my-2 w-full border-t border-neutral-700" />
-          <h2 className="w-full justify-self-start font-semibold">
-            Konditionen bei der Bank
-          </h2>
-          <div className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-3 py-2 text-sm">
-            <span className="min-w-0">
-              Nettodarlehensbetrag bei der Bank
-              {/* <span title="Info">ⓘ</span> */}
-            </span>
-            <span className="text-right font-medium whitespace-nowrap">
-              {formatNumber(nettoDarlehensbetrag)} €
-            </span>
-          </div>
-          <div className="flex w-full flex-col gap-1.5 py-2 text-sm sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-1">
-              Gebundener Effektivzins p.a.
-              {/* <span title="Info">ⓘ</span> */}
-            </div>
-            <div className="w-full sm:w-32">
-              <PercentInput
-                value={effzins}
-                onChange={(value) => setEffzins(value)}
-              />
-            </div>
-          </div>
-          <div className="flex w-full flex-col gap-1.5 py-2 text-sm sm:flex-row sm:items-center sm:justify-between">
-            <span className="flex items-center gap-1">Sollzinsbindung</span>
-            <select
-              className="h-10 w-full rounded-md border border-neutral-700 bg-neutral-800 px-3 py-1 text-white sm:h-auto sm:w-32"
-              value={zinsbindung}
-              onChange={(e) => setzinsbindung(Number(e.target.value))}
-            >
-              <option value={5}>5 Jahre</option>
-              <option value={10}>10 Jahre</option>
-              <option value={15}>15 Jahre</option>
-              <option value={20}>20 Jahre</option>
-            </select>
-          </div>
-          <div className="flex w-full flex-col gap-1.5 py-2 text-sm sm:flex-row sm:items-center sm:justify-between">
-            <span className="flex items-center gap-1">Tilgungssatz</span>
-            <select
-              className="h-10 w-full rounded-md border border-neutral-700 bg-neutral-800 px-3 py-1 text-white sm:h-auto sm:w-32"
-              value={tilgungssatz}
-              onChange={(e) => setTilgungssatz(Number(e.target.value))}
-            >
-              <option value={1}>1,00 %</option>
-              <option value={1.5}>1,50 %</option>
-              <option value={2}>2,00 %</option>
-              <option value={2.5}>2,50 %</option>
-              <option value={3}>3,00 %</option>
-            </select>
-          </div>
-
-          {/* <div className="my-2 w-full border-t border-neutral-700" /> */}
-          {/* Restschuld nach x Jahren */}
-          <div className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-3 border-t border-neutral-200 py-3 text-sm">
-            <span className="min-w-0">
-              Restschuld nach {zinsbindung} Jahren
-              {/* <span title="Info">ⓘ</span> */}
-            </span>
-            <span className="text-right font-medium whitespace-nowrap">
-              {formatNumber(restschuldBank)} €
-            </span>
-          </div>
-          <div className="mt-1 flex w-full items-start justify-between gap-2 text-sm">
-            <span className="min-w-0">
-              Langfristige Tilgungsprognose:{" "}
-              <span className="font-medium">
-                {fullPayment.canBePaidOff
-                  ? `ca. ${fullPayment.yearsAufgerundet} Jahre`
-                  : "nicht vollständig tilgbar"}
-              </span>
-            </span>
-            <Popover>
-              <PopoverTrigger asChild>
-                <button
-                  type="button"
-                  className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-blue-600 transition-colors hover:bg-blue-50 hover:text-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none"
-                  title="Annahmen zur langfristigen Tilgungsprognose anzeigen"
-                  aria-label="Annahmen zur langfristigen Tilgungsprognose anzeigen"
+            <div className="my-2 w-full border-t border-neutral-700" />
+            <div className="w-full lg:grid lg:grid-cols-2 lg:gap-x-8 lg:gap-y-1 lg:rounded-lg lg:border lg:border-neutral-200 lg:bg-neutral-50 lg:p-4">
+              <h2 className="w-full justify-self-start font-semibold lg:col-span-2 lg:mb-2">
+                Konditionen bei der Bank
+              </h2>
+              <div className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-3 py-2 text-sm">
+                <span className="min-w-0">
+                  Nettodarlehensbetrag bei der Bank
+                  {/* <span title="Info">ⓘ</span> */}
+                </span>
+                <span className="text-right font-medium whitespace-nowrap">
+                  {formatNumber(nettoDarlehensbetrag)} €
+                </span>
+              </div>
+              <div className="flex w-full flex-col gap-1.5 py-2 text-sm sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center gap-1">
+                  Gebundener Effektivzins p.a.
+                  {/* <span title="Info">ⓘ</span> */}
+                </div>
+                <div className="w-full sm:w-32">
+                  <PercentInput
+                    value={effzins}
+                    onChange={(value) => setEffzins(value)}
+                  />
+                </div>
+              </div>
+              <div className="flex w-full flex-col gap-1.5 py-2 text-sm sm:flex-row sm:items-center sm:justify-between">
+                <span className="flex items-center gap-1">Sollzinsbindung</span>
+                <select
+                  className="h-10 w-full rounded-md border border-neutral-700 bg-neutral-800 px-3 py-1 text-white sm:h-auto sm:w-32"
+                  value={zinsbindung}
+                  onChange={(e) => setzinsbindung(Number(e.target.value))}
                 >
-                  <Info className="h-4 w-4" />
-                </button>
-              </PopoverTrigger>
-              <PopoverContent
-                align="end"
-                className="w-72 border-blue-200 bg-blue-50 p-3 text-sm text-blue-950"
-              >
-                <p className="font-medium">Langfristige Tilgungsprognose</p>
-                <p className="mt-1 text-blue-900">
-                  Wenn die aktuelle monatliche Rate von{" "}
-                  {formatNumber(bankMonthlyRate)} € und der Effektivzins
-                  unverändert blieben, wäre der Bankkredit{" "}
-                  {fullPayment.canBePaidOff
-                    ? `nach etwa ${fullPayment.yearsAufgerundet} Jahren vollständig abbezahlt.`
-                    : "mit dieser Rate nicht vollständig abzahlbar."}
-                </p>
-                <p className="mt-2 text-xs text-blue-700">
-                  Bei einer Weiterfinanzierung wird die Rate nach der
-                  Zinsbindung anhand der verbleibenden Restschuld neu berechnet.
-                  Deshalb kann dort ein anderes Tilgungsjahr entstehen.
-                </p>
-              </PopoverContent>
-            </Popover>
-          </div>
-          {/* <div className="flex w-full justify-between py-2 text-sm">
+                  <option value={5}>5 Jahre</option>
+                  <option value={10}>10 Jahre</option>
+                  <option value={15}>15 Jahre</option>
+                  <option value={20}>20 Jahre</option>
+                </select>
+              </div>
+              <div className="flex w-full flex-col gap-1.5 py-2 text-sm sm:flex-row sm:items-center sm:justify-between">
+                <span className="flex items-center gap-1">Tilgungssatz</span>
+                <select
+                  className="h-10 w-full rounded-md border border-neutral-700 bg-neutral-800 px-3 py-1 text-white sm:h-auto sm:w-32"
+                  value={tilgungssatz}
+                  onChange={(e) => setTilgungssatz(Number(e.target.value))}
+                >
+                  <option value={1}>1,00 %</option>
+                  <option value={1.5}>1,50 %</option>
+                  <option value={2}>2,00 %</option>
+                  <option value={2.5}>2,50 %</option>
+                  <option value={3}>3,00 %</option>
+                </select>
+              </div>
+
+              {/* <div className="my-2 w-full border-t border-neutral-700" /> */}
+              {/* Restschuld nach x Jahren */}
+              <div className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-3 border-t border-neutral-200 py-3 text-sm lg:mt-2">
+                <span className="min-w-0">
+                  Restschuld nach {zinsbindung} Jahren
+                  {/* <span title="Info">ⓘ</span> */}
+                </span>
+                <span className="text-right font-medium whitespace-nowrap">
+                  {formatNumber(restschuldBank)} €
+                </span>
+              </div>
+              <div className="mt-1 flex w-full items-start justify-between gap-2 text-sm lg:mt-2 lg:border-t lg:border-neutral-200 lg:pt-3">
+                <span className="min-w-0">
+                  Langfristige Tilgungsprognose:{" "}
+                  <span className="font-medium">
+                    {fullPayment.canBePaidOff
+                      ? `ca. ${fullPayment.yearsAufgerundet} Jahre`
+                      : "nicht vollständig tilgbar"}
+                  </span>
+                </span>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-blue-600 transition-colors hover:bg-blue-50 hover:text-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none"
+                      title="Annahmen zur langfristigen Tilgungsprognose anzeigen"
+                      aria-label="Annahmen zur langfristigen Tilgungsprognose anzeigen"
+                    >
+                      <Info className="h-4 w-4" />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent
+                    align="end"
+                    className="w-72 border-blue-200 bg-blue-50 p-3 text-sm text-blue-950"
+                  >
+                    <p className="font-medium">Langfristige Tilgungsprognose</p>
+                    <p className="mt-1 text-blue-900">
+                      Wenn die aktuelle monatliche Rate von{" "}
+                      {formatNumber(bankMonthlyRate)} € und der Effektivzins
+                      unverändert blieben, wäre der Bankkredit{" "}
+                      {fullPayment.canBePaidOff
+                        ? `nach etwa ${fullPayment.yearsAufgerundet} Jahren vollständig abbezahlt.`
+                        : "mit dieser Rate nicht vollständig abzahlbar."}
+                    </p>
+                    <p className="mt-2 text-xs text-blue-700">
+                      Bei einer Weiterfinanzierung wird die Rate nach der
+                      Zinsbindung anhand der verbleibenden Restschuld neu
+                      berechnet. Deshalb kann dort ein anderes Tilgungsjahr
+                      entstehen.
+                    </p>
+                  </PopoverContent>
+                </Popover>
+              </div>
+            </div>
+            {/* <div className="flex w-full justify-between py-2 text-sm">
             <span className="flex items-center gap-1">
               Bezahlte Zinsen nach {zinsbindung} Jahren{" "}
               <span title="Info">ⓘ</span>
             </span>
             <span>{formatNumber(bezahlteZinsen)} €</span>
           </div> */}
+          </div>
         </div>
       </CardContent>
     </Card>

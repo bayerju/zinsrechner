@@ -142,7 +142,7 @@ export default function LiquiditaetsauswertungPage() {
             </p>
           )}
 
-          <div className="rounded-md border border-neutral-300 p-3">
+          <div className="rounded-md border border-neutral-300 p-3 lg:max-w-2xl">
             <label className="text-xs text-neutral-700">
               Verknuepftes Kreditszenario
               <Select
@@ -174,12 +174,34 @@ export default function LiquiditaetsauswertungPage() {
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-2 text-sm">
-            <div className="rounded-md border border-neutral-300 bg-white p-2">
-              Endkapital: {formatNumber(endCapital)} €
+          <div className="grid grid-cols-2 gap-2 text-sm lg:max-w-2xl lg:gap-3">
+            <div className="rounded-md border border-neutral-300 bg-white p-2 lg:p-4 lg:shadow-sm">
+              <span className="lg:block lg:text-xs lg:font-medium lg:text-neutral-500">
+                Endkapital:
+              </span>{" "}
+              <span
+                className={
+                  endCapital < 0
+                    ? "lg:text-xl lg:font-semibold lg:text-red-700"
+                    : "lg:text-xl lg:font-semibold lg:text-green-700"
+                }
+              >
+                {formatNumber(endCapital)} €
+              </span>
             </div>
-            <div className="rounded-md border border-neutral-300 bg-white p-2">
-              Minimum: {formatNumber(minCapital)} €
+            <div className="rounded-md border border-neutral-300 bg-white p-2 lg:p-4 lg:shadow-sm">
+              <span className="lg:block lg:text-xs lg:font-medium lg:text-neutral-500">
+                Minimum:
+              </span>{" "}
+              <span
+                className={
+                  minCapital < 0
+                    ? "lg:text-xl lg:font-semibold lg:text-red-700"
+                    : "lg:text-xl lg:font-semibold lg:text-green-700"
+                }
+              >
+                {formatNumber(minCapital)} €
+              </span>
             </div>
           </div>
 

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAtom } from "jotai";
-import { useState } from "react";
+import { useState, type FormEvent, type ReactNode } from "react";
 import { StorageTransfer } from "~/components/storage_transfer";
 import { NumberInput } from "~/components/ui/number_input";
 import { Button } from "~/components/ui/button";
@@ -34,10 +34,6 @@ export function TopNav() {
   const [analysisHorizonYears, setAnalysisHorizonYears] = useAtom(
     analysisHorizonYearsAtom,
   );
-  const session = authClient.useSession();
-  const isSignedIn = Boolean(session.data);
-  const { isAuthenticated: isConvexAuthenticated, isLoading: isConvexLoading } =
-    useConvexAuth();
 
   function updateHorizon(value: number) {
     if (!Number.isFinite(value)) return;
@@ -46,200 +42,127 @@ export function TopNav() {
   }
 
   return (
-    <nav className="mb-3 space-y-3 border-b border-neutral-300 pb-3 text-sm">
-      <div className="flex items-center gap-2">
-        <div className="grid min-w-0 flex-1 grid-cols-2 rounded-lg bg-neutral-100 p-1">
+    <nav className="mb-3 text-sm">
+      <div className="space-y-3 border-b border-neutral-300 pb-3 lg:hidden">
+        <div className="flex items-center gap-2">
+          <div className="min-w-0 flex-1">
+            <PrimaryNavigation isLiquiditySection={isLiquiditySection} />
+          </div>
+          <AuthStatus />
+        </div>
+        <ContextNavigation
+          isLiquiditySection={isLiquiditySection}
+          pathname={pathname}
+        />
+        <CalculationStatus
+          includeRefinancing={includeRefinancing}
+          analysisHorizonYears={analysisHorizonYears}
+          setIncludeRefinancing={setIncludeRefinancing}
+          updateHorizon={updateHorizon}
+        />
+      </div>
+
+      <div className="hidden lg:block">
+        <div className="flex items-center gap-8 border-b border-neutral-200">
           <Link
             href="/"
-            className={`rounded-md px-3 py-2 text-center font-medium transition-colors ${
-              !isLiquiditySection
-                ? "bg-white text-black shadow-sm"
-                : "text-neutral-600 hover:text-black"
-            }`}
+            className="shrink-0 pb-3 text-lg font-semibold text-black"
           >
-            Finanzierung
+            Zinsrechner
           </Link>
-          <Link
-            href="/liquiditaetsplan"
-            className={`rounded-md px-3 py-2 text-center font-medium transition-colors ${
-              isLiquiditySection
-                ? "bg-white text-black shadow-sm"
-                : "text-neutral-600 hover:text-black"
-            }`}
-          >
-            Liquidität
-          </Link>
-        </div>
-        {!session.isPending && !isSignedIn && (
-          <AuthDialog>
-            <Button type="button" size="sm" variant="outline">
-              Anmelden
-            </Button>
-          </AuthDialog>
-        )}
-        {isSignedIn && (
-          <div className="flex items-center gap-2">
-            <span className="hidden text-xs text-neutral-500 sm:inline">
-              {isConvexLoading
-                ? "Verbinde..."
-                : isConvexAuthenticated
-                  ? "Synchronisiert"
-                  : "Sync nicht verbunden"}
-            </span>
-            <span className="hidden max-w-40 truncate text-xs text-neutral-500 md:inline">
-              {session.data?.user.email}
-            </span>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() => void authClient.signOut()}
-            >
-              Abmelden
-            </Button>
+          <div className="flex items-center gap-6">
+            <DesktopNavigationGroup>
+              <DesktopMenuLink
+                href="/"
+                active={pathname === "/"}
+                activeClass="border-blue-600 text-blue-800"
+              >
+                Konditionen
+              </DesktopMenuLink>
+              <DesktopMenuLink
+                href="/finanzplan"
+                active={pathname === "/finanzplan"}
+                activeClass="border-blue-600 text-blue-800"
+              >
+                Finanzplan
+              </DesktopMenuLink>
+            </DesktopNavigationGroup>
+            <DesktopNavigationGroup>
+              <DesktopMenuLink
+                href="/liquiditaetsplan"
+                active={pathname === "/liquiditaetsplan"}
+                activeClass="border-emerald-600 text-emerald-800"
+              >
+                Eingaben
+              </DesktopMenuLink>
+              <DesktopMenuLink
+                href="/liquiditaetsauswertung"
+                active={pathname === "/liquiditaetsauswertung"}
+                activeClass="border-emerald-600 text-emerald-800"
+              >
+                Auswertung
+              </DesktopMenuLink>
+            </DesktopNavigationGroup>
           </div>
-        )}
-      </div>
-
-      <div className="grid grid-cols-2 gap-1 border-b border-neutral-200">
-        {isLiquiditySection ? (
-          <>
-            <SubNavigationLink
-              href="/liquiditaetsplan"
-              active={pathname === "/liquiditaetsplan"}
-            >
-              Eingaben
-            </SubNavigationLink>
-            <SubNavigationLink
-              href="/liquiditaetsauswertung"
-              active={pathname === "/liquiditaetsauswertung"}
-            >
-              Auswertung
-            </SubNavigationLink>
-          </>
-        ) : (
-          <>
-            <SubNavigationLink href="/" active={pathname === "/"}>
-              Konditionen
-            </SubNavigationLink>
-            <SubNavigationLink
-              href="/finanzplan"
-              active={pathname === "/finanzplan"}
-            >
-              Finanzplan
-            </SubNavigationLink>
-          </>
-        )}
-      </div>
-
-      <div className="flex items-center justify-between gap-3 rounded-md bg-neutral-50 px-3 py-2">
-        <p className="min-w-0 text-xs font-medium text-neutral-700">
-          {includeRefinancing
-            ? `Berechnet über ${analysisHorizonYears} Jahre`
-            : "Berechnet bis Zinsbindung"}
-        </p>
-        <Dialog>
-          <DialogTrigger asChild>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-8 shrink-0 border-neutral-300 bg-white px-2.5 text-neutral-700"
-            >
-              <Pencil className="h-3.5 w-3.5" />
-              Ändern
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="border-neutral-300 bg-white text-black shadow-2xl sm:max-w-md">
-            <DialogTitle>Berechnung anpassen</DialogTitle>
-            <DialogDescription className="text-neutral-600">
-              Lege fest, wie Restschulden nach dem Ende der Zinsbindung
-              behandelt werden.
-            </DialogDescription>
-
-            <div className="space-y-4">
-              <section className="space-y-3 rounded-lg border border-neutral-200 p-4">
-                <h3 className="font-medium">Berechnungsumfang</h3>
-                <div className="space-y-2" role="radiogroup">
-                  <button
-                    type="button"
-                    role="radio"
-                    aria-checked={!includeRefinancing}
-                    className={`flex w-full gap-3 rounded-lg border p-3 text-left transition-colors ${
-                      !includeRefinancing
-                        ? "border-neutral-900 bg-neutral-50"
-                        : "border-neutral-200 hover:border-neutral-400"
-                    }`}
-                    onClick={() => setIncludeRefinancing(false)}
-                  >
-                    <SelectionIndicator selected={!includeRefinancing} />
-                    <span>
-                      <span className="block text-sm font-medium">
-                        Nur bis zum Ende der Zinsbindung
-                      </span>
-                      <span className="mt-0.5 block text-xs text-neutral-500">
-                        Danach verbleibende Schulden werden als fällig
-                        angezeigt.
-                      </span>
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    role="radio"
-                    aria-checked={includeRefinancing}
-                    className={`flex w-full gap-3 rounded-lg border p-3 text-left transition-colors ${
-                      includeRefinancing
-                        ? "border-neutral-900 bg-neutral-50"
-                        : "border-neutral-200 hover:border-neutral-400"
-                    }`}
-                    onClick={() => setIncludeRefinancing(true)}
-                  >
-                    <SelectionIndicator selected={includeRefinancing} />
-                    <span>
-                      <span className="block text-sm font-medium">
-                        Mit Weiterfinanzierung
-                      </span>
-                      <span className="mt-0.5 block text-xs text-neutral-500">
-                        Verbleibende Schulden werden mit den aktuellen
-                        Konditionen weiterberechnet.
-                      </span>
-                    </span>
-                  </button>
-                </div>
-                {includeRefinancing && (
-                  <div>
-                    <label className="mb-1 block text-sm font-medium">
-                      Betrachtungszeitraum
-                    </label>
-                    <NumberInput
-                      value={analysisHorizonYears}
-                      onChange={updateHorizon}
-                      unit="J"
-                      className="h-9 border-neutral-300 bg-white text-right text-black"
-                    />
-                  </div>
-                )}
-              </section>
-
-              <section className="space-y-3 rounded-lg border border-neutral-200 p-4">
-                <div>
-                  <h3 className="font-medium">Datensicherung</h3>
-                  <p className="text-xs text-neutral-500">
-                    Szenarien und Einstellungen als JSON-Datei sichern oder
-                    wiederherstellen.
-                  </p>
-                </div>
-                <StorageTransfer className="w-full" />
-              </section>
-            </div>
-          </DialogContent>
-        </Dialog>
+          <div className="ml-auto flex items-center gap-3 pb-3">
+            <CalculationStatus
+              includeRefinancing={includeRefinancing}
+              analysisHorizonYears={analysisHorizonYears}
+              setIncludeRefinancing={setIncludeRefinancing}
+              updateHorizon={updateHorizon}
+              desktop
+            />
+            <AuthStatus />
+          </div>
+        </div>
       </div>
     </nav>
   );
 }
 
-function AuthDialog({ children }: { children: React.ReactNode }) {
+function AuthStatus() {
+  const session = authClient.useSession();
+  const isSignedIn = Boolean(session.data);
+  const { isAuthenticated: isConvexAuthenticated, isLoading: isConvexLoading } =
+    useConvexAuth();
+
+  if (session.isPending) return null;
+
+  if (!isSignedIn) {
+    return (
+      <AuthDialog>
+        <Button type="button" size="sm" variant="outline" className="shrink-0">
+          Anmelden
+        </Button>
+      </AuthDialog>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      <span className="hidden text-xs text-neutral-500 sm:inline">
+        {isConvexLoading
+          ? "Verbinde..."
+          : isConvexAuthenticated
+            ? "Synchronisiert"
+            : "Sync nicht verbunden"}
+      </span>
+      <span className="hidden max-w-40 truncate text-xs text-neutral-500 xl:inline">
+        {session.data?.user.email}
+      </span>
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        onClick={() => void authClient.signOut()}
+      >
+        Abmelden
+      </Button>
+    </div>
+  );
+}
+
+function AuthDialog({ children }: { children: ReactNode }) {
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
@@ -248,7 +171,7 @@ function AuthDialog({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
 
-  async function submit(event: React.FormEvent<HTMLFormElement>) {
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
     setPending(true);
@@ -363,6 +286,232 @@ function AuthDialog({ children }: { children: React.ReactNode }) {
   );
 }
 
+function PrimaryNavigation({
+  isLiquiditySection,
+}: {
+  isLiquiditySection: boolean;
+}) {
+  return (
+    <div className="grid grid-cols-2 rounded-lg bg-neutral-100 p-1">
+      <Link
+        href="/"
+        className={`rounded-md px-3 py-2 text-center font-medium transition-colors ${
+          !isLiquiditySection
+            ? "bg-white text-black shadow-sm"
+            : "text-neutral-600 hover:text-black"
+        }`}
+      >
+        Finanzierung
+      </Link>
+      <Link
+        href="/liquiditaetsplan"
+        className={`rounded-md px-3 py-2 text-center font-medium transition-colors ${
+          isLiquiditySection
+            ? "bg-white text-black shadow-sm"
+            : "text-neutral-600 hover:text-black"
+        }`}
+      >
+        Liquidität
+      </Link>
+    </div>
+  );
+}
+
+function ContextNavigation({
+  isLiquiditySection,
+  pathname,
+  desktop = false,
+}: {
+  isLiquiditySection: boolean;
+  pathname: string;
+  desktop?: boolean;
+}) {
+  return (
+    <div className={desktop ? "flex items-center" : "grid grid-cols-2 gap-1"}>
+      {isLiquiditySection ? (
+        <>
+          <SubNavigationLink
+            href="/liquiditaetsplan"
+            active={pathname === "/liquiditaetsplan"}
+          >
+            Eingaben
+          </SubNavigationLink>
+          <SubNavigationLink
+            href="/liquiditaetsauswertung"
+            active={pathname === "/liquiditaetsauswertung"}
+          >
+            Auswertung
+          </SubNavigationLink>
+        </>
+      ) : (
+        <>
+          <SubNavigationLink href="/" active={pathname === "/"}>
+            Konditionen
+          </SubNavigationLink>
+          <SubNavigationLink
+            href="/finanzplan"
+            active={pathname === "/finanzplan"}
+          >
+            Finanzplan
+          </SubNavigationLink>
+        </>
+      )}
+    </div>
+  );
+}
+
+function DesktopNavigationGroup({ children }: { children: ReactNode }) {
+  return <div className="flex items-end">{children}</div>;
+}
+
+function DesktopMenuLink({
+  href,
+  active,
+  activeClass,
+  children,
+}: {
+  href: string;
+  active: boolean;
+  activeClass: string;
+  children: ReactNode;
+}) {
+  return (
+    <Link
+      href={href}
+      className={`border-b-2 px-3 pt-1 pb-3 font-medium transition-colors ${
+        active
+          ? activeClass
+          : "border-transparent text-neutral-600 hover:text-black"
+      }`}
+    >
+      {children}
+    </Link>
+  );
+}
+
+function CalculationStatus({
+  includeRefinancing,
+  analysisHorizonYears,
+  setIncludeRefinancing,
+  updateHorizon,
+  desktop = false,
+}: {
+  includeRefinancing: boolean;
+  analysisHorizonYears: number;
+  setIncludeRefinancing: (value: boolean) => void;
+  updateHorizon: (value: number) => void;
+  desktop?: boolean;
+}) {
+  return (
+    <div
+      className={`flex items-center justify-between gap-3 rounded-md bg-neutral-50 px-3 py-2 ${
+        desktop ? "border border-neutral-200" : ""
+      }`}
+    >
+      <p className="min-w-0 text-xs font-medium text-neutral-700">
+        {includeRefinancing
+          ? `Berechnet über ${analysisHorizonYears} Jahre`
+          : "Berechnet bis Zinsbindung"}
+      </p>
+      <Dialog>
+        <DialogTrigger asChild>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-8 shrink-0 border-neutral-300 bg-white px-2.5 text-neutral-700"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+            Ändern
+          </Button>
+        </DialogTrigger>
+        <DialogContent className="border-neutral-300 bg-white text-black shadow-2xl sm:max-w-md">
+          <DialogTitle>Berechnung anpassen</DialogTitle>
+          <DialogDescription className="text-neutral-600">
+            Lege fest, wie Restschulden nach dem Ende der Zinsbindung behandelt
+            werden.
+          </DialogDescription>
+
+          <div className="space-y-4">
+            <section className="space-y-3 rounded-lg border border-neutral-200 p-4">
+              <h3 className="font-medium">Berechnungsumfang</h3>
+              <div className="space-y-2" role="radiogroup">
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={!includeRefinancing}
+                  className={`flex w-full gap-3 rounded-lg border p-3 text-left transition-colors ${
+                    !includeRefinancing
+                      ? "border-neutral-900 bg-neutral-50"
+                      : "border-neutral-200 hover:border-neutral-400"
+                  }`}
+                  onClick={() => setIncludeRefinancing(false)}
+                >
+                  <SelectionIndicator selected={!includeRefinancing} />
+                  <span>
+                    <span className="block text-sm font-medium">
+                      Nur bis zum Ende der Zinsbindung
+                    </span>
+                    <span className="mt-0.5 block text-xs text-neutral-500">
+                      Danach verbleibende Schulden werden als fällig angezeigt.
+                    </span>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={includeRefinancing}
+                  className={`flex w-full gap-3 rounded-lg border p-3 text-left transition-colors ${
+                    includeRefinancing
+                      ? "border-neutral-900 bg-neutral-50"
+                      : "border-neutral-200 hover:border-neutral-400"
+                  }`}
+                  onClick={() => setIncludeRefinancing(true)}
+                >
+                  <SelectionIndicator selected={includeRefinancing} />
+                  <span>
+                    <span className="block text-sm font-medium">
+                      Mit Weiterfinanzierung
+                    </span>
+                    <span className="mt-0.5 block text-xs text-neutral-500">
+                      Verbleibende Schulden werden mit den aktuellen Konditionen
+                      weiterberechnet.
+                    </span>
+                  </span>
+                </button>
+              </div>
+              {includeRefinancing && (
+                <div>
+                  <label className="mb-1 block text-sm font-medium">
+                    Betrachtungszeitraum
+                  </label>
+                  <NumberInput
+                    value={analysisHorizonYears}
+                    onChange={updateHorizon}
+                    unit="J"
+                    className="h-9 border-neutral-300 bg-white text-right text-black"
+                  />
+                </div>
+              )}
+            </section>
+
+            <section className="space-y-3 rounded-lg border border-neutral-200 p-4">
+              <div>
+                <h3 className="font-medium">Datensicherung</h3>
+                <p className="text-xs text-neutral-500">
+                  Szenarien und Einstellungen als JSON-Datei sichern oder
+                  wiederherstellen.
+                </p>
+              </div>
+              <StorageTransfer className="w-full" />
+            </section>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 function SelectionIndicator({ selected }: { selected: boolean }) {
   return (
     <span
@@ -382,7 +531,7 @@ function SubNavigationLink({
 }: {
   href: string;
   active: boolean;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
     <Link
