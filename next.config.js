@@ -6,6 +6,12 @@ import "./src/env.js";
 
 /** @type {import("next").NextConfig} */
 const config = {
+  allowedDevOrigins: [
+    "http://localhost:3010",
+    "http://127.0.0.1:3010",
+    "http://192.168.178.27:3010",
+    "http://10.100.100.3:3010",
+  ],
   async rewrites() {
     return [
       {

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAtom } from "jotai";
+import { useState } from "react";
 import { StorageTransfer } from "~/components/storage_transfer";
 import { NumberInput } from "~/components/ui/number_input";
 import { Button } from "~/components/ui/button";
@@ -10,16 +11,18 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogTitle,
   DialogTrigger,
 } from "~/components/ui/dialog";
+import { Input } from "~/components/ui/input";
 import { Pencil } from "lucide-react";
-import { SignInButton, UserButton, useUser } from "@clerk/nextjs";
 import { useConvexAuth } from "convex/react";
 import {
   analysisHorizonYearsAtom,
   includeRefinancingAtom,
 } from "~/state/analysis_settings_atom";
+import { authClient } from "~/lib/auth-client";
 
 export function TopNav() {
   const pathname = usePathname();
@@ -31,7 +34,8 @@ export function TopNav() {
   const [analysisHorizonYears, setAnalysisHorizonYears] = useAtom(
     analysisHorizonYearsAtom,
   );
-  const { isLoaded, isSignedIn } = useUser();
+  const session = authClient.useSession();
+  const isSignedIn = Boolean(session.data);
   const { isAuthenticated: isConvexAuthenticated, isLoading: isConvexLoading } =
     useConvexAuth();
 
@@ -66,12 +70,12 @@ export function TopNav() {
             Liquidität
           </Link>
         </div>
-        {isLoaded && !isSignedIn && (
-          <SignInButton mode="modal">
+        {!session.isPending && !isSignedIn && (
+          <AuthDialog>
             <Button type="button" size="sm" variant="outline">
               Anmelden
             </Button>
-          </SignInButton>
+          </AuthDialog>
         )}
         {isSignedIn && (
           <div className="flex items-center gap-2">
@@ -82,7 +86,17 @@ export function TopNav() {
                   ? "Synchronisiert"
                   : "Sync nicht verbunden"}
             </span>
-            <UserButton />
+            <span className="hidden max-w-40 truncate text-xs text-neutral-500 md:inline">
+              {session.data?.user.email}
+            </span>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => void authClient.signOut()}
+            >
+              Abmelden
+            </Button>
           </div>
         )}
       </div>
@@ -222,6 +236,130 @@ export function TopNav() {
         </Dialog>
       </div>
     </nav>
+  );
+}
+
+function AuthDialog({ children }: { children: React.ReactNode }) {
+  const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [pending, setPending] = useState(false);
+
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+    setPending(true);
+    try {
+      if (mode === "signup") {
+        const result = await authClient.signUp.email({
+          name: name.trim() || email,
+          email,
+          password,
+        });
+        if (result.error) {
+          setError(result.error.message ?? "Registrierung fehlgeschlagen.");
+          return;
+        }
+      } else {
+        const result = await authClient.signIn.email({
+          email,
+          password,
+        });
+        if (result.error) {
+          setError(result.error.message ?? "Anmeldung fehlgeschlagen.");
+          return;
+        }
+      }
+      setOpen(false);
+      setName("");
+      setEmail("");
+      setPassword("");
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "Authentifizierung fehlgeschlagen.",
+      );
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>{children}</DialogTrigger>
+      <DialogContent className="border-neutral-300 bg-white text-black shadow-2xl sm:max-w-md">
+        <DialogTitle>
+          {mode === "signin" ? "Anmelden" : "Konto erstellen"}
+        </DialogTitle>
+        <DialogDescription className="text-neutral-600">
+          {mode === "signin"
+            ? "Melde dich an, um deine Szenarien über Convex zu synchronisieren."
+            : "Erstelle ein Konto, um deine Szenarien geräteübergreifend zu speichern."}
+        </DialogDescription>
+
+        <form className="space-y-4" onSubmit={submit}>
+          {mode === "signup" && (
+            <label className="block space-y-1.5 text-sm">
+              <span className="font-medium">Name</span>
+              <Input
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                autoComplete="name"
+              />
+            </label>
+          )}
+          <label className="block space-y-1.5 text-sm">
+            <span className="font-medium">E-Mail</span>
+            <Input
+              type="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              autoComplete="email"
+              required
+            />
+          </label>
+          <label className="block space-y-1.5 text-sm">
+            <span className="font-medium">Passwort</span>
+            <Input
+              type="password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              autoComplete={
+                mode === "signin" ? "current-password" : "new-password"
+              }
+              minLength={8}
+              required
+            />
+          </label>
+          {error && <p className="text-sm text-red-600">{error}</p>}
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={pending}
+              onClick={() => {
+                setError("");
+                setMode(mode === "signin" ? "signup" : "signin");
+              }}
+            >
+              {mode === "signin" ? "Registrieren" : "Zur Anmeldung"}
+            </Button>
+            <Button type="submit" disabled={pending}>
+              {pending
+                ? "Bitte warten..."
+                : mode === "signin"
+                  ? "Anmelden"
+                  : "Konto erstellen"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 

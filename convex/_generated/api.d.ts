@@ -9,6 +9,9 @@
  */
 
 import type * as appState from "../appState.js";
+import type * as auth from "../auth.js";
+import type * as betterAuth_auth from "../betterAuth/auth.js";
+import type * as http from "../http.js";
 
 import type {
   ApiFromModules,
@@ -18,6 +21,9 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   appState: typeof appState;
+  auth: typeof auth;
+  "betterAuth/auth": typeof betterAuth_auth;
+  http: typeof http;
 }>;
 
 /**
@@ -46,4 +52,6 @@ export declare const internal: FilterApi<
   FunctionReference<any, "internal">
 >;
 
-export declare const components: {};
+export declare const components: {
+  betterAuth: import("@convex-dev/better-auth/_generated/component.js").ComponentApi<"betterAuth">;
+};

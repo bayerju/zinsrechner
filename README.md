@@ -4,7 +4,7 @@ This is a [T3 Stack](https://create.t3.gg/) project bootstrapped with `create-t3
 
 ## Authentication and Convex
 
-The app uses Clerk for authentication and syncs calculator state to Convex
+The app uses Better Auth for authentication and syncs calculator state to Convex
 after sign-in. Signed-out usage remains local to the browser.
 
 ### Data storage and sign-in merge
@@ -35,37 +35,37 @@ after sign-in. Signed-out usage remains local to the browser.
   versions are preserved instead of silently overwriting the local version.
 
 1. Use Node.js 20.9 or newer.
-2. Create a Clerk application and add its keys to `.env.local`:
+2. Add the local site URL to `.env.local`:
 
    ```env
    DATABASE_URL="file:./db.sqlite"
-   NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY="pk_test_..."
-   CLERK_SECRET_KEY="sk_test_..."
+   NEXT_PUBLIC_SITE_URL="http://localhost:3010"
    ```
 
    Convex writes `CONVEX_DEPLOYMENT`, `NEXT_PUBLIC_CONVEX_URL`, and
    `NEXT_PUBLIC_CONVEX_SITE_URL` to this file when it is initialized.
 
-3. In Clerk, create a JWT template named `convex` with audience `convex`.
-4. Set the Clerk issuer URL on the Convex deployment:
+3. Set the Better Auth environment variables on the Convex deployment:
 
    ```bash
-   pnpm convex env set CLERK_JWT_ISSUER_DOMAIN https://your-instance.clerk.accounts.dev
+   pnpm convex env set SITE_URL http://localhost:3010
+   pnpm convex env set TRUSTED_ORIGINS http://localhost:3010,http://127.0.0.1:3010,http://192.168.178.27:3010,http://10.100.100.3:3010
+   pnpm convex env set BETTER_AUTH_SECRET "$(openssl rand -base64 32)"
    ```
 
-5. Start Convex in the first terminal:
+4. Start Convex in the first terminal:
 
    ```bash
    pnpm convex:dev
    ```
 
-6. Start Next.js in a second terminal:
+5. Start Next.js in a second terminal:
 
    ```bash
    pnpm dev
    ```
 
-Open the URL printed by Next.js, usually `http://localhost:3000`.
+Open `http://localhost:3010`.
 
 ## What's next? How do I make an app with this?
 

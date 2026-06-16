@@ -2,13 +2,12 @@ import "~/styles/globals.css";
 
 import { type Metadata } from "next";
 import { Geist } from "next/font/google";
-import { ClerkProvider } from "@clerk/nextjs";
-import { deDE } from "@clerk/localizations";
 
 import { TRPCReactProvider } from "~/trpc/react";
 import JotaiProvider from "~/state/jotai_provider";
 import { PostHogProvider } from "~/components/PostHogProvider";
 import { ConvexClientProvider } from "./convex_client_provider";
+import { getToken } from "~/lib/auth-server";
 // import { DevTools } from "jotai-devtools";
 
 export const metadata: Metadata = {
@@ -22,24 +21,24 @@ const geist = Geist({
   variable: "--font-geist-sans",
 });
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  const token = await getToken();
+
   return (
     <html lang="de-DE" className={`${geist.variable}`}>
       <body>
-        <ClerkProvider localization={deDE}>
-          <ConvexClientProvider>
-            <PostHogProvider>
-              <TRPCReactProvider>
-                <JotaiProvider>
-                  {children}
-                  {/* <DevTools /> */}
-                </JotaiProvider>
-              </TRPCReactProvider>
-            </PostHogProvider>
-          </ConvexClientProvider>
-        </ClerkProvider>
+        <ConvexClientProvider initialToken={token}>
+          <PostHogProvider>
+            <TRPCReactProvider>
+              <JotaiProvider>
+                {children}
+                {/* <DevTools /> */}
+              </JotaiProvider>
+            </TRPCReactProvider>
+          </PostHogProvider>
+        </ConvexClientProvider>
       </body>
     </html>
   );
