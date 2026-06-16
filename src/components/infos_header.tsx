@@ -287,7 +287,9 @@ export default function InfosHeader() {
   const [includeRefinancing, setIncludeRefinancing] = useAtom(
     includeRefinancingAtom,
   );
-  const analysisHorizonYears = useAtomValue(analysisHorizonYearsAtom);
+  const [analysisHorizonYears, setAnalysisHorizonYears] = useAtom(
+    analysisHorizonYearsAtom,
+  );
   // const tilgungssatz = useAtomValue(tilgungssatzAtom);
 
   const nettoDarlehensbetrag = useAtomValue(nettoDarlehensBetragAtom);
@@ -479,6 +481,33 @@ export default function InfosHeader() {
   const dueWarningCount = new Set(
     dueAmountsWithoutRefinancing.map((item) => item.dueYear),
   ).size;
+
+  function calculateFullRefinancingHorizon() {
+    return dueAmountsWithoutRefinancing.reduce((maxYear, item) => {
+      const monthlyRate = calculateMonthlyRate({
+        darlehensbetrag: item.dueAmount,
+        effzins,
+        tilgungssatz,
+      });
+      const payoff = calculateFullPaymentTime({
+        darlehensbetrag: item.dueAmount,
+        monthlyRate,
+        effzins,
+      });
+
+      if (!payoff.canBePaidOff) return maxYear;
+      return Math.max(maxYear, item.dueYear + payoff.yearsAufgerundet);
+    }, 0);
+  }
+
+  function includeAllRestschulden() {
+    const fullRefinancingHorizon = calculateFullRefinancingHorizon();
+    if (fullRefinancingHorizon > 0) {
+      setAnalysisHorizonYears(Math.ceil(fullRefinancingHorizon));
+    }
+    setIncludeRefinancing(true);
+  }
+
   return (
     <Card className="mb-4 w-full">
       <CardContent>
@@ -533,9 +562,7 @@ export default function InfosHeader() {
                                     ? "Restschulden einrechnen"
                                     : "Restschuld einrechnen"
                               }
-                              onIncludeRefinancing={() =>
-                                setIncludeRefinancing(true)
-                              }
+                              onIncludeRefinancing={includeAllRestschulden}
                             />
                           )}
                         </span>
