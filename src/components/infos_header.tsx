@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { useAtomValue, useAtom } from "jotai";
 import { Card, CardContent } from "~/components/ui/card";
 import { formatNumber } from "~/lib/number_fromat";
@@ -28,13 +29,6 @@ import {
 } from "~/state/analysis_settings_atom";
 import { AlertTriangle, Info } from "lucide-react";
 import { Button } from "./ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogTitle,
-  DialogTrigger,
-} from "./ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 
 function buildRefinancingEndYear({
@@ -119,6 +113,49 @@ type RefinancingDetail = {
   remainingDebtAtHorizon: number;
 };
 
+type DueAmountDetail = {
+  name: string;
+  dueYear: number;
+  dueAmount: number;
+};
+
+function RestschuldWarningPopover({
+  title,
+  description,
+  ariaLabel,
+  children,
+  widthClassName = "w-72",
+}: {
+  title: string;
+  description: ReactNode;
+  ariaLabel: string;
+  children: ReactNode;
+  widthClassName?: string;
+}) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="inline-flex h-6 w-6 items-center justify-center rounded-full text-amber-500 transition-colors hover:bg-amber-50 hover:text-amber-600 focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:outline-none"
+          title={title}
+          aria-label={ariaLabel}
+        >
+          <AlertTriangle className="h-4 w-4" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        className={`${widthClassName} border-amber-300 bg-amber-50 p-3 text-sm text-amber-950`}
+      >
+        <p className="font-medium">{title}</p>
+        <p className="mt-1 text-amber-900">{description}</p>
+        {children}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 function RefinancingAssumptionInfo({
   details,
 }: {
@@ -128,56 +165,105 @@ function RefinancingAssumptionInfo({
     "Für diesen Zeitraum wird angenommen, dass Effektivzins und Tilgungssatz nach der Zinsbindung unverändert bleiben.";
 
   return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          className="inline-flex h-6 w-6 items-center justify-center rounded-full text-amber-500 transition-colors hover:bg-amber-50 hover:text-amber-600 focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:outline-none"
-          title={explanation}
-          aria-label="Annahme zur Weiterfinanzierung anzeigen"
-        >
-          <AlertTriangle className="h-4 w-4" />
-        </button>
-      </PopoverTrigger>
-      <PopoverContent
-        align="start"
-        className="w-72 border-amber-300 bg-amber-50 p-3 text-sm text-amber-950"
-      >
-        <p className="font-medium">Angenommene Weiterfinanzierung</p>
-        <p className="mt-1 text-amber-900">{explanation}</p>
-        <div className="mt-3 divide-y divide-amber-200 rounded-md border border-amber-200 bg-white/70">
-          {details.map((detail) => (
-            <div key={detail.key} className="p-2.5">
-              <div className="flex items-start justify-between gap-3">
-                <p className="font-medium">{detail.name}</p>
-                <p className="shrink-0 font-semibold">
-                  {formatNumber(detail.amount)} €
-                </p>
-              </div>
-              <p className="mt-0.5 text-xs text-amber-800">
-                Weiterfinanziert ab Jahr {formatYear(detail.startYear)} ·{" "}
-                {detail.paidOffWithinHorizon
-                  ? `berechnet abbezahlt in Jahr ${formatYear(detail.endYear)}`
-                  : detail.projectedPayoffYear
-                    ? `voraussichtlich abbezahlt in Jahr ${formatYear(detail.projectedPayoffYear)}`
-                    : "mit dieser Rate nicht vollständig tilgbar"}
+    <RestschuldWarningPopover
+      title="Angenommene Weiterfinanzierung"
+      description={explanation}
+      ariaLabel="Annahme zur Weiterfinanzierung anzeigen"
+    >
+      <div className="mt-3 divide-y divide-amber-200 rounded-md border border-amber-200 bg-white/70">
+        {details.map((detail) => (
+          <div key={detail.key} className="p-2.5">
+            <div className="flex items-start justify-between gap-3">
+              <p className="font-medium">{detail.name}</p>
+              <p className="shrink-0 font-semibold">
+                {formatNumber(detail.amount)} €
               </p>
-              {!detail.paidOffWithinHorizon && (
-                <div className="mt-1.5 rounded bg-amber-100 px-2 py-1.5 text-xs text-amber-900">
-                  <span className="block">
-                    Restschuld am Ende der Betrachtungszeit (Jahr{" "}
-                    {formatYear(detail.endYear)}):
-                  </span>
-                  <span className="font-semibold">
-                    {formatNumber(detail.remainingDebtAtHorizon)} €
-                  </span>
-                </div>
-              )}
             </div>
-          ))}
-        </div>
-      </PopoverContent>
-    </Popover>
+            <p className="mt-0.5 text-xs text-amber-800">
+              Weiterfinanziert ab Jahr {formatYear(detail.startYear)} ·{" "}
+              {detail.paidOffWithinHorizon
+                ? `berechnet abbezahlt in Jahr ${formatYear(detail.endYear)}`
+                : detail.projectedPayoffYear
+                  ? `voraussichtlich abbezahlt in Jahr ${formatYear(detail.projectedPayoffYear)}`
+                  : "mit dieser Rate nicht vollständig tilgbar"}
+            </p>
+            {!detail.paidOffWithinHorizon && (
+              <div className="mt-1.5 rounded bg-amber-100 px-2 py-1.5 text-xs text-amber-900">
+                <span className="block">
+                  Restschuld am Ende der Betrachtungszeit (Jahr{" "}
+                  {formatYear(detail.endYear)}):
+                </span>
+                <span className="font-semibold">
+                  {formatNumber(detail.remainingDebtAtHorizon)} €
+                </span>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </RestschuldWarningPopover>
+  );
+}
+
+function DueRestschuldInfo({
+  details,
+  totalDue,
+  earliestDueYear,
+  onIncludeRefinancing,
+}: {
+  details: DueAmountDetail[];
+  totalDue: number;
+  earliestDueYear: number;
+  onIncludeRefinancing: () => void;
+}) {
+  const label =
+    details.length === 1
+      ? `${formatNumber(totalDue)} € bleiben offen`
+      : `${formatNumber(totalDue)} € bleiben insgesamt offen`;
+
+  const description =
+    details.length === 1
+      ? `${capitalize(formatDueTime(earliestDueYear))} ist für diesen Betrag eine weitere Finanzierung nötig.`
+      : `Die erste Restschuld wird ${formatDueTime(earliestDueYear)} fällig. Dafür ist eine weitere Finanzierung nötig.`;
+
+  return (
+    <RestschuldWarningPopover
+      title={label}
+      description={description}
+      ariaLabel="Fällige Restschulden anzeigen"
+      widthClassName="w-80"
+    >
+      <div className="mt-3 divide-y divide-amber-200 rounded-md border border-amber-200 bg-white/70">
+        {details.map((item) => (
+          <div
+            key={`${item.name}-${item.dueYear}`}
+            className="flex items-start justify-between gap-4 p-2.5"
+          >
+            <div className="min-w-0">
+              <p className="font-medium">{item.name}</p>
+              <p className="text-xs text-amber-800">
+                Fällig {formatDueTime(item.dueYear)}
+              </p>
+            </div>
+            <p className="shrink-0 font-semibold">
+              {formatNumber(item.dueAmount)} €
+            </p>
+          </div>
+        ))}
+      </div>
+      <div className="mt-3 flex items-center justify-between gap-3 border-t border-amber-200 pt-3 font-semibold">
+        <span>Gesamte Restschuld</span>
+        <span>{formatNumber(totalDue)} €</span>
+      </div>
+      <Button
+        type="button"
+        size="sm"
+        className="mt-3 w-full bg-amber-900 text-white hover:bg-amber-800"
+        onClick={onIncludeRefinancing}
+      >
+        Einrechnen
+      </Button>
+    </RestschuldWarningPopover>
   );
 }
 
@@ -343,6 +429,12 @@ export default function InfosHeader() {
     );
   }
 
+  function getDueAmountsForPeriod(endYear: number) {
+    return dueAmountsWithoutRefinancing.filter(
+      (item) => item.dueYear === endYear,
+    );
+  }
+
   const dueAmountsWithoutRefinancing = Object.values(credits ?? {})
     .map((credit) => {
       if (isBridgeCredit(credit)) {
@@ -389,12 +481,6 @@ export default function InfosHeader() {
     })
     .filter((item) => item.dueAmount > 0)
     .sort((a, b) => a.dueYear - b.dueYear);
-  const totalDueWithoutRefinancing = dueAmountsWithoutRefinancing.reduce(
-    (sum, item) => sum + item.dueAmount,
-    0,
-  );
-  const earliestDueYear = dueAmountsWithoutRefinancing[0]?.dueYear ?? 0;
-
   return (
     <Card className="mb-4 w-full">
       <CardContent>
@@ -416,6 +502,13 @@ export default function InfosHeader() {
                         iRate.startYear,
                         iRate.endYear,
                       );
+                    const dueAmountsForPeriod = includeRefinancing
+                      ? []
+                      : getDueAmountsForPeriod(iRate.endYear);
+                    const totalDueForPeriod = dueAmountsForPeriod.reduce(
+                      (sum, item) => sum + item.dueAmount,
+                      0,
+                    );
                     return (
                       <div
                         key={iRate.key + index}
@@ -430,6 +523,16 @@ export default function InfosHeader() {
                               details={refinancingDetailsForPeriod}
                             />
                           )}
+                          {dueAmountsForPeriod.length > 0 && (
+                            <DueRestschuldInfo
+                              details={dueAmountsForPeriod}
+                              totalDue={totalDueForPeriod}
+                              earliestDueYear={iRate.endYear}
+                              onIncludeRefinancing={() =>
+                                setIncludeRefinancing(true)
+                              }
+                            />
+                          )}
                         </span>
                         <span className="text-muted-foreground text-sm">
                           {iRate.startYear + 1} - {iRate.endYear} Jahre
@@ -440,79 +543,6 @@ export default function InfosHeader() {
                 )}
               </div>
             </div>
-            {!includeRefinancing && dueAmountsWithoutRefinancing.length > 0 && (
-              <div className="mt-3 flex w-full gap-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-amber-950">
-                <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
-                <div className="min-w-0 flex-1 lg:flex lg:items-center lg:justify-between lg:gap-6">
-                  <div className="min-w-0">
-                    <p className="font-semibold">
-                      {dueAmountsWithoutRefinancing.length === 1
-                        ? `${formatNumber(totalDueWithoutRefinancing)} € bleiben offen`
-                        : `${formatNumber(totalDueWithoutRefinancing)} € bleiben insgesamt offen`}
-                    </p>
-                    <p className="mt-0.5 text-sm text-amber-900">
-                      {dueAmountsWithoutRefinancing.length === 1
-                        ? `${capitalize(formatDueTime(earliestDueYear))} ist für diesen Betrag eine weitere Finanzierung nötig.`
-                        : `Die erste Restschuld wird ${formatDueTime(earliestDueYear)} fällig. Dafür ist eine weitere Finanzierung nötig.`}
-                    </p>
-                  </div>
-                  <div className="mt-2 grid grid-cols-2 gap-2 lg:mt-0 lg:flex lg:shrink-0">
-                    <Button
-                      type="button"
-                      size="sm"
-                      className="w-full bg-amber-900 text-white hover:bg-amber-800 lg:w-auto lg:min-w-28"
-                      onClick={() => setIncludeRefinancing(true)}
-                    >
-                      Einrechnen
-                    </Button>
-                    <Dialog>
-                      <DialogTrigger asChild>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          className="w-full border-amber-400 bg-white text-amber-950 hover:bg-amber-100 lg:w-auto lg:min-w-24"
-                        >
-                          Details
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent className="border-neutral-300 bg-white text-black shadow-2xl sm:max-w-md">
-                        <DialogTitle>Fällige Restschulden</DialogTitle>
-                        <DialogDescription className="text-neutral-600">
-                          Diese Beträge sind ohne Anschlussfinanzierung zum
-                          jeweiligen Zeitpunkt vollständig fällig.
-                        </DialogDescription>
-                        <div className="divide-y divide-neutral-200 rounded-lg border border-neutral-200">
-                          {dueAmountsWithoutRefinancing.map((item) => (
-                            <div
-                              key={`${item.name}-${item.dueYear}`}
-                              className="flex items-start justify-between gap-4 p-3 text-sm"
-                            >
-                              <div>
-                                <p className="font-medium">{item.name}</p>
-                                <p className="text-neutral-500">
-                                  Fällig {formatDueTime(item.dueYear)}
-                                </p>
-                              </div>
-                              <p className="shrink-0 font-semibold">
-                                {formatNumber(item.dueAmount)} €
-                              </p>
-                            </div>
-                          ))}
-                        </div>
-                        <div className="flex items-center justify-between border-t border-neutral-200 pt-3 font-semibold">
-                          <span>Gesamte Restschuld</span>
-                          <span>
-                            {formatNumber(totalDueWithoutRefinancing)} €
-                          </span>
-                        </div>
-                      </DialogContent>
-                    </Dialog>
-                  </div>
-                </div>
-              </div>
-            )}
-
             <div className="my-2 w-full border-t border-neutral-700" />
             <div className="w-full lg:grid lg:grid-cols-2 lg:gap-x-8 lg:gap-y-1 lg:rounded-lg lg:border lg:border-neutral-200 lg:bg-neutral-50 lg:p-4">
               <h2 className="w-full justify-self-start font-semibold lg:col-span-2 lg:mb-2">
