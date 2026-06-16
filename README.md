@@ -2,6 +2,71 @@
 
 This is a [T3 Stack](https://create.t3.gg/) project bootstrapped with `create-t3-app`.
 
+## Authentication and Convex
+
+The app uses Better Auth for authentication and syncs calculator state to Convex
+after sign-in. Signed-out usage remains local to the browser.
+
+### Data storage and sign-in merge
+
+- While signed out, scenarios and settings are stored in browser
+  `localStorage` only.
+- While signed in, data is synchronized through Convex using separate
+  `userSettings`, `financingScenarios`, `credits`, `liquidityScenarios`, and
+  `liquidityItems` tables.
+- If browser data is present during sign-in, the app opens a review dialog
+  before changing anything. It lists every local financing and liquidity
+  scenario as either new or already present in Convex.
+- The user can explicitly import the new scenarios or discard all local data.
+  Duplicate scenarios are never imported again.
+- The generated `Basis` financing and liquidity scenarios are not import
+  candidates. If no additional local scenarios exist, the review dialog is
+  skipped.
+- After the user makes that choice, the app removes its browser storage so
+  Convex is the only source of truth while signed in.
+- Imported scenarios keep the cloud versions and add genuinely different local
+  versions as additional scenarios named `... (lokal importiert)`.
+- Convex stores an account-specific SHA-256 import fingerprint, making this
+  import idempotent across refreshes and devices.
+- Convex also compares the actual calculator values, credits, and liquidity
+  items. Renamed scenarios with otherwise identical content are shown as
+  duplicates.
+- If the same scenario changed both locally and on another device, both
+  versions are preserved instead of silently overwriting the local version.
+
+1. Use Node.js 20.9 or newer.
+2. Add the local site URL to `.env.local`:
+
+   ```env
+   DATABASE_URL="file:./db.sqlite"
+   NEXT_PUBLIC_SITE_URL="http://localhost:3010"
+   ```
+
+   Convex writes `CONVEX_DEPLOYMENT`, `NEXT_PUBLIC_CONVEX_URL`, and
+   `NEXT_PUBLIC_CONVEX_SITE_URL` to this file when it is initialized.
+
+3. Set the Better Auth environment variables on the Convex deployment:
+
+   ```bash
+   pnpm convex env set SITE_URL http://localhost:3010
+   pnpm convex env set TRUSTED_ORIGINS http://localhost:3010,http://127.0.0.1:3010,http://192.168.178.27:3010,http://10.100.100.3:3010
+   pnpm convex env set BETTER_AUTH_SECRET "$(openssl rand -base64 32)"
+   ```
+
+4. Start Convex in the first terminal:
+
+   ```bash
+   pnpm convex:dev
+   ```
+
+5. Start Next.js in a second terminal:
+
+   ```bash
+   pnpm dev
+   ```
+
+Open `http://localhost:3010`.
+
 ## What's next? How do I make an app with this?
 
 We try to keep this project as simple as possible, so you can start with just the scaffolding we set up for you, and add additional things later when they become necessary.

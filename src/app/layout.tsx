@@ -6,6 +6,8 @@ import { Geist } from "next/font/google";
 import { TRPCReactProvider } from "~/trpc/react";
 import JotaiProvider from "~/state/jotai_provider";
 import { PostHogProvider } from "~/components/PostHogProvider";
+import { ConvexClientProvider } from "./convex_client_provider";
+import { getToken } from "~/lib/auth-server";
 // import { DevTools } from "jotai-devtools";
 
 export const metadata: Metadata = {
@@ -19,20 +21,24 @@ const geist = Geist({
   variable: "--font-geist-sans",
 });
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  const token = await getToken();
+
   return (
     <html lang="de-DE" className={`${geist.variable}`}>
       <body>
-        <PostHogProvider>
-          <TRPCReactProvider>
-            <JotaiProvider>
-              {children}
-              {/* <DevTools /> */}
-            </JotaiProvider>
-          </TRPCReactProvider>
-        </PostHogProvider>
+        <ConvexClientProvider initialToken={token}>
+          <PostHogProvider>
+            <TRPCReactProvider>
+              <JotaiProvider>
+                {children}
+                {/* <DevTools /> */}
+              </JotaiProvider>
+            </TRPCReactProvider>
+          </PostHogProvider>
+        </ConvexClientProvider>
       </body>
     </html>
   );

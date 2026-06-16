@@ -6,11 +6,12 @@
   "scripts": {
     "build": "next build",
     "check": "next lint && tsc --noEmit",
+    "convex:dev": "convex dev",
     "db:generate": "prisma migrate dev",
     "db:migrate": "prisma migrate deploy",
     "db:push": "prisma db push",
     "db:studio": "prisma studio",
-    "dev": "next dev --turbo",
+    "dev": "next dev --turbo -p 3010",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,mdx}\" --cache",
     "format:write": "prettier --write \"**/*.{ts,tsx,js,jsx,mdx}\" --cache",
     "postinstall": "prisma generate",
@@ -20,7 +21,11 @@
     "start": "next start",
     "typecheck": "tsc --noEmit"
   },
+  "engines": {
+    "node": ">=20.9.0"
+  },
   "dependencies": {
+    "@convex-dev/better-auth": "^0.12.3",
     "@prisma/client": "^6.5.0",
     "@radix-ui/react-accordion": "^1.2.11",
     "@radix-ui/react-dialog": "^1.1.15",
@@ -34,8 +39,10 @@
     "@trpc/client": "^11.0.0",
     "@trpc/react-query": "^11.0.0",
     "@trpc/server": "^11.0.0",
+    "better-auth": "~1.6.15",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "convex": "^1.41.0",
     "cookies-next": "^6.0.0",
     "date-fns": "^4.1.0",
     "jotai": "^2.14.0",

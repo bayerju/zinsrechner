@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAtom } from "jotai";
+import { useState, type FormEvent, type ReactNode } from "react";
 import { StorageTransfer } from "~/components/storage_transfer";
 import { NumberInput } from "~/components/ui/number_input";
 import { Button } from "~/components/ui/button";
@@ -10,14 +11,18 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogTitle,
   DialogTrigger,
 } from "~/components/ui/dialog";
+import { Input } from "~/components/ui/input";
 import { Pencil } from "lucide-react";
+import { useConvexAuth } from "convex/react";
 import {
   analysisHorizonYearsAtom,
   includeRefinancingAtom,
 } from "~/state/analysis_settings_atom";
+import { authClient } from "~/lib/auth-client";
 
 export function TopNav() {
   const pathname = usePathname();
@@ -39,7 +44,12 @@ export function TopNav() {
   return (
     <nav className="mb-3 text-sm">
       <div className="space-y-3 border-b border-neutral-300 pb-3 lg:hidden">
-        <PrimaryNavigation isLiquiditySection={isLiquiditySection} />
+        <div className="flex items-center gap-2">
+          <div className="min-w-0 flex-1">
+            <PrimaryNavigation isLiquiditySection={isLiquiditySection} />
+          </div>
+          <AuthStatus />
+        </div>
         <ContextNavigation
           isLiquiditySection={isLiquiditySection}
           pathname={pathname}
@@ -94,7 +104,7 @@ export function TopNav() {
               </DesktopMenuLink>
             </DesktopNavigationGroup>
           </div>
-          <div className="ml-auto pb-3">
+          <div className="ml-auto flex items-center gap-3 pb-3">
             <CalculationStatus
               includeRefinancing={includeRefinancing}
               analysisHorizonYears={analysisHorizonYears}
@@ -102,10 +112,177 @@ export function TopNav() {
               updateHorizon={updateHorizon}
               desktop
             />
+            <AuthStatus />
           </div>
         </div>
       </div>
     </nav>
+  );
+}
+
+function AuthStatus() {
+  const session = authClient.useSession();
+  const isSignedIn = Boolean(session.data);
+  const { isAuthenticated: isConvexAuthenticated, isLoading: isConvexLoading } =
+    useConvexAuth();
+
+  if (session.isPending) return null;
+
+  if (!isSignedIn) {
+    return (
+      <AuthDialog>
+        <Button type="button" size="sm" variant="outline" className="shrink-0">
+          Anmelden
+        </Button>
+      </AuthDialog>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      <span className="hidden text-xs text-neutral-500 sm:inline">
+        {isConvexLoading
+          ? "Verbinde..."
+          : isConvexAuthenticated
+            ? "Synchronisiert"
+            : "Sync nicht verbunden"}
+      </span>
+      <span className="hidden max-w-40 truncate text-xs text-neutral-500 xl:inline">
+        {session.data?.user.email}
+      </span>
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        onClick={() => void authClient.signOut()}
+      >
+        Abmelden
+      </Button>
+    </div>
+  );
+}
+
+function AuthDialog({ children }: { children: ReactNode }) {
+  const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [pending, setPending] = useState(false);
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+    setPending(true);
+    try {
+      if (mode === "signup") {
+        const result = await authClient.signUp.email({
+          name: name.trim() || email,
+          email,
+          password,
+        });
+        if (result.error) {
+          setError(result.error.message ?? "Registrierung fehlgeschlagen.");
+          return;
+        }
+      } else {
+        const result = await authClient.signIn.email({
+          email,
+          password,
+        });
+        if (result.error) {
+          setError(result.error.message ?? "Anmeldung fehlgeschlagen.");
+          return;
+        }
+      }
+      setOpen(false);
+      setName("");
+      setEmail("");
+      setPassword("");
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "Authentifizierung fehlgeschlagen.",
+      );
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>{children}</DialogTrigger>
+      <DialogContent className="border-neutral-300 bg-white text-black shadow-2xl sm:max-w-md">
+        <DialogTitle>
+          {mode === "signin" ? "Anmelden" : "Konto erstellen"}
+        </DialogTitle>
+        <DialogDescription className="text-neutral-600">
+          {mode === "signin"
+            ? "Melde dich an, um deine Szenarien über Convex zu synchronisieren."
+            : "Erstelle ein Konto, um deine Szenarien geräteübergreifend zu speichern."}
+        </DialogDescription>
+
+        <form className="space-y-4" onSubmit={submit}>
+          {mode === "signup" && (
+            <label className="block space-y-1.5 text-sm">
+              <span className="font-medium">Name</span>
+              <Input
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                autoComplete="name"
+              />
+            </label>
+          )}
+          <label className="block space-y-1.5 text-sm">
+            <span className="font-medium">E-Mail</span>
+            <Input
+              type="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              autoComplete="email"
+              required
+            />
+          </label>
+          <label className="block space-y-1.5 text-sm">
+            <span className="font-medium">Passwort</span>
+            <Input
+              type="password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              autoComplete={
+                mode === "signin" ? "current-password" : "new-password"
+              }
+              minLength={8}
+              required
+            />
+          </label>
+          {error && <p className="text-sm text-red-600">{error}</p>}
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={pending}
+              onClick={() => {
+                setError("");
+                setMode(mode === "signin" ? "signup" : "signin");
+              }}
+            >
+              {mode === "signin" ? "Registrieren" : "Zur Anmeldung"}
+            </Button>
+            <Button type="submit" disabled={pending}>
+              {pending
+                ? "Bitte warten..."
+                : mode === "signin"
+                  ? "Anmelden"
+                  : "Konto erstellen"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -183,7 +360,7 @@ function ContextNavigation({
   );
 }
 
-function DesktopNavigationGroup({ children }: { children: React.ReactNode }) {
+function DesktopNavigationGroup({ children }: { children: ReactNode }) {
   return <div className="flex items-end">{children}</div>;
 }
 
@@ -196,7 +373,7 @@ function DesktopMenuLink({
   href: string;
   active: boolean;
   activeClass: string;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
     <Link
@@ -354,7 +531,7 @@ function SubNavigationLink({
 }: {
   href: string;
   active: boolean;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
     <Link

@@ -1,0 +1,93 @@
+import { defineSchema, defineTable } from "convex/server";
+import { v } from "convex/values";
+
+export default defineSchema({
+  userSettings: defineTable({
+    userIdentifier: v.string(),
+    activeScenarioId: v.string(),
+    comparedScenarioIds: v.array(v.string()),
+    activeLiquidityScenarioId: v.string(),
+    includeRefinancing: v.boolean(),
+    analysisHorizonYears: v.number(),
+    updatedAt: v.number(),
+  }).index("by_userIdentifier", ["userIdentifier"]),
+  financingScenarios: defineTable({
+    userIdentifier: v.string(),
+    scenarioId: v.string(),
+    name: v.string(),
+    createdAt: v.number(),
+    color: v.string(),
+    effzins: v.number(),
+    kaufpreis: v.number(),
+    modernisierungskosten: v.number(),
+    eigenkapital: v.number(),
+    tilgungssatz: v.number(),
+    zinsbindung: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_userIdentifier", ["userIdentifier"])
+    .index("by_userIdentifier_and_scenarioId", [
+      "userIdentifier",
+      "scenarioId",
+    ]),
+  credits: defineTable({
+    userIdentifier: v.string(),
+    scenarioId: v.string(),
+    creditId: v.string(),
+    data: v.any(),
+    updatedAt: v.number(),
+  })
+    .index("by_userIdentifier", ["userIdentifier"])
+    .index("by_userIdentifier_and_scenarioId_and_creditId", [
+      "userIdentifier",
+      "scenarioId",
+      "creditId",
+    ]),
+  liquidityScenarios: defineTable({
+    userIdentifier: v.string(),
+    scenarioId: v.string(),
+    name: v.string(),
+    createdAt: v.number(),
+    color: v.string(),
+    startCapital: v.number(),
+    startMonth: v.string(),
+    horizonMonths: v.number(),
+    creditScenarioId: v.string(),
+    updatedAt: v.number(),
+  })
+    .index("by_userIdentifier", ["userIdentifier"])
+    .index("by_userIdentifier_and_scenarioId", [
+      "userIdentifier",
+      "scenarioId",
+    ]),
+  liquidityItems: defineTable({
+    userIdentifier: v.string(),
+    scenarioId: v.string(),
+    itemId: v.string(),
+    position: v.number(),
+    data: v.any(),
+    updatedAt: v.number(),
+  })
+    .index("by_userIdentifier", ["userIdentifier"])
+    .index("by_userIdentifier_and_scenarioId_and_itemId", [
+      "userIdentifier",
+      "scenarioId",
+      "itemId",
+    ]),
+  localImports: defineTable({
+    userIdentifier: v.string(),
+    kind: v.union(v.literal("financing"), v.literal("liquidity")),
+    fingerprint: v.string(),
+    importedScenarioId: v.string(),
+    importedAt: v.number(),
+  }).index("by_userIdentifier_and_kind_and_fingerprint", [
+    "userIdentifier",
+    "kind",
+    "fingerprint",
+  ]),
+  appStates: defineTable({
+    userIdentifier: v.string(),
+    state: v.any(),
+    updatedAt: v.number(),
+  }).index("by_userIdentifier", ["userIdentifier"]),
+});
