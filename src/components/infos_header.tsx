@@ -19,7 +19,7 @@ import {
   calculateTotalRatesByTimeframe,
   calculateFullPaymentTime,
 } from "~/lib/calculations";
-import { getCreditEndYear, isBridgeCredit } from "~/lib/credit";
+import { isBridgeCredit } from "~/lib/credit";
 import { creditsAtom } from "~/state/credits_atom";
 import { TopNav } from "./top_nav";
 import { ScenarioBar } from "./scenario_bar";
@@ -209,11 +209,13 @@ function DueRestschuldInfo({
   details,
   totalDue,
   earliestDueYear,
+  actionLabel,
   onIncludeRefinancing,
 }: {
   details: DueAmountDetail[];
   totalDue: number;
   earliestDueYear: number;
+  actionLabel: string;
   onIncludeRefinancing: () => void;
 }) {
   const label =
@@ -261,7 +263,7 @@ function DueRestschuldInfo({
         className="mt-3 w-full bg-amber-900 text-white hover:bg-amber-800"
         onClick={onIncludeRefinancing}
       >
-        Einrechnen
+        {actionLabel}
       </Button>
     </RestschuldWarningPopover>
   );
@@ -436,15 +438,8 @@ export default function InfosHeader() {
   }
 
   const dueAmountsWithoutRefinancing = Object.values(credits ?? {})
+    .filter((credit) => !isBridgeCredit(credit))
     .map((credit) => {
-      if (isBridgeCredit(credit)) {
-        return {
-          name: credit.name,
-          dueYear: getCreditEndYear(credit),
-          dueAmount: credit.summeDarlehen,
-        };
-      }
-
       const tilgungszuschussBetrag = calculateTilgungszuschussBetrag({
         darlehensbetrag: credit.summeDarlehen,
         foerderfaehigerAnteilProzent: credit.foerderfaehigerAnteilProzent ?? 0,
@@ -481,6 +476,9 @@ export default function InfosHeader() {
     })
     .filter((item) => item.dueAmount > 0)
     .sort((a, b) => a.dueYear - b.dueYear);
+  const dueWarningCount = new Set(
+    dueAmountsWithoutRefinancing.map((item) => item.dueYear),
+  ).size;
   return (
     <Card className="mb-4 w-full">
       <CardContent>
@@ -528,6 +526,13 @@ export default function InfosHeader() {
                               details={dueAmountsForPeriod}
                               totalDue={totalDueForPeriod}
                               earliestDueYear={iRate.endYear}
+                              actionLabel={
+                                dueWarningCount > 1
+                                  ? "Alle Restschulden einrechnen"
+                                  : dueAmountsForPeriod.length > 1
+                                    ? "Restschulden einrechnen"
+                                    : "Restschuld einrechnen"
+                              }
                               onIncludeRefinancing={() =>
                                 setIncludeRefinancing(true)
                               }
