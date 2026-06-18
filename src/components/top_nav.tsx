@@ -165,20 +165,24 @@ function AuthStatus() {
 function AuthDialog({ children }: { children: ReactNode }) {
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [open, setOpen] = useState(false);
-  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [passwordConfirmation, setPasswordConfirmation] = useState("");
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
+    if (mode === "signup" && password !== passwordConfirmation) {
+      setError("Die Passwörter stimmen nicht überein.");
+      return;
+    }
     setPending(true);
     try {
       if (mode === "signup") {
         const result = await authClient.signUp.email({
-          name: name.trim() || email,
+          name: email,
           email,
           password,
         });
@@ -197,9 +201,9 @@ function AuthDialog({ children }: { children: ReactNode }) {
         }
       }
       setOpen(false);
-      setName("");
       setEmail("");
       setPassword("");
+      setPasswordConfirmation("");
     } catch (caught) {
       setError(
         caught instanceof Error
@@ -225,16 +229,6 @@ function AuthDialog({ children }: { children: ReactNode }) {
         </DialogDescription>
 
         <form className="space-y-4" onSubmit={submit}>
-          {mode === "signup" && (
-            <label className="block space-y-1.5 text-sm">
-              <span className="font-medium">Name</span>
-              <Input
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                autoComplete="name"
-              />
-            </label>
-          )}
           <label className="block space-y-1.5 text-sm">
             <span className="font-medium">E-Mail</span>
             <Input
@@ -258,6 +252,19 @@ function AuthDialog({ children }: { children: ReactNode }) {
               required
             />
           </label>
+          {mode === "signup" && (
+            <label className="block space-y-1.5 text-sm">
+              <span className="font-medium">Passwort bestätigen</span>
+              <Input
+                type="password"
+                value={passwordConfirmation}
+                onChange={(event) => setPasswordConfirmation(event.target.value)}
+                autoComplete="new-password"
+                minLength={8}
+                required
+              />
+            </label>
+          )}
           {error && <p className="text-sm text-red-600">{error}</p>}
 
           <DialogFooter>
@@ -268,6 +275,8 @@ function AuthDialog({ children }: { children: ReactNode }) {
               onClick={() => {
                 setError("");
                 setMode(mode === "signin" ? "signup" : "signin");
+                setPassword("");
+                setPasswordConfirmation("");
               }}
             >
               {mode === "signin" ? "Registrieren" : "Zur Anmeldung"}
