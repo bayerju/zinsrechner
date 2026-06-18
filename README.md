@@ -77,12 +77,17 @@ pnpm build:coolify
 Set these Coolify environment variables:
 
 ```env
-CONVEX_DEPLOY_KEY=...
 DATABASE_URL=postgres://...
 NEXT_PUBLIC_CONVEX_URL=https://<prod-deployment>.convex.cloud
 NEXT_PUBLIC_CONVEX_SITE_URL=https://<prod-deployment>.convex.site
 NEXT_PUBLIC_POSTHOG_KEY=...
 NEXT_PUBLIC_POSTHOG_HOST=https://eu.i.posthog.com
+```
+
+Set this Coolify environment variable as a build variable:
+
+```env
+CONVEX_DEPLOY_KEY=...
 ```
 
 Set these once on the Convex production deployment:
