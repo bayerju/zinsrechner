@@ -5,8 +5,9 @@
   "type": "module",
   "scripts": {
     "build": "next build",
+    "build:coolify": "convex deploy && next build",
     "check": "next lint && tsc --noEmit",
-    "convex:dev": "convex dev",
+    "convex:dev": "convex dev --env-file .env",
     "db:generate": "prisma migrate dev",
     "db:migrate": "prisma migrate deploy",
     "db:push": "prisma db push",

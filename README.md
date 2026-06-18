@@ -35,15 +35,14 @@ after sign-in. Signed-out usage remains local to the browser.
   versions are preserved instead of silently overwriting the local version.
 
 1. Use Node.js 20.9 or newer.
-2. Add the local site URL to `.env.local`:
+2. Add the local environment variables to `.env`:
 
    ```env
    DATABASE_URL="file:./db.sqlite"
-   NEXT_PUBLIC_SITE_URL="http://localhost:3010"
    ```
 
-   Convex writes `CONVEX_DEPLOYMENT`, `NEXT_PUBLIC_CONVEX_URL`, and
-   `NEXT_PUBLIC_CONVEX_SITE_URL` to this file when it is initialized.
+   Convex reads `CONVEX_DEPLOYMENT`, `NEXT_PUBLIC_CONVEX_URL`, and
+   `NEXT_PUBLIC_CONVEX_SITE_URL` from `.env` via `pnpm convex:dev`.
 
 3. Set the Better Auth environment variables on the Convex deployment:
 
@@ -66,6 +65,33 @@ after sign-in. Signed-out usage remains local to the browser.
    ```
 
 Open `http://localhost:3010`.
+
+## Coolify production
+
+Use this build command in Coolify:
+
+```bash
+pnpm build:coolify
+```
+
+Set these Coolify environment variables:
+
+```env
+CONVEX_DEPLOY_KEY=...
+DATABASE_URL=postgres://...
+NEXT_PUBLIC_CONVEX_URL=https://<prod-deployment>.convex.cloud
+NEXT_PUBLIC_CONVEX_SITE_URL=https://<prod-deployment>.convex.site
+NEXT_PUBLIC_POSTHOG_KEY=...
+NEXT_PUBLIC_POSTHOG_HOST=https://eu.i.posthog.com
+```
+
+Set these once on the Convex production deployment:
+
+```bash
+pnpm convex env set --prod SITE_URL https://your-domain.example
+pnpm convex env set --prod TRUSTED_ORIGINS https://your-domain.example
+openssl rand -base64 32 | pnpm convex env set --prod BETTER_AUTH_SECRET
+```
 
 ## What's next? How do I make an app with this?
 
