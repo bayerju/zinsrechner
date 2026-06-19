@@ -16,13 +16,26 @@ import {
   DialogTrigger,
 } from "~/components/ui/dialog";
 import { Input } from "~/components/ui/input";
-import { Pencil } from "lucide-react";
+import {
+  CheckCircle2,
+  ChevronDown,
+  Loader2,
+  LogOut,
+  Pencil,
+  UserRound,
+  WifiOff,
+} from "lucide-react";
 import { useConvexAuth } from "convex/react";
 import {
   analysisHorizonYearsAtom,
   includeRefinancingAtom,
 } from "~/state/analysis_settings_atom";
 import { authClient } from "~/lib/auth-client";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "~/components/ui/popover";
 
 export function TopNav() {
   const pathname = usePathname();
@@ -122,13 +135,13 @@ export function TopNav() {
 
 function AuthStatus() {
   const session = authClient.useSession();
-  const isSignedIn = Boolean(session.data);
+  const sessionData = session.data;
   const { isAuthenticated: isConvexAuthenticated, isLoading: isConvexLoading } =
     useConvexAuth();
 
   if (session.isPending) return null;
 
-  if (!isSignedIn) {
+  if (!sessionData) {
     return (
       <AuthDialog>
         <Button type="button" size="sm" variant="outline" className="shrink-0">
@@ -139,27 +152,141 @@ function AuthStatus() {
   }
 
   return (
-    <div className="flex items-center gap-2">
-      <span className="hidden text-xs text-neutral-500 sm:inline">
-        {isConvexLoading
-          ? "Verbinde..."
-          : isConvexAuthenticated
-            ? "Synchronisiert"
-            : "Sync nicht verbunden"}
-      </span>
-      <span className="hidden max-w-40 truncate text-xs text-neutral-500 xl:inline">
-        {session.data?.user.email}
-      </span>
-      <Button
-        type="button"
-        size="sm"
-        variant="outline"
-        onClick={() => void authClient.signOut()}
-      >
-        Abmelden
-      </Button>
-    </div>
+    <UserProfileMenu
+      user={sessionData.user}
+      isConvexAuthenticated={isConvexAuthenticated}
+      isConvexLoading={isConvexLoading}
+    />
   );
+}
+
+function UserProfileMenu({
+  user,
+  isConvexAuthenticated,
+  isConvexLoading,
+}: {
+  user: {
+    name?: string | null;
+    email?: string | null;
+    image?: string | null;
+  };
+  isConvexAuthenticated: boolean;
+  isConvexLoading: boolean;
+}) {
+  const trimmedName = user.name?.trim();
+  const displayName =
+    trimmedName !== undefined && trimmedName.length > 0
+      ? trimmedName
+      : (user.email ?? "Angemeldet");
+  const email = user.email ?? "";
+  const syncLabel = isConvexLoading
+    ? "Verbindung wird hergestellt"
+    : isConvexAuthenticated
+      ? "Daten sind synchronisiert"
+      : "Synchronisierung nicht verbunden";
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          className="h-9 gap-2 rounded-full border-neutral-300 px-2 pr-3"
+        >
+          <UserAvatar name={displayName} image={user.image} />
+          <span className="hidden max-w-36 truncate text-sm font-medium text-neutral-800 sm:inline">
+            {displayName}
+          </span>
+          <ChevronDown className="size-4 text-neutral-500" aria-hidden="true" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="end"
+        className="w-72 border-neutral-200 bg-white p-0 text-black shadow-xl"
+      >
+        <div className="border-b border-neutral-200 p-4">
+          <div className="flex items-center gap-3">
+            <UserAvatar name={displayName} image={user.image} size="lg" />
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold">{displayName}</p>
+              {email && (
+                <p className="truncate text-xs text-neutral-500">{email}</p>
+              )}
+            </div>
+          </div>
+        </div>
+        <div className="space-y-1 p-2">
+          <div className="flex items-center gap-2 rounded-md px-2 py-2 text-sm text-neutral-700">
+            {isConvexLoading ? (
+              <Loader2
+                className="size-4 animate-spin text-neutral-500"
+                aria-hidden="true"
+              />
+            ) : isConvexAuthenticated ? (
+              <CheckCircle2
+                className="size-4 text-emerald-600"
+                aria-hidden="true"
+              />
+            ) : (
+              <WifiOff className="size-4 text-amber-600" aria-hidden="true" />
+            )}
+            <span>{syncLabel}</span>
+          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            className="h-9 w-full justify-start px-2 text-neutral-700 hover:bg-neutral-100 hover:text-black"
+            onClick={() => void authClient.signOut()}
+          >
+            <LogOut className="size-4" aria-hidden="true" />
+            Abmelden
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function UserAvatar({
+  name,
+  image,
+  size = "sm",
+}: {
+  name: string;
+  image?: string | null;
+  size?: "sm" | "lg";
+}) {
+  const initials = getInitials(name);
+  const sizeClass = size === "lg" ? "size-11 text-base" : "size-7 text-xs";
+
+  if (image) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={image}
+        alt=""
+        className={`${sizeClass} rounded-full object-cover`}
+      />
+    );
+  }
+
+  return (
+    <span
+      className={`${sizeClass} inline-flex items-center justify-center rounded-full bg-neutral-900 font-semibold text-white`}
+      aria-hidden="true"
+    >
+      {initials || <UserRound className="size-4" />}
+    </span>
+  );
+}
+
+function getInitials(name: string) {
+  return name
+    .split(/[\s@._-]+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("");
 }
 
 function AuthDialog({ children }: { children: ReactNode }) {
