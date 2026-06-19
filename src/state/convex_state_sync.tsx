@@ -40,6 +40,7 @@ import {
   scenarioValuesAtom,
   type ScenarioValues,
 } from "./scenario_values_atom";
+import { authClient } from "~/lib/auth-client";
 
 const APP_STORAGE_KEYS = [
   "scenarios",
@@ -297,6 +298,7 @@ async function toLocalImports(local: SyncedState, remote: SyncedState) {
 
 export function ConvexStateSync() {
   const { isAuthenticated } = useConvexAuth();
+  const session = authClient.useSession();
   const remoteResult = useQuery(
     api.appState.getForCurrentUser,
     isAuthenticated ? {} : "skip",
@@ -342,6 +344,11 @@ export function ConvexStateSync() {
   );
   const initializationRunning = useRef(false);
   const lastSyncedPayload = useRef<string | null>(null);
+  const anonymousSignInRunning = useRef(false);
+  const previousSessionUser = useRef<{
+    id: string;
+    isAnonymous: boolean;
+  } | null>(null);
 
   const localState = useMemo<SyncedState>(
     () => ({
@@ -399,6 +406,54 @@ export function ConvexStateSync() {
     const timeout = window.setTimeout(() => setStorageHydrated(true), 100);
     return () => window.clearTimeout(timeout);
   }, []);
+
+  useEffect(() => {
+    if (session.isPending) return;
+
+    const nextUser = session.data
+      ? {
+          id: session.data.user.id,
+          isAnonymous: Boolean(session.data.user.isAnonymous),
+        }
+      : null;
+    const previousUser = previousSessionUser.current;
+    const signedOutToGuest =
+      previousUser !== null &&
+      !previousUser.isAnonymous &&
+      (nextUser === null || nextUser.isAnonymous);
+
+    if (signedOutToGuest) {
+      applyState(defaultSyncedState());
+      clearLocalAppData();
+      setImportReview(null);
+      setPendingRemoteTimestamp(null);
+      setReadyToSave(false);
+      initializationRunning.current = false;
+      lastSyncedPayload.current = null;
+    }
+
+    previousSessionUser.current = nextUser;
+  }, [applyState, session.data, session.isPending]);
+
+  useEffect(() => {
+    if (
+      session.isPending ||
+      session.data ||
+      anonymousSignInRunning.current
+    ) {
+      return;
+    }
+
+    anonymousSignInRunning.current = true;
+    void authClient.signIn
+      .anonymous()
+      .catch((error: unknown) => {
+        console.error("Failed to create anonymous session", error);
+      })
+      .finally(() => {
+        anonymousSignInRunning.current = false;
+      });
+  }, [session.data, session.isPending]);
 
   useEffect(() => {
     if (!isAuthenticated) {

@@ -141,7 +141,7 @@ function AuthStatus() {
 
   if (session.isPending) return null;
 
-  if (!sessionData) {
+  if (!sessionData || sessionData.user.isAnonymous) {
     return (
       <AuthDialog>
         <Button type="button" size="sm" variant="outline" className="shrink-0">
