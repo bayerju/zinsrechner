@@ -6,14 +6,13 @@ import { anonymous } from "better-auth/plugins/anonymous";
 import { components } from "../_generated/api";
 import type { DataModel } from "../_generated/dataModel";
 import authConfig from "../auth.config";
-import { env } from "../../src/env";
 
 export const authComponent = createClient<DataModel>(components.betterAuth);
 
 function trustedOrigins() {
   return [
-    env.SITE_URL,
-    ...(env.TRUSTED_ORIGINS ?? "")
+    process.env.SITE_URL,
+    ...(process.env.TRUSTED_ORIGINS ?? "")
       .split(",")
       .map((origin) => origin.trim())
       .filter(Boolean),
@@ -23,9 +22,9 @@ function trustedOrigins() {
 export const createAuthOptions = (ctx: GenericCtx<DataModel>) =>
   ({
     appName: "JRZinsrechner",
-    baseURL: env.SITE_URL,
+    baseURL: process.env.SITE_URL,
     trustedOrigins: trustedOrigins(),
-    secret: env.BETTER_AUTH_SECRET,
+    secret: process.env.BETTER_AUTH_SECRET,
     database: authComponent.adapter(ctx),
     emailAndPassword: {
       enabled: true,

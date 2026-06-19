@@ -19,6 +19,7 @@ const financingScenarioValidator = v.object({
   name: v.string(),
   createdAt: v.number(),
   color: v.string(),
+  sollzins: v.optional(v.number()),
   effzins: v.number(),
   kaufpreis: v.number(),
   modernisierungskosten: v.number(),
@@ -164,6 +165,7 @@ export const getForCurrentUser = query({
         color: row.color,
       };
       scenarioValues[row.scenarioId] = {
+        sollzins: row.sollzins ?? row.effzins,
         effzins: row.effzins,
         kaufpreis: row.kaufpreis,
         modernisierungskosten: row.modernisierungskosten,
@@ -309,6 +311,7 @@ function sameFinancingContent(
   candidate: {
     scenario: {
       effzins: number;
+      sollzins?: number;
       kaufpreis: number;
       modernisierungskosten: number;
       eigenkapital: number;
@@ -322,6 +325,7 @@ function sameFinancingContent(
   return (
     sameValues(existing, candidate.scenario, [
       "effzins",
+      "sollzins",
       "kaufpreis",
       "modernisierungskosten",
       "eigenkapital",
@@ -813,6 +817,7 @@ export const replaceForCurrentUser = mutation({
           "name",
           "createdAt",
           "color",
+          "sollzins",
           "effzins",
           "kaufpreis",
           "modernisierungskosten",

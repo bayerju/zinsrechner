@@ -1,14 +1,15 @@
 import { atom } from "jotai";
-import { creditSchema, type Credit } from "~/lib/credit";
+import { normalizeCredit, type Credit } from "~/lib/credit";
 import { activeScenarioValuesAtom } from "./scenario_values_atom";
 
 export const creditsAtom = atom(
   (get) => {
     const credits = get(activeScenarioValuesAtom).credits;
     return Object.fromEntries(
-      Object.entries(credits).filter(
-        ([, credit]) => creditSchema.safeParse(credit).success,
-      ),
+      Object.entries(credits).flatMap(([key, credit]) => {
+        const normalized = normalizeCredit(credit);
+        return normalized ? [[key, normalized]] : [];
+      }),
     ) as Record<string, Credit>;
   },
   (

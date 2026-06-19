@@ -41,6 +41,7 @@ import {
   type ScenarioValues,
 } from "./scenario_values_atom";
 import { authClient } from "~/lib/auth-client";
+import { normalizeCredit, serializeCreditForConvex } from "~/lib/credit";
 
 const APP_STORAGE_KEYS = [
   "scenarios",
@@ -93,6 +94,28 @@ function isSyncedState(value: unknown): value is SyncedState {
     isRecord(value.liquidityScenarioValues) &&
     typeof value.includeRefinancing === "boolean" &&
     typeof value.analysisHorizonYears === "number"
+  );
+}
+
+function normalizeScenarioValues(
+  values: Record<string, ScenarioValues>,
+): Record<string, ScenarioValues> {
+  return Object.fromEntries(
+    Object.entries(values).map(([scenarioId, scenarioValues]) => [
+      scenarioId,
+      {
+        ...scenarioValues,
+        sollzins: scenarioValues.sollzins ?? scenarioValues.effzins,
+        credits: Object.fromEntries(
+          Object.entries(scenarioValues.credits ?? {}).flatMap(
+            ([creditId, credit]) => {
+              const normalized = normalizeCredit(credit);
+              return normalized ? [[creditId, normalized]] : [];
+            },
+          ),
+        ),
+      },
+    ]),
   );
 }
 
@@ -158,6 +181,7 @@ function toConvexSnapshot(state: SyncedState) {
           name: scenario.name,
           createdAt: scenario.createdAt,
           color: scenario.color,
+          sollzins: values.sollzins ?? values.effzins,
           effzins: values.effzins,
           kaufpreis: values.kaufpreis,
           modernisierungskosten: values.modernisierungskosten,
@@ -170,11 +194,18 @@ function toConvexSnapshot(state: SyncedState) {
   );
   const credits = Object.entries(state.scenarioValues).flatMap(
     ([scenarioId, values]) =>
-      Object.entries(values.credits).map(([creditId, data]) => ({
-        scenarioId,
-        creditId,
-        data,
-      })),
+      Object.entries(values.credits).flatMap(([creditId, data]) => {
+        const normalized = normalizeCredit(data);
+        return normalized
+          ? [
+              {
+                scenarioId,
+                creditId,
+                data: serializeCreditForConvex(normalized),
+              },
+            ]
+          : [];
+      }),
   );
   const liquidityScenarios = Object.values(state.liquidityScenarios).flatMap(
     (scenario) => {
@@ -241,6 +272,7 @@ async function toLocalImports(local: SyncedState, remote: SyncedState) {
             name: scenario.name,
             createdAt: scenario.createdAt,
             color: scenario.color,
+            sollzins: values.sollzins ?? values.effzins,
             effzins: values.effzins,
             kaufpreis: values.kaufpreis,
             modernisierungskosten: values.modernisierungskosten,
@@ -248,10 +280,19 @@ async function toLocalImports(local: SyncedState, remote: SyncedState) {
             tilgungssatz: values.tilgungssatz,
             zinsbindung: values.zinsbindung,
           },
-          credits: Object.entries(values.credits).map(([creditId, data]) => ({
-            creditId,
-            data,
-          })),
+          credits: Object.entries(values.credits).flatMap(
+            ([creditId, data]) => {
+              const normalized = normalizeCredit(data);
+              return normalized
+                ? [
+                    {
+                      creditId,
+                      data: serializeCreditForConvex(normalized),
+                    },
+                  ]
+                : [];
+            },
+          ),
         })),
       ];
     }),
@@ -384,7 +425,7 @@ export function ConvexStateSync() {
     (state: SyncedState) => {
       setScenarios(state.scenarios);
       setActiveScenarioId(state.activeScenarioId);
-      setScenarioValues(state.scenarioValues);
+      setScenarioValues(normalizeScenarioValues(state.scenarioValues));
       setComparedScenarioIds(state.comparedScenarioIds);
       setLiquidityScenarios(state.liquidityScenarios);
       setActiveLiquidityScenarioId(state.activeLiquidityScenarioId);
@@ -453,11 +494,7 @@ export function ConvexStateSync() {
   }, [applyState, localState, session.data, session.isPending]);
 
   useEffect(() => {
-    if (
-      session.isPending ||
-      session.data ||
-      anonymousSignInRunning.current
-    ) {
+    if (session.isPending || session.data || anonymousSignInRunning.current) {
       return;
     }
 
@@ -508,7 +545,8 @@ export function ConvexStateSync() {
     initializationRunning.current = true;
     const localDataExists = hasLocalAppData();
     const pendingLocalState = accountUpgradeState ?? localState;
-    const shouldImportLocalState = accountUpgradeState !== null || localDataExists;
+    const shouldImportLocalState =
+      accountUpgradeState !== null || localDataExists;
 
     if (remoteResult === null) {
       const remoteState = defaultSyncedState();
@@ -652,7 +690,7 @@ export function ConvexStateSync() {
     storageHydrated,
   ]);
 
-  async function finishWithoutImport() {
+  const finishWithoutImport = useCallback(async () => {
     if (!importReview) return;
     setReviewSubmitting(true);
     try {
@@ -678,7 +716,24 @@ export function ConvexStateSync() {
     } finally {
       setReviewSubmitting(false);
     }
-  }
+  }, [applyState, importReview, replaceState]);
+
+  useEffect(() => {
+    if (
+      importReview === null ||
+      importPreview === undefined ||
+      reviewSubmitting ||
+      importReview.upgradeState !== undefined
+    ) {
+      return;
+    }
+
+    const rows = [...importPreview.financing, ...importPreview.liquidity];
+    const hasNewRows = rows.some((row) => row.status === "new");
+    if (hasNewRows) return;
+
+    void finishWithoutImport();
+  }, [finishWithoutImport, importPreview, importReview, reviewSubmitting]);
 
   async function importReviewedScenarios() {
     if (!importReview) return;

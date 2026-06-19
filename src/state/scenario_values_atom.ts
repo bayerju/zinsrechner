@@ -1,9 +1,10 @@
 import { atom } from "jotai";
 import { atomWithStorage } from "jotai/utils";
-import { type Credit } from "~/lib/credit";
+import { normalizeCredit, type Credit } from "~/lib/credit";
 import { activeScenarioIdAtom, defaultScenarioId } from "./scenarios_atom";
 
 export type ScenarioValues = {
+  sollzins: number;
   effzins: number;
   kaufpreis: number;
   modernisierungskosten: number;
@@ -14,6 +15,7 @@ export type ScenarioValues = {
 };
 
 export const defaultScenarioValues: ScenarioValues = {
+  sollzins: 3.7,
   effzins: 3.7,
   kaufpreis: 330_000,
   modernisierungskosten: 100_000,
@@ -36,10 +38,23 @@ function readLegacyCredits(): Record<string, Credit> {
   const raw = localStorage.getItem("credits");
   if (raw === null) return {};
   try {
-    return JSON.parse(raw) as Record<string, Credit>;
+    return normalizeCredits(JSON.parse(raw));
   } catch {
     return {};
   }
+}
+
+function normalizeCredits(value: unknown): Record<string, Credit> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(value).flatMap(([key, credit]) => {
+      const normalized = normalizeCredit(credit);
+      return normalized ? [[key, normalized]] : [];
+    }),
+  );
 }
 
 const scenarioValuesStorage = {
@@ -49,7 +64,17 @@ const scenarioValuesStorage = {
     const stored = localStorage.getItem(key);
     if (stored !== null) {
       try {
-        return JSON.parse(stored) as Record<string, ScenarioValues>;
+        const parsed = JSON.parse(stored) as Record<string, ScenarioValues>;
+        return Object.fromEntries(
+          Object.entries(parsed).map(([scenarioId, values]) => [
+            scenarioId,
+            {
+              ...values,
+              sollzins: values.sollzins ?? values.effzins,
+              credits: normalizeCredits(values.credits),
+            },
+          ]),
+        );
       } catch {
         return initialValue;
       }
@@ -57,6 +82,7 @@ const scenarioValuesStorage = {
 
     return {
       [defaultScenarioId]: {
+        sollzins: parseLegacyNumber("sollzins", defaultScenarioValues.sollzins),
         effzins: parseLegacyNumber("effzins", defaultScenarioValues.effzins),
         kaufpreis: parseLegacyNumber(
           "kaufpreis",
@@ -106,7 +132,11 @@ export const activeScenarioValuesAtom = atom(
   (get) => {
     const activeScenarioId = get(activeScenarioIdAtom);
     const allValues = get(scenarioValuesAtom);
-    return allValues[activeScenarioId] ?? defaultScenarioValues;
+    const values = allValues[activeScenarioId] ?? defaultScenarioValues;
+    return {
+      ...values,
+      sollzins: values.sollzins ?? values.effzins,
+    };
   },
   (
     get,

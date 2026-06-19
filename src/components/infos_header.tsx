@@ -7,17 +7,19 @@ import { formatNumber } from "~/lib/number_fromat";
 import {
   nettoDarlehensBetragAtom,
   effzinsAtom,
+  sollzinsAtom,
   restschuldBankAtom,
   zinsbindungAtom,
   tilgungssatzAtom,
 } from "~/state/conditions_atoms";
 import { PercentInput } from "./ui/percent_input";
 import {
-  calculateMonthlyRate,
-  calculateRestschuld,
+  calculateMonthlyRateFromSollzins,
+  calculateRestschuldFromSollzins,
   calculateTilgungszuschussBetrag,
   calculateTotalRatesByTimeframe,
-  calculateFullPaymentTime,
+  calculateFullPaymentTimeFromSollzins,
+  calculateImplicitCostsFromEffectiveRate,
 } from "~/lib/calculations";
 import { isBridgeCredit } from "~/lib/credit";
 import { creditsAtom } from "~/state/credits_atom";
@@ -34,32 +36,32 @@ import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 function buildRefinancingEndYear({
   restschuld,
   startYear,
-  effzins,
+  sollzins,
   tilgungssatz,
   analysisHorizonYears,
 }: {
   restschuld: number;
   startYear: number;
-  effzins: number;
+  sollzins: number;
   tilgungssatz: number;
   analysisHorizonYears: number;
 }) {
   if (restschuld <= 0 || startYear >= analysisHorizonYears) return null;
-  const monthlyRate = calculateMonthlyRate({
+  const monthlyRate = calculateMonthlyRateFromSollzins({
     darlehensbetrag: restschuld,
-    effzins,
+    sollzins,
     tilgungssatz,
   });
-  const payoff = calculateFullPaymentTime({
+  const payoff = calculateFullPaymentTimeFromSollzins({
     darlehensbetrag: restschuld,
     monthlyRate,
-    effzins,
+    sollzins,
   });
   const yearsWithinHorizon = analysisHorizonYears - startYear;
-  const remainingDebtAtHorizon = calculateRestschuld({
+  const remainingDebtAtHorizon = calculateRestschuldFromSollzins({
     nettodarlehensbetrag: restschuld,
     monthlyRate,
-    effZins: effzins,
+    sollzins,
     years: yearsWithinHorizon,
   });
   if (!payoff.canBePaidOff) {
@@ -162,7 +164,7 @@ function RefinancingAssumptionInfo({
   details: RefinancingDetail[];
 }) {
   const explanation =
-    "Für diesen Zeitraum wird angenommen, dass Effektivzins und Tilgungssatz nach der Zinsbindung unverändert bleiben.";
+    "Für diesen Zeitraum wird angenommen, dass Sollzins und Tilgungssatz nach der Zinsbindung unverändert bleiben.";
 
   return (
     <RestschuldWarningPopover
@@ -270,6 +272,7 @@ function DueRestschuldInfo({
 }
 
 export default function InfosHeader() {
+  const [sollzins, setSollzins] = useAtom(sollzinsAtom);
   const [effzins, setEffzins] = useAtom(effzinsAtom);
   // const zinsbindung = useAtomValue(zinsbindungAtom);
   const [zinsbindung, setzinsbindung] = useAtom(zinsbindungAtom);
@@ -294,27 +297,36 @@ export default function InfosHeader() {
 
   const nettoDarlehensbetrag = useAtomValue(nettoDarlehensBetragAtom);
   const restschuldBank = useAtomValue(restschuldBankAtom);
-  const bankMonthlyRate = calculateMonthlyRate({
+  const bankMonthlyRate = calculateMonthlyRateFromSollzins({
     darlehensbetrag: nettoDarlehensbetrag,
-    effzins,
+    sollzins,
     tilgungssatz,
   });
 
-  const fullPayment = calculateFullPaymentTime({
+  const fullPayment = calculateFullPaymentTimeFromSollzins({
     darlehensbetrag: nettoDarlehensbetrag,
     monthlyRate: bankMonthlyRate,
-    effzins: effzins,
+    sollzins,
   });
-  const bankRestschuldAtBinding = calculateRestschuld({
+  const bankRestschuldAtBinding = calculateRestschuldFromSollzins({
     nettodarlehensbetrag: nettoDarlehensbetrag,
-    monthlyRate: calculateMonthlyRate({
+    monthlyRate: calculateMonthlyRateFromSollzins({
       darlehensbetrag: nettoDarlehensbetrag,
-      effzins,
+      sollzins,
       tilgungssatz,
     }),
-    effZins: effzins,
+    sollzins,
     years: zinsbindung,
   });
+  const implicitCosts = calculateImplicitCostsFromEffectiveRate({
+    darlehensbetrag: nettoDarlehensbetrag,
+    monthlyRate: bankMonthlyRate,
+    restschuld: bankRestschuldAtBinding,
+    effectiveRate: effzins,
+    years: zinsbindung,
+  });
+  const implicitCostsQuote =
+    nettoDarlehensbetrag > 0 ? (implicitCosts / nettoDarlehensbetrag) * 100 : 0;
 
   const refinancingDetails: RefinancingDetail[] = [];
   const individualRates = [
@@ -322,9 +334,9 @@ export default function InfosHeader() {
     {
       startYear: 0,
       endYear: zinsbindung,
-      rate: calculateMonthlyRate({
+      rate: calculateMonthlyRateFromSollzins({
         darlehensbetrag: nettoDarlehensbetrag,
-        effzins: effzins,
+        sollzins,
         tilgungssatz: tilgungssatz,
       }),
       key: "bankrate",
@@ -341,7 +353,7 @@ export default function InfosHeader() {
           const bankRefinancing = buildRefinancingEndYear({
             restschuld: bankRestschuldAtBinding,
             startYear: zinsbindung,
-            effzins,
+            sollzins,
             tilgungssatz,
             analysisHorizonYears,
           });
@@ -377,16 +389,18 @@ export default function InfosHeader() {
               0,
               credit.summeDarlehen - tilgungszuschussBetrag,
             );
-            const monthlyRate = calculateMonthlyRate({
+            const creditSollzins =
+              credit.sollzinssatz ?? credit.effektiverZinssatz;
+            const monthlyRate = calculateMonthlyRateFromSollzins({
               darlehensbetrag: rueckzahlungsRelevanterBetrag,
-              effzins: credit.effektiverZinssatz,
+              sollzins: creditSollzins,
               tilgungssatz: credit.tilgungssatz,
               rückzahlungsfreieZeit: credit.rückzahlungsfreieZeit,
             });
-            const restschuldAtBinding = calculateRestschuld({
+            const restschuldAtBinding = calculateRestschuldFromSollzins({
               nettodarlehensbetrag: rueckzahlungsRelevanterBetrag,
               monthlyRate,
-              effZins: credit.effektiverZinssatz,
+              sollzins: creditSollzins,
               years: credit.zinsbindung,
               tilgungsfreieZeit: credit.tilgungsFreieZeit,
               rückzahlungsfreieZeit: credit.rückzahlungsfreieZeit,
@@ -395,7 +409,7 @@ export default function InfosHeader() {
             const refinancing = buildRefinancingEndYear({
               restschuld: restschuldAtBinding,
               startYear: credit.zinsbindung,
-              effzins,
+              sollzins,
               tilgungssatz,
               analysisHorizonYears,
             });
@@ -451,16 +465,17 @@ export default function InfosHeader() {
         0,
         credit.summeDarlehen - tilgungszuschussBetrag,
       );
-      const monthlyRate = calculateMonthlyRate({
+      const creditSollzins = credit.sollzinssatz ?? credit.effektiverZinssatz;
+      const monthlyRate = calculateMonthlyRateFromSollzins({
         darlehensbetrag: rueckzahlungsRelevanterBetrag,
-        effzins: credit.effektiverZinssatz,
+        sollzins: creditSollzins,
         tilgungssatz: credit.tilgungssatz,
         rückzahlungsfreieZeit: credit.rückzahlungsfreieZeit,
       });
-      const dueAmount = calculateRestschuld({
+      const dueAmount = calculateRestschuldFromSollzins({
         nettodarlehensbetrag: rueckzahlungsRelevanterBetrag,
         monthlyRate,
-        effZins: credit.effektiverZinssatz,
+        sollzins: creditSollzins,
         years: credit.zinsbindung,
         tilgungsfreieZeit: credit.tilgungsFreieZeit,
         rückzahlungsfreieZeit: credit.rückzahlungsfreieZeit,
@@ -484,15 +499,15 @@ export default function InfosHeader() {
 
   function calculateFullRefinancingHorizon() {
     return dueAmountsWithoutRefinancing.reduce((maxYear, item) => {
-      const monthlyRate = calculateMonthlyRate({
+      const monthlyRate = calculateMonthlyRateFromSollzins({
         darlehensbetrag: item.dueAmount,
-        effzins,
+        sollzins,
         tilgungssatz,
       });
-      const payoff = calculateFullPaymentTime({
+      const payoff = calculateFullPaymentTimeFromSollzins({
         darlehensbetrag: item.dueAmount,
         monthlyRate,
-        effzins,
+        sollzins,
       });
 
       if (!payoff.canBePaidOff) return maxYear;
@@ -591,7 +606,19 @@ export default function InfosHeader() {
               </div>
               <div className="flex w-full flex-col gap-1.5 py-2 text-sm sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-1">
-                  Gebundener Effektivzins p.a.
+                  Sollzins p.a.
+                  {/* <span title="Info">ⓘ</span> */}
+                </div>
+                <div className="w-full sm:w-32">
+                  <PercentInput
+                    value={sollzins}
+                    onChange={(value) => setSollzins(value)}
+                  />
+                </div>
+              </div>
+              <div className="flex w-full flex-col gap-1.5 py-2 text-sm sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center gap-1">
+                  Effektivzins p.a.
                   {/* <span title="Info">ⓘ</span> */}
                 </div>
                 <div className="w-full sm:w-32">
@@ -601,8 +628,44 @@ export default function InfosHeader() {
                   />
                 </div>
               </div>
+              <div className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-3 py-2 text-sm">
+                <span className="flex min-w-0 items-center gap-1">
+                  Implizite Kosten aus Effektivzins
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <button
+                        type="button"
+                        className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-blue-600 transition-colors hover:bg-blue-50 hover:text-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none"
+                        title="Berechnung der impliziten Kosten anzeigen"
+                        aria-label="Berechnung der impliziten Kosten anzeigen"
+                      >
+                        <Info className="h-3.5 w-3.5" />
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent
+                      align="start"
+                      className="w-72 border-blue-200 bg-blue-50 p-3 text-sm text-blue-950"
+                    >
+                      <p className="font-medium">
+                        Implizite Kosten aus Effektivzins
+                      </p>
+                      <p className="mt-1 text-blue-900">
+                        Schätzung aus Sollzins, Effektivzins, Rate und
+                        Restschuld. Der Betrag wird wie eine
+                        Auszahlungsminderung zu Beginn des Darlehens behandelt.
+                      </p>
+                    </PopoverContent>
+                  </Popover>
+                </span>
+                <span className="text-right font-medium whitespace-nowrap">
+                  ca. {formatNumber(implicitCosts)} €
+                  <span className="block text-xs font-normal text-neutral-500">
+                    {formatNumber(implicitCostsQuote)} % vom Darlehen
+                  </span>
+                </span>
+              </div>
               <div className="flex w-full flex-col gap-1.5 py-2 text-sm sm:flex-row sm:items-center sm:justify-between">
-                <span className="flex items-center gap-1">Sollzinsbindung</span>
+                <span className="flex items-center gap-1">Zinsbindung</span>
                 <select
                   className="h-10 w-full rounded-md border border-neutral-700 bg-neutral-800 px-3 py-1 text-white sm:h-auto sm:w-32"
                   value={zinsbindung}
@@ -667,7 +730,7 @@ export default function InfosHeader() {
                     <p className="font-medium">Langfristige Tilgungsprognose</p>
                     <p className="mt-1 text-blue-900">
                       Wenn die aktuelle monatliche Rate von{" "}
-                      {formatNumber(bankMonthlyRate)} € und der Effektivzins
+                      {formatNumber(bankMonthlyRate)} € und der Sollzins
                       unverändert blieben, wäre der Bankkredit{" "}
                       {fullPayment.canBePaidOff
                         ? `nach etwa ${fullPayment.yearsAufgerundet} Jahren vollständig abbezahlt.`

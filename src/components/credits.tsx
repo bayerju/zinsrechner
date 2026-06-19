@@ -26,9 +26,10 @@ import {
 } from "lucide-react";
 import { useEffect } from "react";
 import {
-  calculateFullPaymentTime,
-  calculateMonthlyRate,
-  calculateRestschuld,
+  calculateFullPaymentTimeFromSollzins,
+  calculateImplicitCostsFromEffectiveRate,
+  calculateMonthlyRateFromSollzins,
+  calculateRestschuldFromSollzins,
   calculateTilgungszuschussBetrag,
   calculateTilgungssatz,
 } from "~/lib/calculations";
@@ -324,6 +325,9 @@ function NewCreditDialog({
   const [creditEffektiverZinssatz, setCreditEffektiverZinssatz] = useState(
     credit?.effektiverZinssatz ?? 0,
   );
+  const [creditSollzinssatz, setCreditSollzinssatz] = useState(
+    credit?.sollzinssatz ?? credit?.effektiverZinssatz ?? 0,
+  );
   const [creditTilgungszuschuss, setCreditTilgungszuschuss] = useState(
     credit?.tilgungszuschussProzent ?? 0,
   );
@@ -383,18 +387,18 @@ function NewCreditDialog({
   );
   const restschuld =
     creditSummeDarlehen > 0 &&
-    creditEffektiverZinssatz > 0 &&
+    creditSollzinssatz > 0 &&
     creditTilgungssatz > 0 &&
     creditZinsbindung > 0
-      ? calculateRestschuld({
+      ? calculateRestschuldFromSollzins({
           nettodarlehensbetrag: rueckzahlungsRelevanterBetrag,
-          monthlyRate: calculateMonthlyRate({
+          monthlyRate: calculateMonthlyRateFromSollzins({
             darlehensbetrag: rueckzahlungsRelevanterBetrag,
-            effzins: creditEffektiverZinssatz,
+            sollzins: creditSollzinssatz,
             tilgungssatz: creditTilgungssatz,
             rückzahlungsfreieZeit: creditRückzahlungsfreieZeit,
           }),
-          effZins: creditEffektiverZinssatz,
+          sollzins: creditSollzinssatz,
           years: creditZinsbindung,
           tilgungsfreieZeit: creditTilgungsfreieZeit,
           rückzahlungsfreieZeit: creditRückzahlungsfreieZeit,
@@ -404,12 +408,13 @@ function NewCreditDialog({
   const rates =
     !isBridge &&
     creditSummeDarlehen > 0 &&
-    creditEffektiverZinssatz > 0 &&
+    creditSollzinssatz > 0 &&
     creditTilgungssatz > 0 &&
     creditZinsbindung > 0
       ? createRatesByTime({
           name: creditName,
           summeDarlehen: creditSummeDarlehen,
+          sollzinssatz: creditSollzinssatz,
           effektiverZinssatz: creditEffektiverZinssatz,
           tilgungssatz: creditTilgungssatz,
           kreditdauer: creditKreditdauer,
@@ -423,15 +428,39 @@ function NewCreditDialog({
   const bridgeMonthlyInterest = isBridge
     ? calculateBridgeMonthlyInterest({
         summeDarlehen: creditSummeDarlehen,
+        sollzinssatz: creditSollzinssatz,
         effektiverZinssatz: creditEffektiverZinssatz,
       })
     : 0;
+  const bridgeImplicitCosts = isBridge
+    ? calculateImplicitCostsFromEffectiveRate({
+        darlehensbetrag: creditSummeDarlehen,
+        monthlyRate: bridgeMonthlyInterest,
+        restschuld: creditSummeDarlehen,
+        effectiveRate: creditEffektiverZinssatz,
+        years: Math.max(1, Math.round(creditLaufzeitMonate)) / 12,
+      })
+    : 0;
+  const standardMonthlyRate =
+    !isBridge && rates.length > 0
+      ? (rates.find((rate) => rate.key === "tilgung")?.rate ?? 0)
+      : 0;
+  const standardImplicitCosts =
+    !isBridge && restschuld !== null
+      ? calculateImplicitCostsFromEffectiveRate({
+          darlehensbetrag: rueckzahlungsRelevanterBetrag,
+          monthlyRate: standardMonthlyRate,
+          restschuld,
+          effectiveRate: creditEffektiverZinssatz,
+          years: creditZinsbindung,
+        })
+      : 0;
 
   useEffect(() => {
     if (fixDurationOfCredit && creditKreditdauer > 0) {
       setCreditTilgungssatz(
         calculateTilgungssatz({
-          effzins: creditEffektiverZinssatz,
+          effzins: creditSollzinssatz,
           kreditdauer: creditKreditdauer,
           tilgungsfreieZeit: creditTilgungsfreieZeit,
           rückzahlungsfreieZeit: creditRückzahlungsfreieZeit,
@@ -439,7 +468,7 @@ function NewCreditDialog({
       );
     }
   }, [
-    creditEffektiverZinssatz,
+    creditSollzinssatz,
     creditKreditdauer,
     creditTilgungsfreieZeit,
     creditRückzahlungsfreieZeit,
@@ -450,15 +479,15 @@ function NewCreditDialog({
     console.log("creditTilgungssatz", creditTilgungssatz);
     if (creditTilgungssatz > 0 && !fixDurationOfCredit) {
       setcreditKreditdauer(
-        calculateFullPaymentTime({
+        calculateFullPaymentTimeFromSollzins({
           darlehensbetrag: rueckzahlungsRelevanterBetrag,
-          monthlyRate: calculateMonthlyRate({
+          monthlyRate: calculateMonthlyRateFromSollzins({
             darlehensbetrag: rueckzahlungsRelevanterBetrag,
-            effzins: creditEffektiverZinssatz,
+            sollzins: creditSollzinssatz,
             tilgungssatz: creditTilgungssatz,
             rückzahlungsfreieZeit: creditRückzahlungsfreieZeit,
           }),
-          effzins: creditEffektiverZinssatz,
+          sollzins: creditSollzinssatz,
           tilgungsfreieZeit: creditTilgungsfreieZeit,
           rückzahlungsfreieZeit: creditRückzahlungsfreieZeit,
         }).years,
@@ -466,7 +495,7 @@ function NewCreditDialog({
     }
   }, [
     creditSummeDarlehen,
-    creditEffektiverZinssatz,
+    creditSollzinssatz,
     creditTilgungssatz,
     creditTilgungsfreieZeit,
     creditRückzahlungsfreieZeit,
@@ -618,11 +647,18 @@ function NewCreditDialog({
               onChange={setCreditSummeDarlehen}
               label="Summe Darlehen"
             />
-            <PercentInput
-              value={creditEffektiverZinssatz}
-              onChange={setCreditEffektiverZinssatz}
-              label="Effektiver Zinssatz"
-            />
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <PercentInput
+                value={creditSollzinssatz}
+                onChange={setCreditSollzinssatz}
+                label="Sollzins p.a."
+              />
+              <PercentInput
+                value={creditEffektiverZinssatz}
+                onChange={setCreditEffektiverZinssatz}
+                label="Effektivzins p.a."
+              />
+            </div>
             {isBridge ? (
               <>
                 <NumberInput
@@ -635,6 +671,10 @@ function NewCreditDialog({
                   <p>
                     Monatliche Zinszahlung:{" "}
                     {formatNumber(bridgeMonthlyInterest)} €
+                  </p>
+                  <p>
+                    Implizite Kosten aus Effektivzins:{" "}
+                    {formatNumber(bridgeImplicitCosts)} €
                   </p>
                   <p>
                     Vollständige Rückzahlung nach{" "}
@@ -762,6 +802,12 @@ function NewCreditDialog({
                         <p key={rate.key}>{Math.round(rate.rate)} €</p>
                       ))
                     : null}
+                  {restschuld !== null && (
+                    <p>
+                      Implizite Kosten aus Effektivzins:{" "}
+                      {formatNumber(standardImplicitCosts)} €
+                    </p>
+                  )}
                 </div>
 
                 {showSpecialConditions && (
@@ -797,6 +843,7 @@ function NewCreditDialog({
               disabled={
                 !canSave ||
                 creditSummeDarlehen <= 0 ||
+                creditSollzinssatz < 0 ||
                 creditEffektiverZinssatz < 0 ||
                 (isBridge && creditLaufzeitMonate <= 0)
               }
@@ -819,6 +866,7 @@ function NewCreditDialog({
                     name: creditName,
                     kreditart: creditType,
                     summeDarlehen: creditSummeDarlehen,
+                    sollzinssatz: creditSollzinssatz,
                     effektiverZinssatz: creditEffektiverZinssatz,
                     tilgungssatz: creditTilgungssatz,
                     kreditdauer: creditKreditdauer,

@@ -1,9 +1,9 @@
 import { z } from "zod";
 import {
   calculateTilgungszuschussBetrag,
-  calculateFullPaymentTime,
-  calculateMonthlyRate,
-  calculateRestschuld,
+  calculateFullPaymentTimeFromSollzins,
+  calculateMonthlyRateFromSollzins,
+  calculateRestschuldFromSollzins,
   calculateTilgungssatz,
 } from "./calculations";
 
@@ -25,6 +25,7 @@ export const creditSchema = z.object({
     .default("standard"),
   name: z.string(),
   summeDarlehen: z.number(),
+  sollzinssatz: z.number().optional(),
   effektiverZinssatz: z.number(),
   tilgungssatz: z.number(),
   useKreditDauer: z.boolean(),
@@ -59,6 +60,64 @@ export type CreditCreate = Pick<
 > &
   Partial<Credit>;
 
+export function normalizeCredit(value: unknown): Credit | null {
+  const normalizedValue =
+    typeof value === "object" && value !== null && !Array.isArray(value)
+      ? {
+          ...value,
+          rückzahlungsfreieZeit:
+            "rückzahlungsfreieZeit" in value
+              ? (value as { rückzahlungsfreieZeit?: unknown })
+                  .rückzahlungsfreieZeit
+              : (value as { rueckzahlungsfreieZeit?: unknown })
+                  .rueckzahlungsfreieZeit,
+        }
+      : value;
+
+  const parsed = creditSchema.safeParse(normalizedValue);
+  if (parsed.success) {
+    return {
+      ...parsed.data,
+      sollzinssatz: parsed.data.sollzinssatz ?? parsed.data.effektiverZinssatz,
+    };
+  }
+
+  const legacyParsed = creditSchema
+    .extend({
+      useKreditDauer: z.boolean().optional(),
+      kreditdauer: z.number().optional(),
+      zinsbindung: z.number().optional(),
+      rates: ratesByTimeSchema.optional(),
+      restSchuld: z.number().optional(),
+    })
+    .safeParse(normalizedValue);
+
+  if (!legacyParsed.success) return null;
+
+  const data = legacyParsed.data;
+  return createCredit({
+    ...data,
+    sollzinssatz: data.sollzinssatz ?? data.effektiverZinssatz,
+    useKreditDauer: data.useKreditDauer ?? false,
+    kreditdauer: data.kreditdauer ?? data.zinsbindung ?? 10,
+    zinsbindung:
+      data.zinsbindung ??
+      (data.kreditart === "zwischenfinanzierung"
+        ? (data.laufzeitMonate ?? 12) / 12
+        : 10),
+    rates: data.rates ?? [],
+    restSchuld: data.restSchuld ?? 0,
+  });
+}
+
+export function serializeCreditForConvex(credit: Credit) {
+  const { rückzahlungsfreieZeit, ...rest } = credit;
+  return {
+    ...rest,
+    rueckzahlungsfreieZeit: rückzahlungsfreieZeit,
+  };
+}
+
 export function isBridgeCredit(
   credit: Pick<Credit, "kreditart"> | { kreditart?: string },
 ) {
@@ -75,9 +134,11 @@ export function getCreditEndYear(
 
 export function calculateBridgeMonthlyInterest({
   summeDarlehen,
+  sollzinssatz,
   effektiverZinssatz,
-}: Pick<Credit, "summeDarlehen" | "effektiverZinssatz">) {
-  const monthlyInterest = (1 + effektiverZinssatz / 100) ** (1 / 12) - 1;
+}: Pick<Credit, "summeDarlehen" | "effektiverZinssatz"> &
+  Partial<Pick<Credit, "sollzinssatz">>) {
+  const monthlyInterest = (sollzinssatz ?? effektiverZinssatz) / 100 / 12;
   return summeDarlehen * monthlyInterest;
 }
 
@@ -95,17 +156,18 @@ export function calculateCreditRestschuldAtYear(
     tilgungszuschussProzent: credit.tilgungszuschussProzent,
   });
   const principal = Math.max(0, credit.summeDarlehen - tilgungszuschussBetrag);
-  const monthlyRate = calculateMonthlyRate({
+  const sollzinssatz = credit.sollzinssatz ?? credit.effektiverZinssatz;
+  const monthlyRate = calculateMonthlyRateFromSollzins({
     darlehensbetrag: principal,
-    effzins: credit.effektiverZinssatz,
+    sollzins: sollzinssatz,
     tilgungssatz: credit.tilgungssatz,
     rückzahlungsfreieZeit: credit.rückzahlungsfreieZeit,
   });
 
-  return calculateRestschuld({
+  return calculateRestschuldFromSollzins({
     nettodarlehensbetrag: principal,
     monthlyRate,
-    effZins: credit.effektiverZinssatz,
+    sollzins: sollzinssatz,
     years: Math.min(targetYear, credit.zinsbindung),
     tilgungsfreieZeit: credit.tilgungsFreieZeit,
     rückzahlungsfreieZeit: credit.rückzahlungsfreieZeit,
@@ -140,6 +202,7 @@ export function createCredit(overrides: CreditCreate): Credit {
       name: overrides.name,
       kreditart: "zwischenfinanzierung",
       summeDarlehen: overrides.summeDarlehen,
+      sollzinssatz: overrides.sollzinssatz ?? overrides.effektiverZinssatz,
       effektiverZinssatz: overrides.effektiverZinssatz,
       tilgungssatz: 0,
       useKreditDauer: true,
@@ -171,19 +234,21 @@ export function createCredit(overrides: CreditCreate): Credit {
     0,
     overrides.summeDarlehen - tilgungszuschussBetrag,
   );
+  const sollzinssatz = overrides.sollzinssatz ?? overrides.effektiverZinssatz;
 
   return {
     kreditart: "standard",
     tilgungsFreieZeit: 0,
     rückzahlungsfreieZeit: 0,
     ...overrides,
+    sollzinssatz,
     tilgungszuschussProzent: overrides.tilgungszuschussProzent ?? 0,
     foerderfaehigerAnteilProzent: overrides.foerderfaehigerAnteilProzent ?? 0,
     rates: createRatesByTime(overrides),
     tilgungssatz:
       overrides.tilgungssatz ??
       calculateTilgungssatz({
-        effzins: overrides.effektiverZinssatz,
+        effzins: sollzinssatz,
         kreditdauer: overrides.kreditdauer,
         tilgungsfreieZeit: overrides.tilgungsFreieZeit,
         rückzahlungsfreieZeit: overrides.rückzahlungsfreieZeit,
@@ -191,27 +256,27 @@ export function createCredit(overrides: CreditCreate): Credit {
     useKreditDauer: overrides.useKreditDauer ?? false,
     kreditdauer:
       overrides.kreditdauer ??
-      calculateFullPaymentTime({
+      calculateFullPaymentTimeFromSollzins({
         darlehensbetrag: rueckzahlungsRelevanterBetrag,
-        monthlyRate: calculateMonthlyRate({
+        monthlyRate: calculateMonthlyRateFromSollzins({
           darlehensbetrag: rueckzahlungsRelevanterBetrag,
-          effzins: overrides.effektiverZinssatz,
+          sollzins: sollzinssatz,
           tilgungssatz: overrides.tilgungssatz,
           rückzahlungsfreieZeit: overrides.rückzahlungsfreieZeit,
         }),
-        effzins: overrides.effektiverZinssatz,
+        sollzins: sollzinssatz,
         tilgungsfreieZeit: overrides.tilgungsFreieZeit,
         rückzahlungsfreieZeit: overrides.rückzahlungsfreieZeit,
       }).years,
-    restSchuld: calculateRestschuld({
+    restSchuld: calculateRestschuldFromSollzins({
       nettodarlehensbetrag: rueckzahlungsRelevanterBetrag,
-      monthlyRate: calculateMonthlyRate({
+      monthlyRate: calculateMonthlyRateFromSollzins({
         darlehensbetrag: rueckzahlungsRelevanterBetrag,
-        effzins: overrides.effektiverZinssatz,
+        sollzins: sollzinssatz,
         tilgungssatz: overrides.tilgungssatz,
         rückzahlungsfreieZeit: overrides.rückzahlungsfreieZeit,
       }),
-      effZins: overrides.effektiverZinssatz,
+      sollzins: sollzinssatz,
       years: overrides.zinsbindung,
     }),
   };
@@ -227,15 +292,16 @@ export function createRatesByTime(overrides: CreditCreate): RatesByTime {
     0,
     overrides.summeDarlehen - tilgungszuschussBetrag,
   );
+  const sollzinssatz = overrides.sollzinssatz ?? overrides.effektiverZinssatz;
 
   const result: RatesByTime = [];
   if (overrides.tilgungsFreieZeit) {
     result.push({
       startYear: 0,
       endYear: overrides.tilgungsFreieZeit,
-      rate: calculateMonthlyRate({
+      rate: calculateMonthlyRateFromSollzins({
         darlehensbetrag: rueckzahlungsRelevanterBetrag,
-        effzins: overrides.effektiverZinssatz,
+        sollzins: sollzinssatz,
         tilgungssatz: 0,
         rückzahlungsfreieZeit: overrides.rückzahlungsfreieZeit,
       }),
@@ -255,9 +321,9 @@ export function createRatesByTime(overrides: CreditCreate): RatesByTime {
     overrides.rückzahlungsfreieZeit ?? 0,
     overrides.tilgungsFreieZeit ?? 0,
   );
-  const mainMonthlyRate = calculateMonthlyRate({
+  const mainMonthlyRate = calculateMonthlyRateFromSollzins({
     darlehensbetrag: rueckzahlungsRelevanterBetrag,
-    effzins: overrides.effektiverZinssatz,
+    sollzins: sollzinssatz,
     tilgungssatz: overrides.tilgungssatz,
     rückzahlungsfreieZeit: overrides.rückzahlungsfreieZeit,
   });

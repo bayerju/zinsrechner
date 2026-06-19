@@ -144,6 +144,136 @@ function claculateMonthlyInterest(yearlyEffInterest: number) {
   return (1 + yearlyEffInterest / 100) ** (1 / 12) - 1;
 }
 
+function calculateMonthlyNominalInterest(yearlyNominalInterest: number) {
+  return yearlyNominalInterest / 100 / 12;
+}
+
+export function calculateMonthlyRateFromSollzins({
+  darlehensbetrag,
+  sollzins,
+  tilgungssatz,
+  rückzahlungsfreieZeit = 0,
+}: {
+  darlehensbetrag: number;
+  sollzins: number;
+  tilgungssatz: number;
+  rückzahlungsfreieZeit?: number;
+}) {
+  const monthlyInterest = calculateMonthlyNominalInterest(sollzins);
+  const darlehensbetragAufgezinst =
+    darlehensbetrag * Math.pow(1 + monthlyInterest, rückzahlungsfreieZeit * 12);
+  return (
+    darlehensbetragAufgezinst * (monthlyInterest + tilgungssatz / 100 / 12)
+  );
+}
+
+export function calculateRestschuldFromSollzins({
+  nettodarlehensbetrag,
+  monthlyRate,
+  sollzins,
+  years,
+  rückzahlungsfreieZeit,
+  tilgungsfreieZeit,
+}: {
+  nettodarlehensbetrag: number;
+  monthlyRate: number;
+  sollzins: number;
+  years: number;
+  rückzahlungsfreieZeit?: number;
+  tilgungsfreieZeit?: number;
+}) {
+  const q = rückzahlungsfreieZeit ?? 0;
+  const m = tilgungsfreieZeit ?? 0;
+  const r = calculateMonthlyNominalInterest(sollzins);
+
+  if (years <= q) {
+    return nettodarlehensbetrag * Math.pow(1 + r, Math.round(12 * years));
+  }
+  const Kprime = nettodarlehensbetrag * Math.pow(1 + r, Math.round(12 * q));
+  if (years <= q + m) return Kprime;
+  const N = Math.round(12 * (years - q - m));
+  if (Math.abs(r) < 1e-12) {
+    return Math.max(0, Kprime - monthlyRate * N);
+  }
+  return Math.max(
+    0,
+    Kprime * Math.pow(1 + r, N) - monthlyRate * ((Math.pow(1 + r, N) - 1) / r),
+  );
+}
+
+export function calculateFullPaymentTimeFromSollzins({
+  darlehensbetrag,
+  monthlyRate,
+  sollzins,
+  tilgungsfreieZeit = 0,
+  rückzahlungsfreieZeit = 0,
+}: {
+  darlehensbetrag: number;
+  monthlyRate: number;
+  sollzins: number;
+  tilgungsfreieZeit?: number;
+  rückzahlungsfreieZeit?: number;
+}) {
+  const r = calculateMonthlyNominalInterest(sollzins);
+  const darlehensbetragNeu =
+    rückzahlungsfreieZeit > 0
+      ? darlehensbetrag * Math.pow(1 + r, rückzahlungsfreieZeit * 12)
+      : darlehensbetrag;
+
+  if (r < 0 || monthlyRate < darlehensbetragNeu * r) {
+    return { canBePaidOff: false, years: 0, months: 0, yearsAufgerundet: 0 };
+  }
+  let monthsToPay: number;
+  if (Math.abs(r) < 1e-12) {
+    monthsToPay = darlehensbetragNeu / monthlyRate;
+  } else {
+    monthsToPay =
+      Math.log(monthlyRate / (monthlyRate - darlehensbetragNeu * r)) /
+      Math.log(1 + r);
+  }
+  const monthsToPayWithInterest = Math.ceil(
+    monthsToPay + tilgungsfreieZeit * 12 + rückzahlungsfreieZeit * 12,
+  );
+  const years = Math.floor(monthsToPayWithInterest / 12);
+  const months = Math.ceil(monthsToPayWithInterest % 12);
+
+  return {
+    canBePaidOff: true,
+    years,
+    months,
+    yearsAufgerundet: Math.ceil(monthsToPayWithInterest / 12),
+  };
+}
+
+export function calculateImplicitCostsFromEffectiveRate({
+  darlehensbetrag,
+  monthlyRate,
+  restschuld,
+  effectiveRate,
+  years,
+}: {
+  darlehensbetrag: number;
+  monthlyRate: number;
+  restschuld: number;
+  effectiveRate: number;
+  years: number;
+}) {
+  if (darlehensbetrag <= 0 || years <= 0) return 0;
+  const months = Math.round(years * 12);
+  const discountRate = claculateMonthlyInterest(effectiveRate);
+  const presentValueOfRates =
+    Math.abs(discountRate) < 1e-12
+      ? monthlyRate * months
+      : monthlyRate *
+        ((1 - Math.pow(1 + discountRate, -months)) / discountRate);
+  const presentValueOfRestschuld =
+    restschuld / Math.pow(1 + discountRate, months);
+  return Math.max(
+    0,
+    darlehensbetrag - presentValueOfRates - presentValueOfRestschuld,
+  );
+}
+
 export function calculateFullPaymentTime({
   darlehensbetrag,
   monthlyRate,

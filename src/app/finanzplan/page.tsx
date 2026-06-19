@@ -10,9 +10,11 @@ import {
   ScenarioMonthlyRateChart,
 } from "~/components/finanzplan_charts";
 import {
-  calculateFullPaymentTime,
+  calculateFullPaymentTimeFromSollzins,
   calculateMonthlyRate,
+  calculateMonthlyRateFromSollzins,
   calculateRestschuld,
+  calculateRestschuldFromSollzins,
   calculateTilgungszuschussBetrag,
 } from "~/lib/calculations";
 import {
@@ -99,26 +101,26 @@ function MobileMetric({
 function getRefinancingSegment({
   principal,
   startYear,
-  effzins,
+  sollzins,
   tilgungssatz,
   horizonYears,
 }: {
   principal: number;
   startYear: number;
-  effzins: number;
+  sollzins: number;
   tilgungssatz: number;
   horizonYears: number;
 }) {
   if (principal <= 0 || startYear >= horizonYears) return null;
-  const monthlyRate = calculateMonthlyRate({
+  const monthlyRate = calculateMonthlyRateFromSollzins({
     darlehensbetrag: principal,
-    effzins,
+    sollzins,
     tilgungssatz,
   });
-  const payoff = calculateFullPaymentTime({
+  const payoff = calculateFullPaymentTimeFromSollzins({
     darlehensbetrag: principal,
     monthlyRate,
-    effzins,
+    sollzins,
   });
   const maxEndYear = horizonYears;
   if (!payoff.canBePaidOff) {
@@ -156,9 +158,9 @@ function calculateScenarioFinanzplan(
     values.eigenkapital -
     credits.reduce((acc, credit) => acc + credit.summeDarlehen, 0);
 
-  const bankMonatsrate = calculateMonthlyRate({
+  const bankMonatsrate = calculateMonthlyRateFromSollzins({
     darlehensbetrag: nettoDarlehensbetragBank,
-    effzins: values.effzins,
+    sollzins: values.sollzins,
     tilgungssatz: values.tilgungssatz,
   });
 
@@ -184,6 +186,7 @@ function calculateScenarioFinanzplan(
   function calculateProgressAtYear({
     principal,
     effzins,
+    sollzins,
     tilgungssatz,
     zinsbindung,
     targetYear,
@@ -192,7 +195,8 @@ function calculateScenarioFinanzplan(
     rückzahlungsfreieZeit,
   }: {
     principal: number;
-    effzins: number;
+    effzins?: number;
+    sollzins?: number;
     tilgungssatz: number;
     zinsbindung: number;
     targetYear: number;
@@ -200,21 +204,39 @@ function calculateScenarioFinanzplan(
     tilgungsfreieZeit?: number;
     rückzahlungsfreieZeit?: number;
   }) {
-    const baseMonthlyRate = calculateMonthlyRate({
-      darlehensbetrag: principal,
-      effzins,
-      tilgungssatz,
-      rückzahlungsfreieZeit,
-    });
+    const useSollzins = sollzins !== undefined;
+    const zinssatz = useSollzins ? sollzins : (effzins ?? 0);
+    const baseMonthlyRate = useSollzins
+      ? calculateMonthlyRateFromSollzins({
+          darlehensbetrag: principal,
+          sollzins: zinssatz,
+          tilgungssatz,
+          rückzahlungsfreieZeit,
+        })
+      : calculateMonthlyRate({
+          darlehensbetrag: principal,
+          effzins: zinssatz,
+          tilgungssatz,
+          rückzahlungsfreieZeit,
+        });
     const baseYears = Math.min(targetYear, zinsbindung);
-    const baseRestschuld = calculateRestschuld({
-      nettodarlehensbetrag: principal,
-      monthlyRate: baseMonthlyRate,
-      effZins: effzins,
-      years: baseYears,
-      tilgungsfreieZeit,
-      rückzahlungsfreieZeit,
-    });
+    const baseRestschuld = useSollzins
+      ? calculateRestschuldFromSollzins({
+          nettodarlehensbetrag: principal,
+          monthlyRate: baseMonthlyRate,
+          sollzins: zinssatz,
+          years: baseYears,
+          tilgungsfreieZeit,
+          rückzahlungsfreieZeit,
+        })
+      : calculateRestschuld({
+          nettodarlehensbetrag: principal,
+          monthlyRate: baseMonthlyRate,
+          effZins: zinssatz,
+          years: baseYears,
+          tilgungsfreieZeit,
+          rückzahlungsfreieZeit,
+        });
     const basePaid = paidFromSegments(paidSegments, baseYears);
 
     if (!options.includeRefinancing || targetYear <= zinsbindung) {
@@ -224,19 +246,28 @@ function calculateScenarioFinanzplan(
       };
     }
 
-    const restschuldAtBinding = calculateRestschuld({
-      nettodarlehensbetrag: principal,
-      monthlyRate: baseMonthlyRate,
-      effZins: effzins,
-      years: zinsbindung,
-      tilgungsfreieZeit,
-      rückzahlungsfreieZeit,
-    });
+    const restschuldAtBinding = useSollzins
+      ? calculateRestschuldFromSollzins({
+          nettodarlehensbetrag: principal,
+          monthlyRate: baseMonthlyRate,
+          sollzins: zinssatz,
+          years: zinsbindung,
+          tilgungsfreieZeit,
+          rückzahlungsfreieZeit,
+        })
+      : calculateRestschuld({
+          nettodarlehensbetrag: principal,
+          monthlyRate: baseMonthlyRate,
+          effZins: zinssatz,
+          years: zinsbindung,
+          tilgungsfreieZeit,
+          rückzahlungsfreieZeit,
+        });
 
     const refinancing = getRefinancingSegment({
       principal: restschuldAtBinding,
       startYear: zinsbindung,
-      effzins: values.effzins,
+      sollzins: values.sollzins,
       tilgungssatz: values.tilgungssatz,
       horizonYears: options.analysisHorizonYears,
     });
@@ -257,10 +288,10 @@ function calculateScenarioFinanzplan(
       };
     }
 
-    const restschuld = calculateRestschuld({
+    const restschuld = calculateRestschuldFromSollzins({
       nettodarlehensbetrag: restschuldAtBinding,
       monthlyRate: refinancing.monthlyRate,
-      effZins: values.effzins,
+      sollzins: values.sollzins,
       years: refinancingYears,
     });
 
@@ -274,10 +305,10 @@ function calculateScenarioFinanzplan(
 
   const maturityEvents: MaturityEvent[] = [];
 
-  const bankRestschuldAtBinding = calculateRestschuld({
+  const bankRestschuldAtBinding = calculateRestschuldFromSollzins({
     nettodarlehensbetrag: nettoDarlehensbetragBank,
     monthlyRate: bankMonatsrate,
-    effZins: values.effzins,
+    sollzins: values.sollzins,
     years: values.zinsbindung,
   });
   if (bankRestschuldAtBinding > 0) {
@@ -294,7 +325,7 @@ function calculateScenarioFinanzplan(
         ? getRefinancingSegment({
             principal: bankRestschuldAtBinding,
             startYear: values.zinsbindung,
-            effzins: values.effzins,
+            sollzins: values.sollzins,
             tilgungssatz: values.tilgungssatz,
             horizonYears: options.analysisHorizonYears,
           })
@@ -302,7 +333,7 @@ function calculateScenarioFinanzplan(
       const rowYear = refinancing?.endYear ?? values.zinsbindung;
       const progress = calculateProgressAtYear({
         principal: nettoDarlehensbetragBank,
-        effzins: values.effzins,
+        sollzins: values.sollzins,
         tilgungssatz: values.tilgungssatz,
         zinsbindung: values.zinsbindung,
         targetYear: rowYear,
@@ -342,16 +373,17 @@ function calculateScenarioFinanzplan(
         0,
         credit.summeDarlehen - tilgungszuschuss,
       );
-      const monthlyRate = calculateMonthlyRate({
+      const creditSollzins = credit.sollzinssatz ?? credit.effektiverZinssatz;
+      const monthlyRate = calculateMonthlyRateFromSollzins({
         darlehensbetrag: rueckzahlungsRelevanterBetrag,
-        effzins: credit.effektiverZinssatz,
+        sollzins: creditSollzins,
         tilgungssatz: credit.tilgungssatz,
         rückzahlungsfreieZeit: credit.rückzahlungsfreieZeit,
       });
-      const restschuldAtBinding = calculateRestschuld({
+      const restschuldAtBinding = calculateRestschuldFromSollzins({
         nettodarlehensbetrag: rueckzahlungsRelevanterBetrag,
         monthlyRate,
-        effZins: credit.effektiverZinssatz,
+        sollzins: creditSollzins,
         years: credit.zinsbindung,
         tilgungsfreieZeit: credit.tilgungsFreieZeit,
         rückzahlungsfreieZeit: credit.rückzahlungsfreieZeit,
@@ -368,7 +400,7 @@ function calculateScenarioFinanzplan(
         ? getRefinancingSegment({
             principal: restschuldAtBinding,
             startYear: credit.zinsbindung,
-            effzins: values.effzins,
+            sollzins: values.sollzins,
             tilgungssatz: values.tilgungssatz,
             horizonYears: options.analysisHorizonYears,
           })
@@ -377,7 +409,7 @@ function calculateScenarioFinanzplan(
 
       const progress = calculateProgressAtYear({
         principal: rueckzahlungsRelevanterBetrag,
-        effzins: credit.effektiverZinssatz,
+        sollzins: creditSollzins,
         tilgungssatz: credit.tilgungssatz,
         zinsbindung: credit.zinsbindung,
         targetYear: rowYear,
@@ -425,7 +457,7 @@ function calculateScenarioFinanzplan(
   const finanzplanRows = stichtage.map((stichtag) => {
     const bankProgress = calculateProgressAtYear({
       principal: nettoDarlehensbetragBank,
-      effzins: values.effzins,
+      sollzins: values.sollzins,
       tilgungssatz: values.tilgungssatz,
       zinsbindung: values.zinsbindung,
       targetYear: stichtag,
@@ -462,9 +494,10 @@ function calculateScenarioFinanzplan(
           0,
           credit.summeDarlehen - tilgungszuschuss,
         );
+        const creditSollzins = credit.sollzinssatz ?? credit.effektiverZinssatz;
         const progress = calculateProgressAtYear({
           principal: rueckzahlungsRelevanterBetrag,
-          effzins: credit.effektiverZinssatz,
+          sollzins: creditSollzins,
           tilgungssatz: credit.tilgungssatz,
           zinsbindung: credit.zinsbindung,
           targetYear: stichtag,
@@ -529,9 +562,9 @@ function calculateScenarioMonthlyRateSeries(
     values.eigenkapital -
     credits.reduce((acc, credit) => acc + credit.summeDarlehen, 0);
 
-  const bankMonatsrate = calculateMonthlyRate({
+  const bankMonatsrate = calculateMonthlyRateFromSollzins({
     darlehensbetrag: nettoDarlehensbetragBank,
-    effzins: values.effzins,
+    sollzins: values.sollzins,
     tilgungssatz: values.tilgungssatz,
   });
 
@@ -539,16 +572,16 @@ function calculateScenarioMonthlyRateSeries(
     [{ startYear: 0, endYear: values.zinsbindung, rate: bankMonatsrate }];
 
   if (options.includeRefinancing) {
-    const bankRestschuldAtBinding = calculateRestschuld({
+    const bankRestschuldAtBinding = calculateRestschuldFromSollzins({
       nettodarlehensbetrag: nettoDarlehensbetragBank,
       monthlyRate: bankMonatsrate,
-      effZins: values.effzins,
+      sollzins: values.sollzins,
       years: values.zinsbindung,
     });
     const bankRefinancing = getRefinancingSegment({
       principal: bankRestschuldAtBinding,
       startYear: values.zinsbindung,
-      effzins: values.effzins,
+      sollzins: values.sollzins,
       tilgungssatz: values.tilgungssatz,
       horizonYears: options.analysisHorizonYears,
     });
@@ -577,16 +610,17 @@ function calculateScenarioMonthlyRateSeries(
         tilgungszuschussProzent: credit.tilgungszuschussProzent ?? 0,
       });
       const principal = Math.max(0, credit.summeDarlehen - tilgungszuschuss);
-      const monthlyRate = calculateMonthlyRate({
+      const creditSollzins = credit.sollzinssatz ?? credit.effektiverZinssatz;
+      const monthlyRate = calculateMonthlyRateFromSollzins({
         darlehensbetrag: principal,
-        effzins: credit.effektiverZinssatz,
+        sollzins: creditSollzins,
         tilgungssatz: credit.tilgungssatz,
         rückzahlungsfreieZeit: credit.rückzahlungsfreieZeit,
       });
-      const restschuldAtBinding = calculateRestschuld({
+      const restschuldAtBinding = calculateRestschuldFromSollzins({
         nettodarlehensbetrag: principal,
         monthlyRate,
-        effZins: credit.effektiverZinssatz,
+        sollzins: creditSollzins,
         years: credit.zinsbindung,
         tilgungsfreieZeit: credit.tilgungsFreieZeit,
         rückzahlungsfreieZeit: credit.rückzahlungsfreieZeit,
@@ -594,7 +628,7 @@ function calculateScenarioMonthlyRateSeries(
       const refinancing = getRefinancingSegment({
         principal: restschuldAtBinding,
         startYear: credit.zinsbindung,
-        effzins: values.effzins,
+        sollzins: values.sollzins,
         tilgungssatz: values.tilgungssatz,
         horizonYears: options.analysisHorizonYears,
       });
@@ -635,9 +669,9 @@ function calculateDetailRestschuldStack(
     values.eigenkapital -
     credits.reduce((acc, credit) => acc + credit.summeDarlehen, 0);
 
-  const bankMonatsrate = calculateMonthlyRate({
+  const bankMonatsrate = calculateMonthlyRateFromSollzins({
     darlehensbetrag: nettoDarlehensbetragBank,
-    effzins: values.effzins,
+    sollzins: values.sollzins,
     tilgungssatz: values.tilgungssatz,
   });
 
@@ -648,25 +682,25 @@ function calculateDetailRestschuldStack(
       color: getCreditSeriesColorByIndex(0),
       restschuldAt: (year: number) => {
         const baseYears = Math.min(year, values.zinsbindung);
-        const baseRest = calculateRestschuld({
+        const baseRest = calculateRestschuldFromSollzins({
           nettodarlehensbetrag: nettoDarlehensbetragBank,
           monthlyRate: bankMonatsrate,
-          effZins: values.effzins,
+          sollzins: values.sollzins,
           years: baseYears,
         });
         if (!options.includeRefinancing || year <= values.zinsbindung) {
           return baseRest;
         }
-        const restAtBinding = calculateRestschuld({
+        const restAtBinding = calculateRestschuldFromSollzins({
           nettodarlehensbetrag: nettoDarlehensbetragBank,
           monthlyRate: bankMonatsrate,
-          effZins: values.effzins,
+          sollzins: values.sollzins,
           years: values.zinsbindung,
         });
         const refinancing = getRefinancingSegment({
           principal: restAtBinding,
           startYear: values.zinsbindung,
-          effzins: values.effzins,
+          sollzins: values.sollzins,
           tilgungssatz: values.tilgungssatz,
           horizonYears: options.analysisHorizonYears,
         });
@@ -674,10 +708,10 @@ function calculateDetailRestschuldStack(
         const refinanceYears =
           Math.min(year, refinancing.endYear) - values.zinsbindung;
         if (refinanceYears <= 0) return restAtBinding;
-        return calculateRestschuld({
+        return calculateRestschuldFromSollzins({
           nettodarlehensbetrag: restAtBinding,
           monthlyRate: refinancing.monthlyRate,
-          effZins: values.effzins,
+          sollzins: values.sollzins,
           years: refinanceYears,
         });
       },
@@ -692,9 +726,10 @@ function calculateDetailRestschuldStack(
         0,
         credit.summeDarlehen - tilgungszuschuss,
       );
-      const monthlyRate = calculateMonthlyRate({
+      const creditSollzins = credit.sollzinssatz ?? credit.effektiverZinssatz;
+      const monthlyRate = calculateMonthlyRateFromSollzins({
         darlehensbetrag: rueckzahlungsRelevanterBetrag,
-        effzins: credit.effektiverZinssatz,
+        sollzins: creditSollzins,
         tilgungssatz: credit.tilgungssatz,
         rückzahlungsfreieZeit: credit.rückzahlungsfreieZeit,
       });
@@ -709,10 +744,10 @@ function calculateDetailRestschuldStack(
           }
 
           const baseYears = Math.min(year, credit.zinsbindung);
-          const baseRest = calculateRestschuld({
+          const baseRest = calculateRestschuldFromSollzins({
             nettodarlehensbetrag: rueckzahlungsRelevanterBetrag,
             monthlyRate,
-            effZins: credit.effektiverZinssatz,
+            sollzins: creditSollzins,
             years: baseYears,
             tilgungsfreieZeit: credit.tilgungsFreieZeit,
             rückzahlungsfreieZeit: credit.rückzahlungsfreieZeit,
@@ -720,10 +755,10 @@ function calculateDetailRestschuldStack(
           if (!options.includeRefinancing || year <= credit.zinsbindung) {
             return baseRest;
           }
-          const restAtBinding = calculateRestschuld({
+          const restAtBinding = calculateRestschuldFromSollzins({
             nettodarlehensbetrag: rueckzahlungsRelevanterBetrag,
             monthlyRate,
-            effZins: credit.effektiverZinssatz,
+            sollzins: creditSollzins,
             years: credit.zinsbindung,
             tilgungsfreieZeit: credit.tilgungsFreieZeit,
             rückzahlungsfreieZeit: credit.rückzahlungsfreieZeit,
@@ -731,7 +766,7 @@ function calculateDetailRestschuldStack(
           const refinancing = getRefinancingSegment({
             principal: restAtBinding,
             startYear: credit.zinsbindung,
-            effzins: values.effzins,
+            sollzins: values.sollzins,
             tilgungssatz: values.tilgungssatz,
             horizonYears: options.analysisHorizonYears,
           });
@@ -739,10 +774,10 @@ function calculateDetailRestschuldStack(
           const refinanceYears =
             Math.min(year, refinancing.endYear) - credit.zinsbindung;
           if (refinanceYears <= 0) return restAtBinding;
-          return calculateRestschuld({
+          return calculateRestschuldFromSollzins({
             nettodarlehensbetrag: restAtBinding,
             monthlyRate: refinancing.monthlyRate,
-            effZins: values.effzins,
+            sollzins: values.sollzins,
             years: refinanceYears,
           });
         },
@@ -787,9 +822,9 @@ function calculateDetailMonthlyRateStack(
     values.eigenkapital -
     credits.reduce((acc, credit) => acc + credit.summeDarlehen, 0);
 
-  const bankRate = calculateMonthlyRate({
+  const bankRate = calculateMonthlyRateFromSollzins({
     darlehensbetrag: nettoDarlehensbetragBank,
-    effzins: values.effzins,
+    sollzins: values.sollzins,
     tilgungssatz: values.tilgungssatz,
   });
 
@@ -801,16 +836,16 @@ function calculateDetailMonthlyRateStack(
       monthlyRateAt: (year: number) => {
         if (year <= values.zinsbindung) return bankRate;
         if (!options.includeRefinancing) return 0;
-        const restAtBinding = calculateRestschuld({
+        const restAtBinding = calculateRestschuldFromSollzins({
           nettodarlehensbetrag: nettoDarlehensbetragBank,
           monthlyRate: bankRate,
-          effZins: values.effzins,
+          sollzins: values.sollzins,
           years: values.zinsbindung,
         });
         const refinancing = getRefinancingSegment({
           principal: restAtBinding,
           startYear: values.zinsbindung,
-          effzins: values.effzins,
+          sollzins: values.sollzins,
           tilgungssatz: values.tilgungssatz,
           horizonYears: options.analysisHorizonYears,
         });
@@ -838,16 +873,17 @@ function calculateDetailMonthlyRateStack(
           tilgungszuschussProzent: credit.tilgungszuschussProzent ?? 0,
         });
         const principal = Math.max(0, credit.summeDarlehen - tilgungszuschuss);
-        const monthlyRate = calculateMonthlyRate({
+        const creditSollzins = credit.sollzinssatz ?? credit.effektiverZinssatz;
+        const monthlyRate = calculateMonthlyRateFromSollzins({
           darlehensbetrag: principal,
-          effzins: credit.effektiverZinssatz,
+          sollzins: creditSollzins,
           tilgungssatz: credit.tilgungssatz,
           rückzahlungsfreieZeit: credit.rückzahlungsfreieZeit,
         });
-        const restAtBinding = calculateRestschuld({
+        const restAtBinding = calculateRestschuldFromSollzins({
           nettodarlehensbetrag: principal,
           monthlyRate,
-          effZins: credit.effektiverZinssatz,
+          sollzins: creditSollzins,
           years: credit.zinsbindung,
           tilgungsfreieZeit: credit.tilgungsFreieZeit,
           rückzahlungsfreieZeit: credit.rückzahlungsfreieZeit,
@@ -855,7 +891,7 @@ function calculateDetailMonthlyRateStack(
         const refinancing = getRefinancingSegment({
           principal: restAtBinding,
           startYear: credit.zinsbindung,
-          effzins: values.effzins,
+          sollzins: values.sollzins,
           tilgungssatz: values.tilgungssatz,
           horizonYears: options.analysisHorizonYears,
         });

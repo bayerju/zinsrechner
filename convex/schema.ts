@@ -17,6 +17,7 @@ export default defineSchema({
     name: v.string(),
     createdAt: v.number(),
     color: v.string(),
+    sollzins: v.optional(v.number()),
     effzins: v.number(),
     kaufpreis: v.number(),
     modernisierungskosten: v.number(),

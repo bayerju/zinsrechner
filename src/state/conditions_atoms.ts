@@ -2,11 +2,12 @@ import { atom } from "jotai";
 import { creditsAtom } from "./credits_atom";
 import { createScenarioFieldAtom } from "./scenario_values_atom";
 import {
-  calculateMonthlyRate,
   calculateNettodarlehensbetragBank,
-  calculateRestschuld,
+  calculateMonthlyRateFromSollzins,
+  calculateRestschuldFromSollzins,
 } from "~/lib/calculations";
 
+export const sollzinsAtom = createScenarioFieldAtom("sollzins");
 export const effzinsAtom = createScenarioFieldAtom("effzins");
 export const kaufpreisAtom = createScenarioFieldAtom("kaufpreis");
 export const modernisierungskostenAtom = createScenarioFieldAtom(
@@ -29,14 +30,14 @@ export const nettoDarlehensBetragAtom = atom<number>((get) =>
   }),
 );
 export const restschuldBankAtom = atom<number>((get) =>
-  calculateRestschuld({
+  calculateRestschuldFromSollzins({
     nettodarlehensbetrag: get(nettoDarlehensBetragAtom),
-    monthlyRate: calculateMonthlyRate({
+    monthlyRate: calculateMonthlyRateFromSollzins({
       darlehensbetrag: get(nettoDarlehensBetragAtom),
-      effzins: get(effzinsAtom),
+      sollzins: get(sollzinsAtom),
       tilgungssatz: get(tilgungssatzAtom),
     }),
-    effZins: get(effzinsAtom),
+    sollzins: get(sollzinsAtom),
     years: get(zinsbindungAtom),
   }),
 );
