@@ -336,7 +336,10 @@ export function ConvexStateSync() {
     remoteState: SyncedState;
     remoteWasNull: boolean;
     needsMigration: boolean;
+    upgradeState?: SyncedState;
   } | null>(null);
+  const [accountUpgradeState, setAccountUpgradeState] =
+    useState<SyncedState | null>(null);
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
   const importPreview = useQuery(
     api.appState.previewLocalScenarios,
@@ -421,10 +424,24 @@ export function ConvexStateSync() {
       previousUser !== null &&
       !previousUser.isAnonymous &&
       (nextUser === null || nextUser.isAnonymous);
+    const signedInFromGuest =
+      previousUser !== null &&
+      previousUser.isAnonymous &&
+      nextUser !== null &&
+      !nextUser.isAnonymous;
 
     if (signedOutToGuest) {
       applyState(defaultSyncedState());
       clearLocalAppData();
+      setImportReview(null);
+      setAccountUpgradeState(null);
+      setPendingRemoteTimestamp(null);
+      setReadyToSave(false);
+      initializationRunning.current = false;
+      lastSyncedPayload.current = null;
+    }
+    if (signedInFromGuest) {
+      setAccountUpgradeState(localState);
       setImportReview(null);
       setPendingRemoteTimestamp(null);
       setReadyToSave(false);
@@ -433,7 +450,7 @@ export function ConvexStateSync() {
     }
 
     previousSessionUser.current = nextUser;
-  }, [applyState, session.data, session.isPending]);
+  }, [applyState, localState, session.data, session.isPending]);
 
   useEffect(() => {
     if (
@@ -490,10 +507,12 @@ export function ConvexStateSync() {
 
     initializationRunning.current = true;
     const localDataExists = hasLocalAppData();
+    const pendingLocalState = accountUpgradeState ?? localState;
+    const shouldImportLocalState = accountUpgradeState !== null || localDataExists;
 
     if (remoteResult === null) {
       const remoteState = defaultSyncedState();
-      if (!localDataExists) {
+      if (!shouldImportLocalState) {
         void replaceState(toConvexSnapshot(remoteState))
           .then((updatedAt) => {
             clearLocalAppData();
@@ -508,7 +527,27 @@ export function ConvexStateSync() {
         return;
       }
 
-      void toLocalImports(localState, remoteState)
+      if (accountUpgradeState !== null) {
+        void toLocalImports(accountUpgradeState, remoteState)
+          .then((imports) => {
+            setImportReview({
+              imports,
+              remoteState,
+              remoteWasNull: true,
+              needsMigration: false,
+              upgradeState: accountUpgradeState,
+            });
+          })
+          .catch((error: unknown) => {
+            console.error("Failed to prepare anonymous state import", error);
+          })
+          .finally(() => {
+            initializationRunning.current = false;
+          });
+        return;
+      }
+
+      void toLocalImports(pendingLocalState, remoteState)
         .then(async (imports) => {
           if (
             imports.financing.length === 0 &&
@@ -540,7 +579,7 @@ export function ConvexStateSync() {
       return;
     }
 
-    if (!localDataExists) {
+    if (!shouldImportLocalState) {
       if (remoteResult.needsMigration) {
         void replaceState(toConvexSnapshot(remoteResult.state))
           .then((updatedAt) => {
@@ -563,9 +602,13 @@ export function ConvexStateSync() {
       return;
     }
 
-    void toLocalImports(localState, remoteResult.state)
+    void toLocalImports(pendingLocalState, remoteResult.state)
       .then(async (imports) => {
-        if (imports.financing.length === 0 && imports.liquidity.length === 0) {
+        if (
+          imports.financing.length === 0 &&
+          imports.liquidity.length === 0 &&
+          accountUpgradeState === null
+        ) {
           if (remoteResult.needsMigration) {
             const updatedAt = await replaceState(
               toConvexSnapshot(remoteResult.state as SyncedState),
@@ -577,6 +620,7 @@ export function ConvexStateSync() {
           applyState(remoteResult.state as SyncedState);
           lastSyncedPayload.current = JSON.stringify(remoteResult.state);
           clearLocalAppData();
+          setAccountUpgradeState(null);
           setReadyToSave(true);
           return;
         }
@@ -585,6 +629,7 @@ export function ConvexStateSync() {
           remoteState: remoteResult.state as SyncedState,
           remoteWasNull: false,
           needsMigration: remoteResult.needsMigration,
+          upgradeState: accountUpgradeState ?? undefined,
         });
       })
       .catch((error: unknown) => {
@@ -595,6 +640,7 @@ export function ConvexStateSync() {
       });
   }, [
     applyState,
+    accountUpgradeState,
     importLocalScenarios,
     importReview,
     isAuthenticated,
@@ -615,6 +661,7 @@ export function ConvexStateSync() {
           toConvexSnapshot(importReview.remoteState),
         );
         clearLocalAppData();
+        setAccountUpgradeState(null);
         setImportReview(null);
         setPendingRemoteTimestamp(updatedAt);
         return;
@@ -623,6 +670,7 @@ export function ConvexStateSync() {
       applyState(importReview.remoteState);
       lastSyncedPayload.current = JSON.stringify(importReview.remoteState);
       clearLocalAppData();
+      setAccountUpgradeState(null);
       setImportReview(null);
       setReadyToSave(true);
     } catch (error) {
@@ -636,6 +684,17 @@ export function ConvexStateSync() {
     if (!importReview) return;
     setReviewSubmitting(true);
     try {
+      if (importReview.remoteWasNull && importReview.upgradeState) {
+        const updatedAt = await replaceState(
+          toConvexSnapshot(importReview.upgradeState),
+        );
+        clearLocalAppData();
+        setAccountUpgradeState(null);
+        setImportReview(null);
+        setPendingRemoteTimestamp(updatedAt);
+        return;
+      }
+
       if (importReview.remoteWasNull) {
         const defaultUpdatedAt = await replaceState(
           toConvexSnapshot(importReview.remoteState),
@@ -644,6 +703,7 @@ export function ConvexStateSync() {
           importReview.imports,
         );
         clearLocalAppData();
+        setAccountUpgradeState(null);
         setImportReview(null);
         setPendingRemoteTimestamp(importUpdatedAt ?? defaultUpdatedAt);
         return;
@@ -651,6 +711,7 @@ export function ConvexStateSync() {
 
       const updatedAt = await importLocalScenarios(importReview.imports);
       clearLocalAppData();
+      setAccountUpgradeState(null);
       setImportReview(null);
       if (updatedAt !== null) {
         setPendingRemoteTimestamp(updatedAt);
@@ -711,6 +772,25 @@ export function ConvexStateSync() {
     ? [...importPreview.financing, ...importPreview.liquidity]
     : [];
   const newCount = previewRows.filter((row) => row.status === "new").length;
+  const isAccountUpgrade = importReview?.upgradeState !== undefined;
+  const replacesEmptyAccount =
+    importReview?.remoteWasNull === true && isAccountUpgrade;
+  const dialogTitle = isAccountUpgrade
+    ? "Gastdaten übernehmen?"
+    : "Lokale Szenarien prüfen";
+  const dialogDescription = replacesEmptyAccount
+    ? "Du hast als Gast Daten eingegeben. Dein Account ist noch leer. Entscheide, ob diese Daten in den Account übernommen werden sollen."
+    : isAccountUpgrade
+      ? "Du hast als Gast Daten eingegeben. Dein Account enthält bereits Daten. Neue Gast-Szenarien können zusätzlich übernommen werden."
+      : "Im Browser wurden lokale Daten gefunden. Prüfe, welche Szenarien zusätzlich in Convex übernommen werden sollen.";
+  const discardLabel = isAccountUpgrade
+    ? "Gastdaten verwerfen"
+    : "Lokale Daten verwerfen";
+  const importLabel = replacesEmptyAccount
+    ? "Gastdaten übernehmen"
+    : newCount > 0
+      ? `${newCount} neue importieren`
+      : "Ohne Import fortfahren";
 
   return (
     <Dialog open={importReview !== null}>
@@ -721,11 +801,8 @@ export function ConvexStateSync() {
         onPointerDownOutside={(event) => event.preventDefault()}
       >
         <DialogHeader>
-          <DialogTitle>Lokale Szenarien prüfen</DialogTitle>
-          <DialogDescription>
-            Im Browser wurden lokale Daten gefunden. Prüfe, welche Szenarien
-            zusätzlich in Convex übernommen werden sollen.
-          </DialogDescription>
+          <DialogTitle>{dialogTitle}</DialogTitle>
+          <DialogDescription>{dialogDescription}</DialogDescription>
         </DialogHeader>
 
         {importPreview === undefined ? (
@@ -739,6 +816,11 @@ export function ConvexStateSync() {
               rows={importPreview.financing}
             />
             <ImportSection title="Liquidität" rows={importPreview.liquidity} />
+            {previewRows.length === 0 && !replacesEmptyAccount && (
+              <p className="text-sm text-neutral-600">
+                Es wurden keine zusätzlichen Gast-Szenarien gefunden.
+              </p>
+            )}
           </div>
         )}
 
@@ -749,16 +831,14 @@ export function ConvexStateSync() {
             disabled={reviewSubmitting || importPreview === undefined}
             onClick={() => void finishWithoutImport()}
           >
-            Lokale Daten verwerfen
+            {discardLabel}
           </Button>
           <Button
             type="button"
             disabled={reviewSubmitting || importPreview === undefined}
             onClick={() => void importReviewedScenarios()}
           >
-            {newCount > 0
-              ? `${newCount} neue importieren`
-              : "Ohne Import fortfahren"}
+            {importLabel}
           </Button>
         </DialogFooter>
       </DialogContent>
