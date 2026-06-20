@@ -81,6 +81,11 @@ type RemoteState = {
 
 type LocalImports = Awaited<ReturnType<typeof toLocalImports>>;
 
+type PendingSave = {
+  payload: string;
+  updatedAt: number | null;
+};
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
@@ -378,6 +383,7 @@ export function ConvexStateSync() {
   const [opportunityRate, setOpportunityRate] = useAtom(opportunityRateAtom);
   const [storageHydrated, setStorageHydrated] = useState(false);
   const [readyToSave, setReadyToSave] = useState(false);
+  const [pendingSave, setPendingSave] = useState<PendingSave | null>(null);
   const [pendingRemoteTimestamp, setPendingRemoteTimestamp] = useState<
     number | null
   >(null);
@@ -489,6 +495,7 @@ export function ConvexStateSync() {
       clearLocalAppData();
       setImportReview(null);
       setAccountUpgradeState(null);
+      setPendingSave(null);
       setPendingRemoteTimestamp(null);
       setReadyToSave(false);
       initializationRunning.current = false;
@@ -497,6 +504,7 @@ export function ConvexStateSync() {
     if (signedInFromGuest) {
       setAccountUpgradeState(localState);
       setImportReview(null);
+      setPendingSave(null);
       setPendingRemoteTimestamp(null);
       setReadyToSave(false);
       initializationRunning.current = false;
@@ -525,6 +533,7 @@ export function ConvexStateSync() {
   useEffect(() => {
     if (!isAuthenticated) {
       setReadyToSave(false);
+      setPendingSave(null);
       setPendingRemoteTimestamp(null);
       initializationRunning.current = false;
       lastSyncedPayload.current = null;
@@ -808,10 +817,19 @@ export function ConvexStateSync() {
       const snapshot = localState;
       const payload = JSON.stringify(snapshot);
       lastSyncedPayload.current = payload;
+      setPendingSave({ payload, updatedAt: null });
       void replaceState(toConvexSnapshot(snapshot))
-        .then(() => clearLocalAppData())
+        .then((updatedAt) => {
+          clearLocalAppData();
+          setPendingSave((current) =>
+            current?.payload === payload ? { payload, updatedAt } : current,
+          );
+        })
         .catch((error: unknown) => {
           lastSyncedPayload.current = null;
+          setPendingSave((current) =>
+            current?.payload === payload ? null : current,
+          );
           console.error("Failed to sync state to Convex", error);
         });
     }, 500);
@@ -830,11 +848,28 @@ export function ConvexStateSync() {
     }
     const remotePayload = JSON.stringify(remoteResult.state);
     clearLocalAppData();
+
+    if (pendingSave !== null) {
+      const saveIsConfirmed =
+        remotePayload === pendingSave.payload ||
+        (pendingSave.updatedAt !== null &&
+          remoteResult.updatedAt >= pendingSave.updatedAt);
+      if (!saveIsConfirmed || localPayload !== pendingSave.payload) return;
+
+      setPendingSave(null);
+      lastSyncedPayload.current = remotePayload;
+      if (remotePayload !== localPayload) {
+        applyState(remoteResult.state);
+      }
+      return;
+    }
+
+    if (localPayload !== lastSyncedPayload.current) return;
     if (remotePayload === lastSyncedPayload.current) return;
 
     lastSyncedPayload.current = remotePayload;
     applyState(remoteResult.state);
-  }, [applyState, readyToSave, remoteResult]);
+  }, [applyState, localPayload, pendingSave, readyToSave, remoteResult]);
 
   const previewRows = importPreview
     ? [...importPreview.financing, ...importPreview.liquidity]
