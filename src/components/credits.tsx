@@ -1,7 +1,6 @@
 "use client";
 
-import { useAtom } from "jotai";
-import { creditsAtom } from "~/state/credits_atom";
+import { useAppState } from "~/state/app_state";
 import { Button } from "./ui/button";
 import { Dialog, DialogContent, DialogTrigger, DialogTitle } from "./ui/dialog";
 import {
@@ -113,7 +112,7 @@ function inferCreditTemplate(credit?: CreditCreate): CreditTemplate | null {
 }
 
 export default function Credits() {
-  const [credits, setCredits] = useAtom(creditsAtom);
+  const { credits, setCredits } = useAppState();
   const [openCreditDialog, setOpenCreditDialog] = useState(false);
   const [creditToEdit, setCreditToEdit] = useState<CreditCreate | undefined>(
     undefined,
@@ -343,7 +342,7 @@ function NewCreditDialog({
   const [creditKreditdauer, setcreditKreditdauer] = useState(
     credit?.kreditdauer ?? 0,
   );
-  const [credits, setCredits] = useAtom(creditsAtom);
+  const { credits, setCredits } = useAppState();
   const [nameError, setNameError] = useState<string | null>(null);
   const [creditTilgungsfreieZeit, setCreditTilgungsfreieZeit] = useState(
     credit?.tilgungsFreieZeit ?? 0,
@@ -853,7 +852,7 @@ function NewCreditDialog({
                   return;
                 }
 
-                setCredits((prev) => {
+                void setCredits((prev) => {
                   const newCredits = { ...prev };
 
                   // If we're editing an existing credit and the name changed, remove the old entry

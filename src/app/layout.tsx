@@ -4,11 +4,10 @@ import { type Metadata } from "next";
 import { Geist } from "next/font/google";
 
 import { TRPCReactProvider } from "~/trpc/react";
-import JotaiProvider from "~/state/jotai_provider";
+import { AppStateProvider } from "~/state/app_state";
 import { PostHogProvider } from "~/components/PostHogProvider";
 import { ConvexClientProvider } from "./convex_client_provider";
 import { getToken } from "~/lib/auth-server";
-// import { DevTools } from "jotai-devtools";
 
 export const metadata: Metadata = {
   title: "JRZinsrechner",
@@ -32,10 +31,7 @@ export default async function RootLayout({
         <ConvexClientProvider initialToken={token}>
           <PostHogProvider>
             <TRPCReactProvider>
-              <JotaiProvider>
-                {children}
-                {/* <DevTools /> */}
-              </JotaiProvider>
+              <AppStateProvider>{children}</AppStateProvider>
             </TRPCReactProvider>
           </PostHogProvider>
         </ConvexClientProvider>

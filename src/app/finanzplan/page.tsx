@@ -1,9 +1,10 @@
 "use client";
 
-import { useAtom, useAtomValue } from "jotai";
-import { useEffect, useMemo, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo } from "react";
 import { TopNav } from "~/components/top_nav";
+import { InfoLabel } from "~/components/info_hover";
 import { Card, CardContent } from "~/components/ui/card";
+import { PercentInput } from "~/components/ui/percent_input";
 import { type ChartConfig } from "~/components/ui/chart";
 import {
   DetailRestschuldStackChart,
@@ -24,22 +25,20 @@ import {
   isBridgeCredit,
 } from "~/lib/credit";
 import { formatNumber } from "~/lib/number_fromat";
-import {
-  activeScenarioIdAtom,
-  comparedScenarioIdsAtom,
-  defaultScenarioId,
-  scenariosAtom,
-} from "~/state/scenarios_atom";
+import { defaultScenarioId } from "~/state/scenarios_atom";
 import {
   defaultScenarioValues,
-  scenarioValuesAtom,
   type ScenarioValues,
 } from "~/state/scenario_values_atom";
 import { getCreditSeriesColorByIndex } from "~/lib/scenario_colors";
-import {
-  analysisHorizonYearsAtom,
-  includeRefinancingAtom,
-} from "~/state/analysis_settings_atom";
+import { evaluateScenario } from "~/lib/scenario_evaluation";
+import { useAppState } from "~/state/app_state";
+
+const OPPORTUNITY_RATE_INFO =
+  "Der Opportunitaetszins ist hier ein nominaler Diskontzins p.a. Er beschreibt, welche konservative Alternativrendite das eingesetzte Geld erzielen koennte. Inflation ist darin nicht separat ausgewiesen, sondern nur enthalten, wenn sie in diesem nominalen Zinssatz steckt.";
+
+const PRESENT_VALUE_INFO =
+  "Der Barwert rechnet zukuenftige Zahlungen mit dem Opportunitaetszins auf heute zurueck. So werden Kreditraten, Restschulden und Eigenkapital als heutige wirtschaftliche Kosten vergleichbar.";
 
 type FinanzplanRow = {
   stichtag: number;
@@ -78,7 +77,7 @@ function MobileMetric({
   valueClassName = "text-neutral-100",
   detail,
 }: {
-  label: string;
+  label: ReactNode;
   value: string;
   valueClassName?: string;
   detail?: string;
@@ -943,11 +942,18 @@ function calculateDetailMonthlyRateStack(
 }
 
 export default function FinanzplanPage() {
-  const scenarios = useAtomValue(scenariosAtom);
-  const scenarioValues = useAtomValue(scenarioValuesAtom);
-  const includeRefinancing = useAtomValue(includeRefinancingAtom);
-  const analysisHorizonYears = useAtomValue(analysisHorizonYearsAtom);
-  const [activeScenarioId] = useAtom(activeScenarioIdAtom);
+  const {
+    scenarios,
+    scenarioValues,
+    includeRefinancing,
+    analysisHorizonYears,
+    opportunityRate,
+    activeScenarioId,
+    scenarioList,
+    comparedScenarioIds: selectedScenarioIds,
+    detailScenarioId,
+    setSettings,
+  } = useAppState();
   const calculationOptions = useMemo(
     () => ({
       includeRefinancing,
@@ -955,38 +961,53 @@ export default function FinanzplanPage() {
     }),
     [analysisHorizonYears, includeRefinancing],
   );
-  const scenarioList = useMemo(
-    () => Object.values(scenarios).sort((a, b) => a.createdAt - b.createdAt),
-    [scenarios],
+
+  const persistSettings = useCallback(
+    (settings: {
+      comparedScenarioIds?: string[];
+      detailScenarioId?: string;
+      opportunityRate?: number;
+    }) => {
+      void setSettings(settings).catch((error: unknown) => {
+        console.error("Failed to persist finance plan settings", error);
+      });
+    },
+    [setSettings],
   );
-  const [selectedScenarioIds, setSelectedScenarioIds] = useAtom(
-    comparedScenarioIdsAtom,
-  );
-  const [detailScenarioId, setDetailScenarioId] = useState<string>("");
 
   useEffect(() => {
     if (scenarioList.length === 0) return;
     const validIds = new Set(scenarioList.map((scenario) => scenario.id));
-    setSelectedScenarioIds((prev) => {
-      const cleaned = prev.filter((id) => validIds.has(id));
-      if (cleaned.length > 0) return cleaned;
-      const defaults = [activeScenarioId, defaultScenarioId].filter(
-        (id, index, arr) => validIds.has(id) && arr.indexOf(id) === index,
-      );
-      return defaults.length > 0 ? defaults : [scenarioList[0]!.id];
+    const cleaned = selectedScenarioIds.filter((id) => validIds.has(id));
+    if (cleaned.length > 0) {
+      if (cleaned.length !== selectedScenarioIds.length) {
+        persistSettings({ comparedScenarioIds: cleaned });
+      }
+      return;
+    }
+    const defaults = [activeScenarioId, defaultScenarioId].filter(
+      (id, index, arr) => validIds.has(id) && arr.indexOf(id) === index,
+    );
+    persistSettings({
+      comparedScenarioIds:
+        defaults.length > 0 ? defaults : [scenarioList[0]!.id],
     });
-  }, [activeScenarioId, scenarioList, setSelectedScenarioIds]);
+  }, [activeScenarioId, persistSettings, scenarioList, selectedScenarioIds]);
 
   useEffect(() => {
     if (scenarioList.length === 0) return;
     const validIds = new Set(scenarioList.map((scenario) => scenario.id));
-    setDetailScenarioId((prev) => {
-      if (prev && validIds.has(prev)) return prev;
-      if (validIds.has(activeScenarioId)) return activeScenarioId;
-      if (validIds.has(defaultScenarioId)) return defaultScenarioId;
-      return scenarioList[0]!.id;
-    });
-  }, [activeScenarioId, scenarioList]);
+    if (detailScenarioId && validIds.has(detailScenarioId)) return;
+    if (validIds.has(activeScenarioId)) {
+      persistSettings({ detailScenarioId: activeScenarioId });
+      return;
+    }
+    if (validIds.has(defaultScenarioId)) {
+      persistSettings({ detailScenarioId: defaultScenarioId });
+      return;
+    }
+    persistSettings({ detailScenarioId: scenarioList[0]!.id });
+  }, [activeScenarioId, detailScenarioId, persistSettings, scenarioList]);
 
   const detailValues =
     scenarioValues[detailScenarioId] ??
@@ -1008,18 +1029,40 @@ export default function FinanzplanPage() {
             values,
             calculationOptions,
           );
+          const evaluation = evaluateScenario(values, {
+            ...calculationOptions,
+            opportunityRate,
+          });
           const summary =
             result.finanzplanRows[result.finanzplanRows.length - 1];
           if (!summary) return null;
           return {
             id,
             name: scenario.name,
+            evaluation,
             ...summary,
           };
         })
         .filter((row) => row !== null),
-    [calculationOptions, scenarios, scenarioValues, selectedScenarioIds],
+    [
+      calculationOptions,
+      opportunityRate,
+      scenarios,
+      scenarioValues,
+      selectedScenarioIds,
+    ],
   );
+
+  const bestEconomicRow = useMemo(() => {
+    return comparisonRows.reduce<(typeof comparisonRows)[number] | null>(
+      (best, row) =>
+        !best ||
+        row.evaluation.presentValueCost < best.evaluation.presentValueCost
+          ? row
+          : best,
+      null,
+    );
+  }, [comparisonRows]);
 
   const maxComparisonYears = useMemo(
     () => Math.max(1, ...comparisonRows.map((row) => row.stichtag)),
@@ -1077,12 +1120,17 @@ export default function FinanzplanPage() {
   }
 
   function toggleScenarioForComparison(scenarioId: string) {
-    setSelectedScenarioIds((prev) => {
-      if (prev.includes(scenarioId)) {
-        if (prev.length === 1) return prev;
-        return prev.filter((id) => id !== scenarioId);
-      }
-      return [...prev, scenarioId];
+    if (selectedScenarioIds.includes(scenarioId)) {
+      if (selectedScenarioIds.length === 1) return;
+      persistSettings({
+        comparedScenarioIds: selectedScenarioIds.filter(
+          (id) => id !== scenarioId,
+        ),
+      });
+      return;
+    }
+    persistSettings({
+      comparedScenarioIds: [...selectedScenarioIds, scenarioId],
     });
   }
 
@@ -1132,7 +1180,7 @@ export default function FinanzplanPage() {
   }, [maturityEvents]);
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-xl flex-col items-center bg-neutral-900 px-2 py-2 md:max-w-4xl md:px-4 lg:max-w-6xl">
+    <main className="mx-auto flex min-h-screen w-full max-w-xl flex-col items-center bg-neutral-900 px-2 py-2 md:max-w-4xl md:px-4 lg:max-w-6xl xl:max-w-7xl">
       <Card className="w-full">
         <CardContent className="space-y-3">
           <TopNav />
@@ -1141,6 +1189,28 @@ export default function FinanzplanPage() {
               ? `Anschlussfinanzierung ist aktiv: Restschulden laufen bis zu ${analysisHorizonYears} Jahren mit Bankkonditionen weiter.`
               : "Anschlussfinanzierung ist aus: Restschulden bleiben am Ende der Zinsbindung faellig."}
           </p>
+          <div className="rounded-md border border-neutral-300 bg-white p-3 lg:w-fit lg:min-w-80">
+            <div className="max-w-44">
+              <PercentInput
+                value={opportunityRate}
+                onChange={(value) => {
+                  persistSettings({ opportunityRate: value });
+                }}
+                label={
+                  <InfoLabel content={OPPORTUNITY_RATE_INFO}>
+                    Opportunitaetszins p.a.
+                  </InfoLabel>
+                }
+                min={0}
+                className="border-neutral-300 bg-white text-black"
+              />
+            </div>
+            <p className="mt-1 text-xs text-neutral-600">
+              Konservative Alternativrendite fuer{" "}
+              <InfoLabel content={PRESENT_VALUE_INFO}>Barwert</InfoLabel>,
+              Endwert und Liquiditaetsverzinsung.
+            </p>
+          </div>
           <div className="rounded-md border border-neutral-300 p-3 lg:w-fit lg:min-w-80">
             <div className="mb-2 flex items-center justify-between">
               <p className="text-sm font-medium text-black">
@@ -1178,6 +1248,31 @@ export default function FinanzplanPage() {
             </div>
           </div>
 
+          {bestEconomicRow && (
+            <div
+              className="rounded-md border border-emerald-700 bg-emerald-950 p-3 text-sm text-emerald-50"
+              style={{
+                borderLeft: `4px solid ${
+                  chartConfig[bestEconomicRow.id]?.color ?? "#10b981"
+                }`,
+              }}
+            >
+              <p className="font-semibold">
+                Wirtschaftlich bestes Szenario: {bestEconomicRow.name}
+              </p>
+              <p className="mt-1 text-emerald-100">
+                <InfoLabel content={PRESENT_VALUE_INFO}>
+                  Niedrigster Barwert der Gesamtkosten
+                </InfoLabel>
+                : {formatNumber(bestEconomicRow.evaluation.presentValueCost)} €
+                bei {formatNumber(opportunityRate)} %{" "}
+                <InfoLabel content={OPPORTUNITY_RATE_INFO}>
+                  Opportunitaetszins p.a.
+                </InfoLabel>
+              </p>
+            </div>
+          )}
+
           <ScenarioMonthlyRateChart
             chartConfig={chartConfig}
             chartData={chartData}
@@ -1200,6 +1295,55 @@ export default function FinanzplanPage() {
                   </p>
                 </div>
                 <div className="divide-y divide-neutral-700">
+                  <MobileMetric
+                    label={
+                      <InfoLabel content={PRESENT_VALUE_INFO}>
+                        Barwert Kosten
+                      </InfoLabel>
+                    }
+                    value={`${formatNumber(row.evaluation.presentValueCost)} €`}
+                    valueClassName={
+                      row.id === bestEconomicRow?.id
+                        ? "text-emerald-300"
+                        : "text-neutral-100"
+                    }
+                    detail={
+                      comparisonBaseRow && row.id !== comparisonBaseRow.id
+                        ? `Δ ${renderDelta(
+                            row.evaluation.presentValueCost,
+                            comparisonBaseRow.evaluation.presentValueCost,
+                          )}`
+                        : undefined
+                    }
+                  />
+                  <MobileMetric
+                    label="Endwert Kosten"
+                    value={`${formatNumber(row.evaluation.futureValueCost)} €`}
+                    detail={
+                      comparisonBaseRow && row.id !== comparisonBaseRow.id
+                        ? `Δ ${renderDelta(
+                            row.evaluation.futureValueCost,
+                            comparisonBaseRow.evaluation.futureValueCost,
+                          )}`
+                        : undefined
+                    }
+                  />
+                  <MobileMetric
+                    label="Impl. Effzinskosten"
+                    value={`${formatNumber(
+                      row.evaluation.implicitEffectiveRateCosts,
+                    )} €`}
+                    valueClassName="text-amber-300"
+                    detail={
+                      comparisonBaseRow && row.id !== comparisonBaseRow.id
+                        ? `Δ ${renderDelta(
+                            row.evaluation.implicitEffectiveRateCosts,
+                            comparisonBaseRow.evaluation
+                              .implicitEffectiveRateCosts,
+                          )}`
+                        : undefined
+                    }
+                  />
                   <MobileMetric
                     label="Bisher bezahlt"
                     value={`${formatNumber(row.bisherBezahltGesamt)} €`}
@@ -1269,10 +1413,17 @@ export default function FinanzplanPage() {
             ))}
           </div>
           <div className="hidden overflow-x-auto rounded-md border border-neutral-700 bg-neutral-800 sm:block">
-            <table className="w-full min-w-[820px] text-sm">
+            <table className="w-full min-w-[1120px] text-sm">
               <thead>
                 <tr className="border-b border-neutral-700 text-left text-neutral-300">
                   <th className="px-3 py-2 font-medium">Szenario</th>
+                  <th className="px-3 py-2 font-medium">
+                    <InfoLabel content={PRESENT_VALUE_INFO}>
+                      Barwert Kosten
+                    </InfoLabel>
+                  </th>
+                  <th className="px-3 py-2 font-medium">Endwert Kosten</th>
+                  <th className="px-3 py-2 font-medium">Impl. Effzinskosten</th>
                   <th className="px-3 py-2 font-medium">Stichtag</th>
                   <th className="px-3 py-2 font-medium">Bisher bezahlt</th>
                   <th className="px-3 py-2 font-medium">Bisher getilgt</th>
@@ -1302,7 +1453,58 @@ export default function FinanzplanPage() {
                         >
                           {row.name}
                         </span>
+                        {row.id === bestEconomicRow?.id && (
+                          <span className="rounded-sm bg-emerald-900 px-1.5 py-0.5 text-xs text-emerald-100">
+                            Beste Wahl
+                          </span>
+                        )}
                       </span>
+                    </td>
+                    <td className="px-3 py-2 text-neutral-100">
+                      <div>
+                        {formatNumber(row.evaluation.presentValueCost)} €
+                      </div>
+                      {comparisonBaseRow && row.id !== comparisonBaseRow.id && (
+                        <div className="text-xs text-neutral-400">
+                          Δ{" "}
+                          {renderDelta(
+                            row.evaluation.presentValueCost,
+                            comparisonBaseRow.evaluation.presentValueCost,
+                          )}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 text-neutral-100">
+                      <div>
+                        {formatNumber(row.evaluation.futureValueCost)} €
+                      </div>
+                      {comparisonBaseRow && row.id !== comparisonBaseRow.id && (
+                        <div className="text-xs text-neutral-400">
+                          Δ{" "}
+                          {renderDelta(
+                            row.evaluation.futureValueCost,
+                            comparisonBaseRow.evaluation.futureValueCost,
+                          )}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 text-amber-300">
+                      <div>
+                        {formatNumber(
+                          row.evaluation.implicitEffectiveRateCosts,
+                        )}{" "}
+                        €
+                      </div>
+                      {comparisonBaseRow && row.id !== comparisonBaseRow.id && (
+                        <div className="text-xs text-neutral-400">
+                          Δ{" "}
+                          {renderDelta(
+                            row.evaluation.implicitEffectiveRateCosts,
+                            comparisonBaseRow.evaluation
+                              .implicitEffectiveRateCosts,
+                          )}
+                        </div>
+                      )}
                     </td>
                     <td className="px-3 py-2 text-neutral-100">
                       {row.stichtag} Jahre
@@ -1396,7 +1598,9 @@ export default function FinanzplanPage() {
                   borderColor: detailAccentColor,
                 }}
                 value={detailScenarioId}
-                onChange={(e) => setDetailScenarioId(e.target.value)}
+                onChange={(e) => {
+                  persistSettings({ detailScenarioId: e.target.value });
+                }}
               >
                 {scenarioList.map((scenario) => (
                   <option key={scenario.id} value={scenario.id}>

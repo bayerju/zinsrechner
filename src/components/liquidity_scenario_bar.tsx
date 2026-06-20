@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useAtom } from "jotai";
+import { useState } from "react";
 import { Button } from "~/components/ui/button";
 import {
   Dialog,
@@ -13,14 +12,7 @@ import {
 } from "~/components/ui/dialog";
 import { Input } from "~/components/ui/input";
 import { getNextScenarioColor } from "~/lib/scenario_colors";
-import {
-  activeLiquidityScenarioIdAtom,
-  defaultLiquidityScenarioId,
-  defaultLiquidityScenarioValues,
-  liquidityScenariosAtom,
-  liquidityScenarioValuesAtom,
-  type LiquidityScenario,
-} from "~/state/liquidity_scenarios_atom";
+import { useAppState } from "~/state/app_state";
 
 function createScenarioId() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -39,11 +31,15 @@ function buildUniqueName(name: string, existing: Set<string>) {
 }
 
 export function LiquidityScenarioBar() {
-  const [scenarios, setScenarios] = useAtom(liquidityScenariosAtom);
-  const [activeScenarioId, setActiveScenarioId] = useAtom(
-    activeLiquidityScenarioIdAtom,
-  );
-  const [, setScenarioValues] = useAtom(liquidityScenarioValuesAtom);
+  const {
+    activeLiquidityScenarioId: activeScenarioId,
+    activeLiquidityScenario: active,
+    liquidityScenarioList: scenarioList,
+    setActiveLiquidityScenarioId,
+    createLiquidityScenario,
+    renameLiquidityScenario,
+    deleteLiquidityScenarioById,
+  } = useAppState();
 
   const [isActionsOpen, setIsActionsOpen] = useState(false);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -53,31 +49,6 @@ export function LiquidityScenarioBar() {
   const [createName, setCreateName] = useState("");
   const [renameName, setRenameName] = useState("");
   const [error, setError] = useState<string | null>(null);
-
-  const scenarioList = Object.values(scenarios).sort(
-    (a, b) => a.createdAt - b.createdAt,
-  );
-  const active = scenarios[activeScenarioId];
-
-  useEffect(() => {
-    if (scenarioList.length > 0) return;
-
-    const initial: LiquidityScenario = {
-      id: defaultLiquidityScenarioId,
-      name: "Basis",
-      createdAt: 0,
-      color: "#60a5fa",
-    };
-
-    setScenarios({ [initial.id]: initial });
-    setScenarioValues({ [initial.id]: defaultLiquidityScenarioValues });
-    setActiveScenarioId(initial.id);
-  }, [scenarioList, setScenarios, setScenarioValues, setActiveScenarioId]);
-
-  useEffect(() => {
-    if (active || !scenarioList[0]) return;
-    setActiveScenarioId(scenarioList[0].id);
-  }, [active, scenarioList, setActiveScenarioId]);
 
   function openCreate(duplicate: boolean) {
     const names = new Set(scenarioList.map((scenario) => scenario.name));
@@ -109,25 +80,15 @@ export function LiquidityScenarioBar() {
     }
 
     const id = createScenarioId();
-    const nextMeta: LiquidityScenario = {
+    void createLiquidityScenario({
       id,
       name,
       createdAt: Date.now(),
       color: getNextScenarioColor(
         scenarioList.map((scenario) => scenario.color),
       ),
-    };
-    setScenarios((prev) => ({ ...prev, [id]: nextMeta }));
-    setScenarioValues((prev) => {
-      const baseValues = createDuplicate
-        ? (prev[activeScenarioId] ?? defaultLiquidityScenarioValues)
-        : defaultLiquidityScenarioValues;
-      return {
-        ...prev,
-        [id]: structuredClone(baseValues),
-      };
+      duplicateFromActive: createDuplicate,
     });
-    setActiveScenarioId(id);
     setIsCreateOpen(false);
   }
 
@@ -157,34 +118,13 @@ export function LiquidityScenarioBar() {
       return;
     }
 
-    setScenarios((prev) => {
-      const current = prev[active.id];
-      if (!current) return prev;
-      return {
-        ...prev,
-        [active.id]: {
-          ...current,
-          name,
-        },
-      };
-    });
+    void renameLiquidityScenario(active.id, name);
     setIsRenameOpen(false);
   }
 
   function submitDelete() {
     if (!active || scenarioList.length <= 1) return;
-    const next = scenarioList.find((scenario) => scenario.id !== active.id);
-    setScenarios((prev) => {
-      const copy = { ...prev };
-      delete copy[active.id];
-      return copy;
-    });
-    setScenarioValues((prev) => {
-      const copy = { ...prev };
-      delete copy[active.id];
-      return copy;
-    });
-    if (next) setActiveScenarioId(next.id);
+    void deleteLiquidityScenarioById(active.id);
     setIsDeleteOpen(false);
   }
 
@@ -202,7 +142,7 @@ export function LiquidityScenarioBar() {
       <select
         className="h-10 w-full min-w-0 rounded-md border border-neutral-300 bg-white px-2 text-sm text-black sm:h-8 sm:w-auto sm:min-w-44 sm:flex-none lg:w-56"
         value={activeScenarioId}
-        onChange={(e) => setActiveScenarioId(e.target.value)}
+        onChange={(e) => void setActiveLiquidityScenarioId(e.target.value)}
       >
         {scenarioList.map((scenario) => (
           <option key={scenario.id} value={scenario.id}>
