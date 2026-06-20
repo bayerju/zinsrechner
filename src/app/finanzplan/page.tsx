@@ -4,6 +4,7 @@ import { useAtom, useAtomValue } from "jotai";
 import { useEffect, useMemo, useState } from "react";
 import { TopNav } from "~/components/top_nav";
 import { Card, CardContent } from "~/components/ui/card";
+import { PercentInput } from "~/components/ui/percent_input";
 import { type ChartConfig } from "~/components/ui/chart";
 import {
   DetailRestschuldStackChart,
@@ -39,7 +40,9 @@ import { getCreditSeriesColorByIndex } from "~/lib/scenario_colors";
 import {
   analysisHorizonYearsAtom,
   includeRefinancingAtom,
+  opportunityRateAtom,
 } from "~/state/analysis_settings_atom";
+import { evaluateScenario } from "~/lib/scenario_evaluation";
 
 type FinanzplanRow = {
   stichtag: number;
@@ -947,6 +950,7 @@ export default function FinanzplanPage() {
   const scenarioValues = useAtomValue(scenarioValuesAtom);
   const includeRefinancing = useAtomValue(includeRefinancingAtom);
   const analysisHorizonYears = useAtomValue(analysisHorizonYearsAtom);
+  const [opportunityRate, setOpportunityRate] = useAtom(opportunityRateAtom);
   const [activeScenarioId] = useAtom(activeScenarioIdAtom);
   const calculationOptions = useMemo(
     () => ({
@@ -1008,18 +1012,40 @@ export default function FinanzplanPage() {
             values,
             calculationOptions,
           );
+          const evaluation = evaluateScenario(values, {
+            ...calculationOptions,
+            opportunityRate,
+          });
           const summary =
             result.finanzplanRows[result.finanzplanRows.length - 1];
           if (!summary) return null;
           return {
             id,
             name: scenario.name,
+            evaluation,
             ...summary,
           };
         })
         .filter((row) => row !== null),
-    [calculationOptions, scenarios, scenarioValues, selectedScenarioIds],
+    [
+      calculationOptions,
+      opportunityRate,
+      scenarios,
+      scenarioValues,
+      selectedScenarioIds,
+    ],
   );
+
+  const bestEconomicRow = useMemo(() => {
+    return comparisonRows.reduce<(typeof comparisonRows)[number] | null>(
+      (best, row) =>
+        !best ||
+        row.evaluation.presentValueCost < best.evaluation.presentValueCost
+          ? row
+          : best,
+      null,
+    );
+  }, [comparisonRows]);
 
   const maxComparisonYears = useMemo(
     () => Math.max(1, ...comparisonRows.map((row) => row.stichtag)),
@@ -1141,6 +1167,21 @@ export default function FinanzplanPage() {
               ? `Anschlussfinanzierung ist aktiv: Restschulden laufen bis zu ${analysisHorizonYears} Jahren mit Bankkonditionen weiter.`
               : "Anschlussfinanzierung ist aus: Restschulden bleiben am Ende der Zinsbindung faellig."}
           </p>
+          <div className="rounded-md border border-neutral-300 bg-white p-3 lg:w-fit lg:min-w-80">
+            <div className="max-w-44">
+              <PercentInput
+                value={opportunityRate}
+                onChange={setOpportunityRate}
+                label="Opportunitaetszins p.a."
+                min={0}
+                className="border-neutral-300 bg-white text-black"
+              />
+            </div>
+            <p className="mt-1 text-xs text-neutral-600">
+              Konservative Alternativrendite fuer Barwert, Endwert und
+              Liquiditaetsverzinsung.
+            </p>
+          </div>
           <div className="rounded-md border border-neutral-300 p-3 lg:w-fit lg:min-w-80">
             <div className="mb-2 flex items-center justify-between">
               <p className="text-sm font-medium text-black">
@@ -1178,6 +1219,26 @@ export default function FinanzplanPage() {
             </div>
           </div>
 
+          {bestEconomicRow && (
+            <div
+              className="rounded-md border border-emerald-700 bg-emerald-950 p-3 text-sm text-emerald-50"
+              style={{
+                borderLeft: `4px solid ${
+                  chartConfig[bestEconomicRow.id]?.color ?? "#10b981"
+                }`,
+              }}
+            >
+              <p className="font-semibold">
+                Wirtschaftlich bestes Szenario: {bestEconomicRow.name}
+              </p>
+              <p className="mt-1 text-emerald-100">
+                Niedrigster Barwert der Gesamtkosten:{" "}
+                {formatNumber(bestEconomicRow.evaluation.presentValueCost)} €
+                bei {formatNumber(opportunityRate)} % Opportunitaetszins p.a.
+              </p>
+            </div>
+          )}
+
           <ScenarioMonthlyRateChart
             chartConfig={chartConfig}
             chartData={chartData}
@@ -1200,6 +1261,51 @@ export default function FinanzplanPage() {
                   </p>
                 </div>
                 <div className="divide-y divide-neutral-700">
+                  <MobileMetric
+                    label="Barwert Kosten"
+                    value={`${formatNumber(row.evaluation.presentValueCost)} €`}
+                    valueClassName={
+                      row.id === bestEconomicRow?.id
+                        ? "text-emerald-300"
+                        : "text-neutral-100"
+                    }
+                    detail={
+                      comparisonBaseRow && row.id !== comparisonBaseRow.id
+                        ? `Δ ${renderDelta(
+                            row.evaluation.presentValueCost,
+                            comparisonBaseRow.evaluation.presentValueCost,
+                          )}`
+                        : undefined
+                    }
+                  />
+                  <MobileMetric
+                    label="Endwert Kosten"
+                    value={`${formatNumber(row.evaluation.futureValueCost)} €`}
+                    detail={
+                      comparisonBaseRow && row.id !== comparisonBaseRow.id
+                        ? `Δ ${renderDelta(
+                            row.evaluation.futureValueCost,
+                            comparisonBaseRow.evaluation.futureValueCost,
+                          )}`
+                        : undefined
+                    }
+                  />
+                  <MobileMetric
+                    label="Impl. Effzinskosten"
+                    value={`${formatNumber(
+                      row.evaluation.implicitEffectiveRateCosts,
+                    )} €`}
+                    valueClassName="text-amber-300"
+                    detail={
+                      comparisonBaseRow && row.id !== comparisonBaseRow.id
+                        ? `Δ ${renderDelta(
+                            row.evaluation.implicitEffectiveRateCosts,
+                            comparisonBaseRow.evaluation
+                              .implicitEffectiveRateCosts,
+                          )}`
+                        : undefined
+                    }
+                  />
                   <MobileMetric
                     label="Bisher bezahlt"
                     value={`${formatNumber(row.bisherBezahltGesamt)} €`}
@@ -1269,10 +1375,13 @@ export default function FinanzplanPage() {
             ))}
           </div>
           <div className="hidden overflow-x-auto rounded-md border border-neutral-700 bg-neutral-800 sm:block">
-            <table className="w-full min-w-[820px] text-sm">
+            <table className="w-full min-w-[1120px] text-sm">
               <thead>
                 <tr className="border-b border-neutral-700 text-left text-neutral-300">
                   <th className="px-3 py-2 font-medium">Szenario</th>
+                  <th className="px-3 py-2 font-medium">Barwert Kosten</th>
+                  <th className="px-3 py-2 font-medium">Endwert Kosten</th>
+                  <th className="px-3 py-2 font-medium">Impl. Effzinskosten</th>
                   <th className="px-3 py-2 font-medium">Stichtag</th>
                   <th className="px-3 py-2 font-medium">Bisher bezahlt</th>
                   <th className="px-3 py-2 font-medium">Bisher getilgt</th>
@@ -1302,7 +1411,58 @@ export default function FinanzplanPage() {
                         >
                           {row.name}
                         </span>
+                        {row.id === bestEconomicRow?.id && (
+                          <span className="rounded-sm bg-emerald-900 px-1.5 py-0.5 text-xs text-emerald-100">
+                            Beste Wahl
+                          </span>
+                        )}
                       </span>
+                    </td>
+                    <td className="px-3 py-2 text-neutral-100">
+                      <div>
+                        {formatNumber(row.evaluation.presentValueCost)} €
+                      </div>
+                      {comparisonBaseRow && row.id !== comparisonBaseRow.id && (
+                        <div className="text-xs text-neutral-400">
+                          Δ{" "}
+                          {renderDelta(
+                            row.evaluation.presentValueCost,
+                            comparisonBaseRow.evaluation.presentValueCost,
+                          )}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 text-neutral-100">
+                      <div>
+                        {formatNumber(row.evaluation.futureValueCost)} €
+                      </div>
+                      {comparisonBaseRow && row.id !== comparisonBaseRow.id && (
+                        <div className="text-xs text-neutral-400">
+                          Δ{" "}
+                          {renderDelta(
+                            row.evaluation.futureValueCost,
+                            comparisonBaseRow.evaluation.futureValueCost,
+                          )}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 text-amber-300">
+                      <div>
+                        {formatNumber(
+                          row.evaluation.implicitEffectiveRateCosts,
+                        )}{" "}
+                        €
+                      </div>
+                      {comparisonBaseRow && row.id !== comparisonBaseRow.id && (
+                        <div className="text-xs text-neutral-400">
+                          Δ{" "}
+                          {renderDelta(
+                            row.evaluation.implicitEffectiveRateCosts,
+                            comparisonBaseRow.evaluation
+                              .implicitEffectiveRateCosts,
+                          )}
+                        </div>
+                      )}
                     </td>
                     <td className="px-3 py-2 text-neutral-100">
                       {row.stichtag} Jahre

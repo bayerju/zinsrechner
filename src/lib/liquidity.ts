@@ -1,11 +1,8 @@
 import {
-  calculateMonthlyRateFromSollzins,
-  calculateNettodarlehensbetragBank,
-  calculateRestschuldFromSollzins,
-  calculateFullPaymentTimeFromSollzins,
-  calculateTilgungszuschussBetrag,
-} from "~/lib/calculations";
-import { getCreditEndYear, isBridgeCredit } from "~/lib/credit";
+  calculateScenarioImplicitCosts,
+  getCreditCashflowSegments,
+  monthlyRateFromAnnualRate,
+} from "~/lib/scenario_evaluation";
 import { type ScenarioValues } from "~/state/scenario_values_atom";
 import {
   type LiquidityItem,
@@ -17,6 +14,8 @@ export type LiquidityMonthResult = {
   income: number;
   expense: number;
   creditRate: number;
+  implicitCreditCost: number;
+  capitalInterest: number;
   net: number;
   capitalEnd: number;
 };
@@ -71,139 +70,6 @@ export function occursInMonth(item: LiquidityItem, month: string) {
   return diff === 0;
 }
 
-function getRefinancingSegment({
-  principal,
-  startYear,
-  sollzins,
-  tilgungssatz,
-  horizonYears,
-}: {
-  principal: number;
-  startYear: number;
-  sollzins: number;
-  tilgungssatz: number;
-  horizonYears: number;
-}) {
-  if (principal <= 0 || startYear >= horizonYears) return null;
-  const monthlyRate = calculateMonthlyRateFromSollzins({
-    darlehensbetrag: principal,
-    sollzins,
-    tilgungssatz,
-  });
-  const payoff = calculateFullPaymentTimeFromSollzins({
-    darlehensbetrag: principal,
-    monthlyRate,
-    sollzins,
-  });
-  if (!payoff.canBePaidOff) {
-    return {
-      monthlyRate,
-      endYear: horizonYears,
-    };
-  }
-  return {
-    monthlyRate,
-    endYear: Math.min(horizonYears, startYear + payoff.yearsAufgerundet),
-  };
-}
-
-function getCreditMonthlySegments(
-  values: ScenarioValues,
-  options: { includeRefinancing: boolean; analysisHorizonYears: number },
-) {
-  const credits = Object.values(values.credits ?? {});
-  const nettodarlehensbetrag = calculateNettodarlehensbetragBank({
-    kaufpreis: values.kaufpreis,
-    modernisierungskosten: values.modernisierungskosten,
-    kaufnebenkosten: values.kaufpreis * 0.1207,
-    eigenkapital: values.eigenkapital,
-    credits,
-  });
-
-  const bankRate = calculateMonthlyRateFromSollzins({
-    darlehensbetrag: nettodarlehensbetrag,
-    sollzins: values.sollzins,
-    tilgungssatz: values.tilgungssatz,
-  });
-
-  const result: Array<{ startYear: number; endYear: number; rate: number }> = [
-    { startYear: 0, endYear: values.zinsbindung, rate: bankRate },
-  ];
-
-  if (options.includeRefinancing) {
-    const bankRestschuldAtBinding = calculateRestschuldFromSollzins({
-      nettodarlehensbetrag: nettodarlehensbetrag,
-      monthlyRate: bankRate,
-      sollzins: values.sollzins,
-      years: values.zinsbindung,
-    });
-    const bankRefinancing = getRefinancingSegment({
-      principal: bankRestschuldAtBinding,
-      startYear: values.zinsbindung,
-      sollzins: values.sollzins,
-      tilgungssatz: values.tilgungssatz,
-      horizonYears: options.analysisHorizonYears,
-    });
-    if (bankRefinancing) {
-      result.push({
-        startYear: values.zinsbindung,
-        endYear: bankRefinancing.endYear,
-        rate: bankRefinancing.monthlyRate,
-      });
-    }
-  }
-
-  credits.forEach((credit) => {
-    credit.rates.forEach((rate) => {
-      result.push({
-        startYear: rate.startYear,
-        endYear: Math.min(rate.endYear, getCreditEndYear(credit)),
-        rate: rate.rate,
-      });
-    });
-
-    if (options.includeRefinancing && !isBridgeCredit(credit)) {
-      const tilgungszuschuss = calculateTilgungszuschussBetrag({
-        darlehensbetrag: credit.summeDarlehen,
-        foerderfaehigerAnteilProzent: credit.foerderfaehigerAnteilProzent ?? 0,
-        tilgungszuschussProzent: credit.tilgungszuschussProzent ?? 0,
-      });
-      const principal = Math.max(0, credit.summeDarlehen - tilgungszuschuss);
-      const creditSollzins = credit.sollzinssatz ?? credit.effektiverZinssatz;
-      const monthlyRate = calculateMonthlyRateFromSollzins({
-        darlehensbetrag: principal,
-        sollzins: creditSollzins,
-        tilgungssatz: credit.tilgungssatz,
-        rückzahlungsfreieZeit: credit.rückzahlungsfreieZeit,
-      });
-      const restschuldAtBinding = calculateRestschuldFromSollzins({
-        nettodarlehensbetrag: principal,
-        monthlyRate,
-        sollzins: creditSollzins,
-        years: credit.zinsbindung,
-        tilgungsfreieZeit: credit.tilgungsFreieZeit,
-        rückzahlungsfreieZeit: credit.rückzahlungsfreieZeit,
-      });
-      const refinancing = getRefinancingSegment({
-        principal: restschuldAtBinding,
-        startYear: credit.zinsbindung,
-        sollzins: values.sollzins,
-        tilgungssatz: values.tilgungssatz,
-        horizonYears: options.analysisHorizonYears,
-      });
-      if (refinancing) {
-        result.push({
-          startYear: credit.zinsbindung,
-          endYear: refinancing.endYear,
-          rate: refinancing.monthlyRate,
-        });
-      }
-    }
-  });
-
-  return result;
-}
-
 function creditRateByMonth(
   monthIndex: number,
   segments: Array<{ startYear: number; endYear: number; rate: number }>,
@@ -222,10 +88,12 @@ export function simulateLiquidity(
   options?: {
     includeRefinancing?: boolean;
     analysisHorizonYears?: number;
+    opportunityRate?: number;
   },
 ) {
   const includeRefinancing = options?.includeRefinancing ?? false;
   const analysisHorizonYears = options?.analysisHorizonYears ?? 30;
+  const opportunityRate = options?.opportunityRate ?? 0;
   const months = buildMonthList(
     values.startMonth,
     includeRefinancing
@@ -233,11 +101,18 @@ export function simulateLiquidity(
       : values.horizonMonths,
   );
   const creditSegments = creditValues
-    ? getCreditMonthlySegments(creditValues, {
+    ? getCreditCashflowSegments(creditValues, {
         includeRefinancing,
-        analysisHorizonYears,
+        analysisHorizonYears: includeRefinancing
+          ? analysisHorizonYears
+          : months.length / 12,
+        opportunityRate,
       })
     : [];
+  const implicitCreditCosts = creditValues
+    ? calculateScenarioImplicitCosts(creditValues)
+    : 0;
+  const monthlyOpportunityRate = monthlyRateFromAnnualRate(opportunityRate);
   let capital = values.startCapital;
 
   const rows: LiquidityMonthResult[] = months.map((month, index) => {
@@ -256,7 +131,10 @@ export function simulateLiquidity(
     );
 
     const creditRate = creditRateByMonth(index, creditSegments);
-    const net = income - expense - creditRate;
+    const implicitCreditCost = index === 0 ? implicitCreditCosts : 0;
+    const capitalInterest = capital > 0 ? capital * monthlyOpportunityRate : 0;
+    const net =
+      income - expense - creditRate - implicitCreditCost + capitalInterest;
     capital += net;
 
     return {
@@ -264,6 +142,8 @@ export function simulateLiquidity(
       income,
       expense,
       creditRate,
+      implicitCreditCost,
+      capitalInterest,
       net,
       capitalEnd: capital,
     };

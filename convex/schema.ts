@@ -9,6 +9,7 @@ export default defineSchema({
     activeLiquidityScenarioId: v.string(),
     includeRefinancing: v.boolean(),
     analysisHorizonYears: v.number(),
+    opportunityRate: v.optional(v.number()),
     updatedAt: v.number(),
   }).index("by_userIdentifier", ["userIdentifier"]),
   financingScenarios: defineTable({

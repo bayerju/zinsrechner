@@ -12,7 +12,10 @@ const settingsValidator = v.object({
   activeLiquidityScenarioId: v.string(),
   includeRefinancing: v.boolean(),
   analysisHorizonYears: v.number(),
+  opportunityRate: v.optional(v.number()),
 });
+
+const defaultOpportunityRate = 2.5;
 
 const financingScenarioValidator = v.object({
   scenarioId: v.string(),
@@ -228,6 +231,7 @@ export const getForCurrentUser = query({
         liquidityScenarioValues,
         includeRefinancing: settings.includeRefinancing,
         analysisHorizonYears: settings.analysisHorizonYears,
+        opportunityRate: settings.opportunityRate ?? defaultOpportunityRate,
       },
       updatedAt,
       needsMigration: false,
@@ -795,6 +799,7 @@ export const replaceForCurrentUser = mutation({
         "activeLiquidityScenarioId",
         "includeRefinancing",
         "analysisHorizonYears",
+        "opportunityRate",
       ])
     ) {
       await ctx.db.replace("userSettings", existingSettings._id, nextSettings);

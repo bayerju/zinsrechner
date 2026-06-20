@@ -17,7 +17,9 @@ import { defaultScenarioColor } from "~/lib/scenario_colors";
 import {
   analysisHorizonYearsAtom,
   defaultAnalysisHorizonYears,
+  defaultOpportunityRate,
   includeRefinancingAtom,
+  opportunityRateAtom,
 } from "./analysis_settings_atom";
 import {
   activeLiquidityScenarioIdAtom,
@@ -53,6 +55,7 @@ const APP_STORAGE_KEYS = [
   "liquidityScenarioValues",
   "includeRefinancing",
   "analysisHorizonYears",
+  "opportunityRate",
 ] as const;
 
 type SyncedState = {
@@ -66,6 +69,7 @@ type SyncedState = {
   liquidityScenarioValues: Record<string, LiquidityScenarioValues>;
   includeRefinancing: boolean;
   analysisHorizonYears: number;
+  opportunityRate: number;
 };
 
 type RemoteState = {
@@ -93,7 +97,9 @@ function isSyncedState(value: unknown): value is SyncedState {
     typeof value.activeLiquidityScenarioId === "string" &&
     isRecord(value.liquidityScenarioValues) &&
     typeof value.includeRefinancing === "boolean" &&
-    typeof value.analysisHorizonYears === "number"
+    typeof value.analysisHorizonYears === "number" &&
+    (value.opportunityRate === undefined ||
+      typeof value.opportunityRate === "number")
   );
 }
 
@@ -167,6 +173,7 @@ function defaultSyncedState(): SyncedState {
     },
     includeRefinancing: false,
     analysisHorizonYears: defaultAnalysisHorizonYears,
+    opportunityRate: defaultOpportunityRate,
   };
 }
 
@@ -242,6 +249,7 @@ function toConvexSnapshot(state: SyncedState) {
       activeLiquidityScenarioId: state.activeLiquidityScenarioId,
       includeRefinancing: state.includeRefinancing,
       analysisHorizonYears: state.analysisHorizonYears,
+      opportunityRate: state.opportunityRate,
     },
     financingScenarios,
     credits,
@@ -367,6 +375,7 @@ export function ConvexStateSync() {
   const [analysisHorizonYears, setAnalysisHorizonYears] = useAtom(
     analysisHorizonYearsAtom,
   );
+  const [opportunityRate, setOpportunityRate] = useAtom(opportunityRateAtom);
   const [storageHydrated, setStorageHydrated] = useState(false);
   const [readyToSave, setReadyToSave] = useState(false);
   const [pendingRemoteTimestamp, setPendingRemoteTimestamp] = useState<
@@ -406,6 +415,7 @@ export function ConvexStateSync() {
       liquidityScenarioValues,
       includeRefinancing,
       analysisHorizonYears,
+      opportunityRate,
     }),
     [
       activeLiquidityScenarioId,
@@ -415,6 +425,7 @@ export function ConvexStateSync() {
       includeRefinancing,
       liquidityScenarioValues,
       liquidityScenarios,
+      opportunityRate,
       scenarioValues,
       scenarios,
     ],
@@ -432,6 +443,7 @@ export function ConvexStateSync() {
       setLiquidityScenarioValues(state.liquidityScenarioValues);
       setIncludeRefinancing(state.includeRefinancing);
       setAnalysisHorizonYears(state.analysisHorizonYears);
+      setOpportunityRate(state.opportunityRate ?? defaultOpportunityRate);
     },
     [
       setActiveLiquidityScenarioId,
@@ -441,6 +453,7 @@ export function ConvexStateSync() {
       setIncludeRefinancing,
       setLiquidityScenarioValues,
       setLiquidityScenarios,
+      setOpportunityRate,
       setScenarioValues,
       setScenarios,
     ],
