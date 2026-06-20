@@ -1,7 +1,6 @@
 "use client";
 
-import { useAtom, useAtomValue } from "jotai";
-import { type ReactNode, useEffect, useMemo } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo } from "react";
 import { TopNav } from "~/components/top_nav";
 import { InfoLabel } from "~/components/info_hover";
 import { Card, CardContent } from "~/components/ui/card";
@@ -26,25 +25,14 @@ import {
   isBridgeCredit,
 } from "~/lib/credit";
 import { formatNumber } from "~/lib/number_fromat";
-import {
-  activeScenarioIdAtom,
-  comparedScenarioIdsAtom,
-  defaultScenarioId,
-  scenariosAtom,
-} from "~/state/scenarios_atom";
+import { defaultScenarioId } from "~/state/scenarios_atom";
 import {
   defaultScenarioValues,
-  scenarioValuesAtom,
   type ScenarioValues,
 } from "~/state/scenario_values_atom";
 import { getCreditSeriesColorByIndex } from "~/lib/scenario_colors";
-import {
-  analysisHorizonYearsAtom,
-  detailScenarioIdAtom,
-  includeRefinancingAtom,
-  opportunityRateAtom,
-} from "~/state/analysis_settings_atom";
 import { evaluateScenario } from "~/lib/scenario_evaluation";
+import { useAppState } from "~/state/app_state";
 
 const OPPORTUNITY_RATE_INFO =
   "Der Opportunitaetszins ist hier ein nominaler Diskontzins p.a. Er beschreibt, welche konservative Alternativrendite das eingesetzte Geld erzielen koennte. Inflation ist darin nicht separat ausgewiesen, sondern nur enthalten, wenn sie in diesem nominalen Zinssatz steckt.";
@@ -954,12 +942,18 @@ function calculateDetailMonthlyRateStack(
 }
 
 export default function FinanzplanPage() {
-  const scenarios = useAtomValue(scenariosAtom);
-  const scenarioValues = useAtomValue(scenarioValuesAtom);
-  const includeRefinancing = useAtomValue(includeRefinancingAtom);
-  const analysisHorizonYears = useAtomValue(analysisHorizonYearsAtom);
-  const [opportunityRate, setOpportunityRate] = useAtom(opportunityRateAtom);
-  const [activeScenarioId] = useAtom(activeScenarioIdAtom);
+  const {
+    scenarios,
+    scenarioValues,
+    includeRefinancing,
+    analysisHorizonYears,
+    opportunityRate,
+    activeScenarioId,
+    scenarioList,
+    comparedScenarioIds: selectedScenarioIds,
+    detailScenarioId,
+    setSettings,
+  } = useAppState();
   const calculationOptions = useMemo(
     () => ({
       includeRefinancing,
@@ -967,38 +961,53 @@ export default function FinanzplanPage() {
     }),
     [analysisHorizonYears, includeRefinancing],
   );
-  const scenarioList = useMemo(
-    () => Object.values(scenarios).sort((a, b) => a.createdAt - b.createdAt),
-    [scenarios],
+
+  const persistSettings = useCallback(
+    (settings: {
+      comparedScenarioIds?: string[];
+      detailScenarioId?: string;
+      opportunityRate?: number;
+    }) => {
+      void setSettings(settings).catch((error: unknown) => {
+        console.error("Failed to persist finance plan settings", error);
+      });
+    },
+    [setSettings],
   );
-  const [selectedScenarioIds, setSelectedScenarioIds] = useAtom(
-    comparedScenarioIdsAtom,
-  );
-  const [detailScenarioId, setDetailScenarioId] = useAtom(detailScenarioIdAtom);
 
   useEffect(() => {
     if (scenarioList.length === 0) return;
     const validIds = new Set(scenarioList.map((scenario) => scenario.id));
-    setSelectedScenarioIds((prev) => {
-      const cleaned = prev.filter((id) => validIds.has(id));
-      if (cleaned.length > 0) return cleaned;
-      const defaults = [activeScenarioId, defaultScenarioId].filter(
-        (id, index, arr) => validIds.has(id) && arr.indexOf(id) === index,
-      );
-      return defaults.length > 0 ? defaults : [scenarioList[0]!.id];
+    const cleaned = selectedScenarioIds.filter((id) => validIds.has(id));
+    if (cleaned.length > 0) {
+      if (cleaned.length !== selectedScenarioIds.length) {
+        persistSettings({ comparedScenarioIds: cleaned });
+      }
+      return;
+    }
+    const defaults = [activeScenarioId, defaultScenarioId].filter(
+      (id, index, arr) => validIds.has(id) && arr.indexOf(id) === index,
+    );
+    persistSettings({
+      comparedScenarioIds:
+        defaults.length > 0 ? defaults : [scenarioList[0]!.id],
     });
-  }, [activeScenarioId, scenarioList, setSelectedScenarioIds]);
+  }, [activeScenarioId, persistSettings, scenarioList, selectedScenarioIds]);
 
   useEffect(() => {
     if (scenarioList.length === 0) return;
     const validIds = new Set(scenarioList.map((scenario) => scenario.id));
-    setDetailScenarioId((prev) => {
-      if (prev && validIds.has(prev)) return prev;
-      if (validIds.has(activeScenarioId)) return activeScenarioId;
-      if (validIds.has(defaultScenarioId)) return defaultScenarioId;
-      return scenarioList[0]!.id;
-    });
-  }, [activeScenarioId, scenarioList, setDetailScenarioId]);
+    if (detailScenarioId && validIds.has(detailScenarioId)) return;
+    if (validIds.has(activeScenarioId)) {
+      persistSettings({ detailScenarioId: activeScenarioId });
+      return;
+    }
+    if (validIds.has(defaultScenarioId)) {
+      persistSettings({ detailScenarioId: defaultScenarioId });
+      return;
+    }
+    persistSettings({ detailScenarioId: scenarioList[0]!.id });
+  }, [activeScenarioId, detailScenarioId, persistSettings, scenarioList]);
 
   const detailValues =
     scenarioValues[detailScenarioId] ??
@@ -1111,12 +1120,17 @@ export default function FinanzplanPage() {
   }
 
   function toggleScenarioForComparison(scenarioId: string) {
-    setSelectedScenarioIds((prev) => {
-      if (prev.includes(scenarioId)) {
-        if (prev.length === 1) return prev;
-        return prev.filter((id) => id !== scenarioId);
-      }
-      return [...prev, scenarioId];
+    if (selectedScenarioIds.includes(scenarioId)) {
+      if (selectedScenarioIds.length === 1) return;
+      persistSettings({
+        comparedScenarioIds: selectedScenarioIds.filter(
+          (id) => id !== scenarioId,
+        ),
+      });
+      return;
+    }
+    persistSettings({
+      comparedScenarioIds: [...selectedScenarioIds, scenarioId],
     });
   }
 
@@ -1179,7 +1193,9 @@ export default function FinanzplanPage() {
             <div className="max-w-44">
               <PercentInput
                 value={opportunityRate}
-                onChange={setOpportunityRate}
+                onChange={(value) => {
+                  persistSettings({ opportunityRate: value });
+                }}
                 label={
                   <InfoLabel content={OPPORTUNITY_RATE_INFO}>
                     Opportunitaetszins p.a.
@@ -1582,7 +1598,9 @@ export default function FinanzplanPage() {
                   borderColor: detailAccentColor,
                 }}
                 value={detailScenarioId}
-                onChange={(e) => setDetailScenarioId(e.target.value)}
+                onChange={(e) => {
+                  persistSettings({ detailScenarioId: e.target.value });
+                }}
               >
                 {scenarioList.map((scenario) => (
                   <option key={scenario.id} value={scenario.id}>

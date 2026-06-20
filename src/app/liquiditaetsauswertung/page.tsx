@@ -1,6 +1,5 @@
 "use client";
 
-import { useAtom, useAtomValue } from "jotai";
 import { useEffect, useMemo, useState } from "react";
 import {
   CartesianGrid,
@@ -36,28 +35,23 @@ import {
 } from "~/components/ui/chart";
 import { formatNumber } from "~/lib/number_fromat";
 import { getMonthContributions, simulateLiquidity } from "~/lib/liquidity";
-import {
-  analysisHorizonYearsAtom,
-  includeRefinancingAtom,
-  opportunityRateAtom,
-} from "~/state/analysis_settings_atom";
-import { scenarioValuesAtom } from "~/state/scenario_values_atom";
-import { scenariosAtom } from "~/state/scenarios_atom";
-import {
-  activeLiquidityScenarioValuesAtom,
-  type LiquidityScenarioValues,
-} from "~/state/liquidity_scenarios_atom";
+import { type LiquidityScenarioValues } from "~/state/liquidity_scenarios_atom";
+import { useAppState } from "~/state/app_state";
 
 const OPPORTUNITY_RATE_INFO =
   "Der Opportunitaetszins ist hier ein nominaler Zinssatz p.a. Er beschreibt, welche konservative Alternativrendite freies Kapital erzielen koennte. Inflation ist nicht separat ausgewiesen, sondern nur enthalten, wenn sie in diesem nominalen Zinssatz steckt.";
 
 export default function LiquiditaetsauswertungPage() {
-  const [values, setValues] = useAtom(activeLiquidityScenarioValuesAtom);
-  const creditScenarioValues = useAtomValue(scenarioValuesAtom);
-  const creditScenarios = useAtomValue(scenariosAtom);
-  const includeRefinancing = useAtomValue(includeRefinancingAtom);
-  const analysisHorizonYears = useAtomValue(analysisHorizonYearsAtom);
-  const [opportunityRate, setOpportunityRate] = useAtom(opportunityRateAtom);
+  const {
+    activeLiquidityScenarioValues: values,
+    updateActiveLiquidityScenarioValues,
+    scenarioValues: creditScenarioValues,
+    scenarios: creditScenarios,
+    includeRefinancing,
+    analysisHorizonYears,
+    opportunityRate,
+    setSettings,
+  } = useAppState();
 
   const selectedCreditScenario =
     creditScenarioValues[values.creditScenarioId] ?? null;
@@ -147,7 +141,7 @@ export default function LiquiditaetsauswertungPage() {
       | LiquidityScenarioValues
       | ((prev: LiquidityScenarioValues) => LiquidityScenarioValues),
   ) {
-    setValues(update);
+    void updateActiveLiquidityScenarioValues(update);
   }
 
   return (
@@ -197,7 +191,9 @@ export default function LiquiditaetsauswertungPage() {
             <div className="mt-3 max-w-44">
               <PercentInput
                 value={opportunityRate}
-                onChange={setOpportunityRate}
+                onChange={(value) =>
+                  void setSettings({ opportunityRate: value })
+                }
                 label={
                   <InfoLabel content={OPPORTUNITY_RATE_INFO}>
                     Opportunitaetszins p.a.

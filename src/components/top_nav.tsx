@@ -2,9 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useAtom } from "jotai";
 import { useState, type FormEvent, type ReactNode } from "react";
-import { StorageTransfer } from "~/components/storage_transfer";
 import { NumberInput } from "~/components/ui/number_input";
 import { Button } from "~/components/ui/button";
 import {
@@ -26,10 +24,7 @@ import {
   WifiOff,
 } from "lucide-react";
 import { useConvexAuth } from "convex/react";
-import {
-  analysisHorizonYearsAtom,
-  includeRefinancingAtom,
-} from "~/state/analysis_settings_atom";
+import { useAppState } from "~/state/app_state";
 import { authClient } from "~/lib/auth-client";
 import {
   Popover,
@@ -41,17 +36,13 @@ export function TopNav() {
   const pathname = usePathname();
   const isLiquiditySection =
     pathname === "/liquiditaetsplan" || pathname === "/liquiditaetsauswertung";
-  const [includeRefinancing, setIncludeRefinancing] = useAtom(
-    includeRefinancingAtom,
-  );
-  const [analysisHorizonYears, setAnalysisHorizonYears] = useAtom(
-    analysisHorizonYearsAtom,
-  );
+  const { includeRefinancing, analysisHorizonYears, setSettings } =
+    useAppState();
 
   function updateHorizon(value: number) {
     if (!Number.isFinite(value)) return;
     const next = Math.min(50, Math.max(5, Math.round(value)));
-    setAnalysisHorizonYears(next);
+    void setSettings({ analysisHorizonYears: next });
   }
 
   return (
@@ -70,7 +61,9 @@ export function TopNav() {
         <CalculationStatus
           includeRefinancing={includeRefinancing}
           analysisHorizonYears={analysisHorizonYears}
-          setIncludeRefinancing={setIncludeRefinancing}
+          setIncludeRefinancing={(value) =>
+            void setSettings({ includeRefinancing: value })
+          }
           updateHorizon={updateHorizon}
         />
       </div>
@@ -121,7 +114,9 @@ export function TopNav() {
             <CalculationStatus
               includeRefinancing={includeRefinancing}
               analysisHorizonYears={analysisHorizonYears}
-              setIncludeRefinancing={setIncludeRefinancing}
+              setIncludeRefinancing={(value) =>
+                void setSettings({ includeRefinancing: value })
+              }
               updateHorizon={updateHorizon}
               desktop
             />
@@ -385,7 +380,9 @@ function AuthDialog({ children }: { children: ReactNode }) {
               <Input
                 type="password"
                 value={passwordConfirmation}
-                onChange={(event) => setPasswordConfirmation(event.target.value)}
+                onChange={(event) =>
+                  setPasswordConfirmation(event.target.value)
+                }
                 autoComplete="new-password"
                 minLength={8}
                 required
@@ -629,17 +626,6 @@ function CalculationStatus({
                   />
                 </div>
               )}
-            </section>
-
-            <section className="space-y-3 rounded-lg border border-neutral-200 p-4">
-              <div>
-                <h3 className="font-medium">Datensicherung</h3>
-                <p className="text-xs text-neutral-500">
-                  Szenarien und Einstellungen als JSON-Datei sichern oder
-                  wiederherstellen.
-                </p>
-              </div>
-              <StorageTransfer className="w-full" />
             </section>
           </div>
         </DialogContent>
