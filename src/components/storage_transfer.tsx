@@ -9,11 +9,13 @@ const APP_STORAGE_KEYS = [
   "activeScenarioId",
   "scenarioValues",
   "comparedScenarioIds",
+  "detailScenarioId",
   "liquidityScenarios",
   "activeLiquidityScenarioId",
   "liquidityScenarioValues",
   "includeRefinancing",
   "analysisHorizonYears",
+  "opportunityRate",
 ] as const;
 
 type AppStorageKey = (typeof APP_STORAGE_KEYS)[number];

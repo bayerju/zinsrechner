@@ -18,6 +18,7 @@ import {
   analysisHorizonYearsAtom,
   defaultAnalysisHorizonYears,
   defaultOpportunityRate,
+  detailScenarioIdAtom,
   includeRefinancingAtom,
   opportunityRateAtom,
 } from "./analysis_settings_atom";
@@ -50,6 +51,7 @@ const APP_STORAGE_KEYS = [
   "activeScenarioId",
   "scenarioValues",
   "comparedScenarioIds",
+  "detailScenarioId",
   "liquidityScenarios",
   "activeLiquidityScenarioId",
   "liquidityScenarioValues",
@@ -64,6 +66,7 @@ type SyncedState = {
   activeScenarioId: string;
   scenarioValues: Record<string, ScenarioValues>;
   comparedScenarioIds: string[];
+  detailScenarioId: string;
   liquidityScenarios: Record<string, LiquidityScenario>;
   activeLiquidityScenarioId: string;
   liquidityScenarioValues: Record<string, LiquidityScenarioValues>;
@@ -81,11 +84,6 @@ type RemoteState = {
 
 type LocalImports = Awaited<ReturnType<typeof toLocalImports>>;
 
-type PendingSave = {
-  payload: string;
-  updatedAt: number | null;
-};
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
@@ -98,6 +96,8 @@ function isSyncedState(value: unknown): value is SyncedState {
     typeof value.activeScenarioId === "string" &&
     isRecord(value.scenarioValues) &&
     Array.isArray(value.comparedScenarioIds) &&
+    (value.detailScenarioId === undefined ||
+      typeof value.detailScenarioId === "string") &&
     isRecord(value.liquidityScenarios) &&
     typeof value.activeLiquidityScenarioId === "string" &&
     isRecord(value.liquidityScenarioValues) &&
@@ -162,6 +162,7 @@ function defaultSyncedState(): SyncedState {
       [defaultScenarioId]: structuredClone(defaultScenarioValues),
     },
     comparedScenarioIds: [],
+    detailScenarioId: "",
     liquidityScenarios: {
       [defaultLiquidityScenarioId]: {
         id: defaultLiquidityScenarioId,
@@ -251,6 +252,7 @@ function toConvexSnapshot(state: SyncedState) {
     settings: {
       activeScenarioId: state.activeScenarioId,
       comparedScenarioIds: state.comparedScenarioIds,
+      detailScenarioId: state.detailScenarioId,
       activeLiquidityScenarioId: state.activeLiquidityScenarioId,
       includeRefinancing: state.includeRefinancing,
       analysisHorizonYears: state.analysisHorizonYears,
@@ -358,13 +360,23 @@ export function ConvexStateSync() {
     isAuthenticated ? {} : "skip",
   ) as RemoteState | null | undefined;
   const importLocalScenarios = useMutation(api.appState.importLocalScenarios);
+  const deleteFinancingScenario = useMutation(
+    api.appState.deleteFinancingScenario,
+  );
+  const deleteLiquidityScenario = useMutation(
+    api.appState.deleteLiquidityScenario,
+  );
   const replaceState = useMutation(api.appState.replaceForCurrentUser);
+  const saveFinancingScenario = useMutation(api.appState.saveFinancingScenario);
+  const saveLiquidityScenario = useMutation(api.appState.saveLiquidityScenario);
+  const saveSettings = useMutation(api.appState.saveSettings);
   const [scenarios, setScenarios] = useAtom(scenariosAtom);
   const [activeScenarioId, setActiveScenarioId] = useAtom(activeScenarioIdAtom);
   const [scenarioValues, setScenarioValues] = useAtom(scenarioValuesAtom);
   const [comparedScenarioIds, setComparedScenarioIds] = useAtom(
     comparedScenarioIdsAtom,
   );
+  const [detailScenarioId, setDetailScenarioId] = useAtom(detailScenarioIdAtom);
   const [liquidityScenarios, setLiquidityScenarios] = useAtom(
     liquidityScenariosAtom,
   );
@@ -383,7 +395,6 @@ export function ConvexStateSync() {
   const [opportunityRate, setOpportunityRate] = useAtom(opportunityRateAtom);
   const [storageHydrated, setStorageHydrated] = useState(false);
   const [readyToSave, setReadyToSave] = useState(false);
-  const [pendingSave, setPendingSave] = useState<PendingSave | null>(null);
   const [pendingRemoteTimestamp, setPendingRemoteTimestamp] = useState<
     number | null
   >(null);
@@ -403,6 +414,7 @@ export function ConvexStateSync() {
   );
   const initializationRunning = useRef(false);
   const lastSyncedPayload = useRef<string | null>(null);
+  const lastSyncedState = useRef<SyncedState | null>(null);
   const anonymousSignInRunning = useRef(false);
   const previousSessionUser = useRef<{
     id: string;
@@ -416,6 +428,7 @@ export function ConvexStateSync() {
       activeScenarioId,
       scenarioValues,
       comparedScenarioIds,
+      detailScenarioId,
       liquidityScenarios,
       activeLiquidityScenarioId,
       liquidityScenarioValues,
@@ -428,6 +441,7 @@ export function ConvexStateSync() {
       activeScenarioId,
       analysisHorizonYears,
       comparedScenarioIds,
+      detailScenarioId,
       includeRefinancing,
       liquidityScenarioValues,
       liquidityScenarios,
@@ -444,6 +458,7 @@ export function ConvexStateSync() {
       setActiveScenarioId(state.activeScenarioId);
       setScenarioValues(normalizeScenarioValues(state.scenarioValues));
       setComparedScenarioIds(state.comparedScenarioIds);
+      setDetailScenarioId(state.detailScenarioId ?? "");
       setLiquidityScenarios(state.liquidityScenarios);
       setActiveLiquidityScenarioId(state.activeLiquidityScenarioId);
       setLiquidityScenarioValues(state.liquidityScenarioValues);
@@ -456,6 +471,7 @@ export function ConvexStateSync() {
       setActiveScenarioId,
       setAnalysisHorizonYears,
       setComparedScenarioIds,
+      setDetailScenarioId,
       setIncludeRefinancing,
       setLiquidityScenarioValues,
       setLiquidityScenarios,
@@ -495,20 +511,20 @@ export function ConvexStateSync() {
       clearLocalAppData();
       setImportReview(null);
       setAccountUpgradeState(null);
-      setPendingSave(null);
       setPendingRemoteTimestamp(null);
       setReadyToSave(false);
       initializationRunning.current = false;
       lastSyncedPayload.current = null;
+      lastSyncedState.current = null;
     }
     if (signedInFromGuest) {
       setAccountUpgradeState(localState);
       setImportReview(null);
-      setPendingSave(null);
       setPendingRemoteTimestamp(null);
       setReadyToSave(false);
       initializationRunning.current = false;
       lastSyncedPayload.current = null;
+      lastSyncedState.current = null;
     }
 
     previousSessionUser.current = nextUser;
@@ -533,10 +549,10 @@ export function ConvexStateSync() {
   useEffect(() => {
     if (!isAuthenticated) {
       setReadyToSave(false);
-      setPendingSave(null);
       setPendingRemoteTimestamp(null);
       initializationRunning.current = false;
       lastSyncedPayload.current = null;
+      lastSyncedState.current = null;
       return;
     }
     if (
@@ -557,6 +573,7 @@ export function ConvexStateSync() {
     ) {
       applyState(remoteResult.state);
       lastSyncedPayload.current = JSON.stringify(remoteResult.state);
+      lastSyncedState.current = remoteResult.state;
       clearLocalAppData();
       setPendingRemoteTimestamp(null);
       setReadyToSave(true);
@@ -656,6 +673,7 @@ export function ConvexStateSync() {
       }
       applyState(remoteResult.state);
       lastSyncedPayload.current = JSON.stringify(remoteResult.state);
+      lastSyncedState.current = remoteResult.state;
       clearLocalAppData();
       setReadyToSave(true);
       initializationRunning.current = false;
@@ -679,6 +697,7 @@ export function ConvexStateSync() {
           }
           applyState(remoteResult.state as SyncedState);
           lastSyncedPayload.current = JSON.stringify(remoteResult.state);
+          lastSyncedState.current = remoteResult.state as SyncedState;
           clearLocalAppData();
           setAccountUpgradeState(null);
           setReadyToSave(true);
@@ -729,6 +748,7 @@ export function ConvexStateSync() {
 
       applyState(importReview.remoteState);
       lastSyncedPayload.current = JSON.stringify(importReview.remoteState);
+      lastSyncedState.current = importReview.remoteState;
       clearLocalAppData();
       setAccountUpgradeState(null);
       setImportReview(null);
@@ -800,6 +820,7 @@ export function ConvexStateSync() {
       } else {
         applyState(importReview.remoteState);
         lastSyncedPayload.current = JSON.stringify(importReview.remoteState);
+        lastSyncedState.current = importReview.remoteState;
         setReadyToSave(true);
       }
     } catch (error) {
@@ -814,28 +835,123 @@ export function ConvexStateSync() {
     if (localPayload === lastSyncedPayload.current) return;
 
     const timeout = window.setTimeout(() => {
+      const previousState =
+        lastSyncedState.current ??
+        (lastSyncedPayload.current
+          ? (JSON.parse(lastSyncedPayload.current) as SyncedState)
+          : null);
+      if (previousState === null) return;
+
       const snapshot = localState;
       const payload = JSON.stringify(snapshot);
+      const previousSnapshot = toConvexSnapshot(previousState);
+      const nextSnapshot = toConvexSnapshot(snapshot);
       lastSyncedPayload.current = payload;
-      setPendingSave({ payload, updatedAt: null });
-      void replaceState(toConvexSnapshot(snapshot))
-        .then((updatedAt) => {
-          clearLocalAppData();
-          setPendingSave((current) =>
-            current?.payload === payload ? { payload, updatedAt } : current,
-          );
-        })
+      lastSyncedState.current = snapshot;
+
+      void (async () => {
+        const nextFinancingIds = new Set(
+          nextSnapshot.financingScenarios.map((row) => row.scenarioId),
+        );
+        const nextLiquidityIds = new Set(
+          nextSnapshot.liquidityScenarios.map((row) => row.scenarioId),
+        );
+
+        await Promise.all([
+          ...previousSnapshot.financingScenarios
+            .filter((row) => !nextFinancingIds.has(row.scenarioId))
+            .map((row) =>
+              deleteFinancingScenario({ scenarioId: row.scenarioId }),
+            ),
+          ...previousSnapshot.liquidityScenarios
+            .filter((row) => !nextLiquidityIds.has(row.scenarioId))
+            .map((row) =>
+              deleteLiquidityScenario({ scenarioId: row.scenarioId }),
+            ),
+          ...nextSnapshot.financingScenarios
+            .filter((scenario) => {
+              const previousScenario = previousSnapshot.financingScenarios.find(
+                (row) => row.scenarioId === scenario.scenarioId,
+              );
+              const previousCredits = previousSnapshot.credits.filter(
+                (row) => row.scenarioId === scenario.scenarioId,
+              );
+              const nextCredits = nextSnapshot.credits.filter(
+                (row) => row.scenarioId === scenario.scenarioId,
+              );
+              return (
+                JSON.stringify(previousScenario) !== JSON.stringify(scenario) ||
+                JSON.stringify(previousCredits) !== JSON.stringify(nextCredits)
+              );
+            })
+            .map((scenario) =>
+              saveFinancingScenario({
+                scenario,
+                credits: nextSnapshot.credits
+                  .filter((row) => row.scenarioId === scenario.scenarioId)
+                  .map((row) => ({
+                    creditId: row.creditId,
+                    data: row.data,
+                  })),
+              }),
+            ),
+          ...nextSnapshot.liquidityScenarios
+            .filter((scenario) => {
+              const previousScenario = previousSnapshot.liquidityScenarios.find(
+                (row) => row.scenarioId === scenario.scenarioId,
+              );
+              const previousItems = previousSnapshot.liquidityItems.filter(
+                (row) => row.scenarioId === scenario.scenarioId,
+              );
+              const nextItems = nextSnapshot.liquidityItems.filter(
+                (row) => row.scenarioId === scenario.scenarioId,
+              );
+              return (
+                JSON.stringify(previousScenario) !== JSON.stringify(scenario) ||
+                JSON.stringify(previousItems) !== JSON.stringify(nextItems)
+              );
+            })
+            .map((scenario) =>
+              saveLiquidityScenario({
+                scenario,
+                items: nextSnapshot.liquidityItems
+                  .filter((row) => row.scenarioId === scenario.scenarioId)
+                  .map((row) => ({
+                    itemId: row.itemId,
+                    position: row.position,
+                    data: row.data,
+                  })),
+              }),
+            ),
+        ]);
+
+        if (
+          JSON.stringify(previousSnapshot.settings) !==
+          JSON.stringify(nextSnapshot.settings)
+        ) {
+          await saveSettings({ settings: nextSnapshot.settings });
+        }
+      })()
+        .then(() => clearLocalAppData())
         .catch((error: unknown) => {
           lastSyncedPayload.current = null;
-          setPendingSave((current) =>
-            current?.payload === payload ? null : current,
-          );
+          lastSyncedState.current = previousState;
           console.error("Failed to sync state to Convex", error);
         });
     }, 500);
 
     return () => window.clearTimeout(timeout);
-  }, [isAuthenticated, localPayload, localState, readyToSave, replaceState]);
+  }, [
+    deleteFinancingScenario,
+    deleteLiquidityScenario,
+    isAuthenticated,
+    localPayload,
+    localState,
+    readyToSave,
+    saveFinancingScenario,
+    saveLiquidityScenario,
+    saveSettings,
+  ]);
 
   useEffect(() => {
     if (
@@ -848,28 +964,13 @@ export function ConvexStateSync() {
     }
     const remotePayload = JSON.stringify(remoteResult.state);
     clearLocalAppData();
-
-    if (pendingSave !== null) {
-      const saveIsConfirmed =
-        remotePayload === pendingSave.payload ||
-        (pendingSave.updatedAt !== null &&
-          remoteResult.updatedAt >= pendingSave.updatedAt);
-      if (!saveIsConfirmed || localPayload !== pendingSave.payload) return;
-
-      setPendingSave(null);
-      lastSyncedPayload.current = remotePayload;
-      if (remotePayload !== localPayload) {
-        applyState(remoteResult.state);
-      }
-      return;
-    }
-
     if (localPayload !== lastSyncedPayload.current) return;
     if (remotePayload === lastSyncedPayload.current) return;
 
     lastSyncedPayload.current = remotePayload;
+    lastSyncedState.current = remoteResult.state;
     applyState(remoteResult.state);
-  }, [applyState, localPayload, pendingSave, readyToSave, remoteResult]);
+  }, [applyState, localPayload, readyToSave, remoteResult]);
 
   const previewRows = importPreview
     ? [...importPreview.financing, ...importPreview.liquidity]

@@ -1,7 +1,7 @@
 "use client";
 
 import { useAtom, useAtomValue } from "jotai";
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo } from "react";
 import { TopNav } from "~/components/top_nav";
 import { InfoLabel } from "~/components/info_hover";
 import { Card, CardContent } from "~/components/ui/card";
@@ -40,6 +40,7 @@ import {
 import { getCreditSeriesColorByIndex } from "~/lib/scenario_colors";
 import {
   analysisHorizonYearsAtom,
+  detailScenarioIdAtom,
   includeRefinancingAtom,
   opportunityRateAtom,
 } from "~/state/analysis_settings_atom";
@@ -973,7 +974,7 @@ export default function FinanzplanPage() {
   const [selectedScenarioIds, setSelectedScenarioIds] = useAtom(
     comparedScenarioIdsAtom,
   );
-  const [detailScenarioId, setDetailScenarioId] = useState<string>("");
+  const [detailScenarioId, setDetailScenarioId] = useAtom(detailScenarioIdAtom);
 
   useEffect(() => {
     if (scenarioList.length === 0) return;
@@ -997,7 +998,7 @@ export default function FinanzplanPage() {
       if (validIds.has(defaultScenarioId)) return defaultScenarioId;
       return scenarioList[0]!.id;
     });
-  }, [activeScenarioId, scenarioList]);
+  }, [activeScenarioId, scenarioList, setDetailScenarioId]);
 
   const detailValues =
     scenarioValues[detailScenarioId] ??
@@ -1247,8 +1248,7 @@ export default function FinanzplanPage() {
                 <InfoLabel content={PRESENT_VALUE_INFO}>
                   Niedrigster Barwert der Gesamtkosten
                 </InfoLabel>
-                :{" "}
-                {formatNumber(bestEconomicRow.evaluation.presentValueCost)} €
+                : {formatNumber(bestEconomicRow.evaluation.presentValueCost)} €
                 bei {formatNumber(opportunityRate)} %{" "}
                 <InfoLabel content={OPPORTUNITY_RATE_INFO}>
                   Opportunitaetszins p.a.

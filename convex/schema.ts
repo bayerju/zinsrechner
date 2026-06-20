@@ -6,6 +6,7 @@ export default defineSchema({
     userIdentifier: v.string(),
     activeScenarioId: v.string(),
     comparedScenarioIds: v.array(v.string()),
+    detailScenarioId: v.optional(v.string()),
     activeLiquidityScenarioId: v.string(),
     includeRefinancing: v.boolean(),
     analysisHorizonYears: v.number(),

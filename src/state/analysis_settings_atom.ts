@@ -17,3 +17,8 @@ export const opportunityRateAtom = atomWithStorage<number>(
   "opportunityRate",
   defaultOpportunityRate,
 );
+
+export const detailScenarioIdAtom = atomWithStorage<string>(
+  "detailScenarioId",
+  "",
+);
