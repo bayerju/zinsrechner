@@ -1,8 +1,9 @@
 "use client";
 
 import { useAtom, useAtomValue } from "jotai";
-import { useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { TopNav } from "~/components/top_nav";
+import { InfoLabel } from "~/components/info_hover";
 import { Card, CardContent } from "~/components/ui/card";
 import { PercentInput } from "~/components/ui/percent_input";
 import { type ChartConfig } from "~/components/ui/chart";
@@ -44,6 +45,12 @@ import {
 } from "~/state/analysis_settings_atom";
 import { evaluateScenario } from "~/lib/scenario_evaluation";
 
+const OPPORTUNITY_RATE_INFO =
+  "Der Opportunitaetszins ist hier ein nominaler Diskontzins p.a. Er beschreibt, welche konservative Alternativrendite das eingesetzte Geld erzielen koennte. Inflation ist darin nicht separat ausgewiesen, sondern nur enthalten, wenn sie in diesem nominalen Zinssatz steckt.";
+
+const PRESENT_VALUE_INFO =
+  "Der Barwert rechnet zukuenftige Zahlungen mit dem Opportunitaetszins auf heute zurueck. So werden Kreditraten, Restschulden und Eigenkapital als heutige wirtschaftliche Kosten vergleichbar.";
+
 type FinanzplanRow = {
   stichtag: number;
   bisherBezahltGesamt: number;
@@ -81,7 +88,7 @@ function MobileMetric({
   valueClassName = "text-neutral-100",
   detail,
 }: {
-  label: string;
+  label: ReactNode;
   value: string;
   valueClassName?: string;
   detail?: string;
@@ -1158,7 +1165,7 @@ export default function FinanzplanPage() {
   }, [maturityEvents]);
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-xl flex-col items-center bg-neutral-900 px-2 py-2 md:max-w-4xl md:px-4 lg:max-w-6xl">
+    <main className="mx-auto flex min-h-screen w-full max-w-xl flex-col items-center bg-neutral-900 px-2 py-2 md:max-w-4xl md:px-4 lg:max-w-6xl xl:max-w-7xl">
       <Card className="w-full">
         <CardContent className="space-y-3">
           <TopNav />
@@ -1172,14 +1179,19 @@ export default function FinanzplanPage() {
               <PercentInput
                 value={opportunityRate}
                 onChange={setOpportunityRate}
-                label="Opportunitaetszins p.a."
+                label={
+                  <InfoLabel content={OPPORTUNITY_RATE_INFO}>
+                    Opportunitaetszins p.a.
+                  </InfoLabel>
+                }
                 min={0}
                 className="border-neutral-300 bg-white text-black"
               />
             </div>
             <p className="mt-1 text-xs text-neutral-600">
-              Konservative Alternativrendite fuer Barwert, Endwert und
-              Liquiditaetsverzinsung.
+              Konservative Alternativrendite fuer{" "}
+              <InfoLabel content={PRESENT_VALUE_INFO}>Barwert</InfoLabel>,
+              Endwert und Liquiditaetsverzinsung.
             </p>
           </div>
           <div className="rounded-md border border-neutral-300 p-3 lg:w-fit lg:min-w-80">
@@ -1232,9 +1244,15 @@ export default function FinanzplanPage() {
                 Wirtschaftlich bestes Szenario: {bestEconomicRow.name}
               </p>
               <p className="mt-1 text-emerald-100">
-                Niedrigster Barwert der Gesamtkosten:{" "}
+                <InfoLabel content={PRESENT_VALUE_INFO}>
+                  Niedrigster Barwert der Gesamtkosten
+                </InfoLabel>
+                :{" "}
                 {formatNumber(bestEconomicRow.evaluation.presentValueCost)} €
-                bei {formatNumber(opportunityRate)} % Opportunitaetszins p.a.
+                bei {formatNumber(opportunityRate)} %{" "}
+                <InfoLabel content={OPPORTUNITY_RATE_INFO}>
+                  Opportunitaetszins p.a.
+                </InfoLabel>
               </p>
             </div>
           )}
@@ -1262,7 +1280,11 @@ export default function FinanzplanPage() {
                 </div>
                 <div className="divide-y divide-neutral-700">
                   <MobileMetric
-                    label="Barwert Kosten"
+                    label={
+                      <InfoLabel content={PRESENT_VALUE_INFO}>
+                        Barwert Kosten
+                      </InfoLabel>
+                    }
                     value={`${formatNumber(row.evaluation.presentValueCost)} €`}
                     valueClassName={
                       row.id === bestEconomicRow?.id
@@ -1379,7 +1401,11 @@ export default function FinanzplanPage() {
               <thead>
                 <tr className="border-b border-neutral-700 text-left text-neutral-300">
                   <th className="px-3 py-2 font-medium">Szenario</th>
-                  <th className="px-3 py-2 font-medium">Barwert Kosten</th>
+                  <th className="px-3 py-2 font-medium">
+                    <InfoLabel content={PRESENT_VALUE_INFO}>
+                      Barwert Kosten
+                    </InfoLabel>
+                  </th>
                   <th className="px-3 py-2 font-medium">Endwert Kosten</th>
                   <th className="px-3 py-2 font-medium">Impl. Effzinskosten</th>
                   <th className="px-3 py-2 font-medium">Stichtag</th>

@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useMemo } from "react";
+import { type ReactNode, useState, useEffect, useMemo } from "react";
 import { parseGermanNumber } from "~/lib/number_fromat";
 import { cn } from "~/lib/utils";
 import { Input } from "./input";
@@ -33,7 +33,7 @@ export function NumberInput({
 }: Omit<React.ComponentProps<"input">, "onChange"> & {
   value: number;
   onChange: (value: number) => void;
-  label?: string;
+  label?: ReactNode;
   locale?: string;
   unit?: string;
   parseInput?: (raw: string, locale: string) => number;
@@ -68,10 +68,10 @@ export function NumberInput({
   return (
     <div>
       {label && (
-        <label className="mb-1 block text-sm font-medium">
+        <div className="mb-1 text-sm font-medium">
           {label}
           {/* <span title="Info">ⓘ</span> */}
-        </label>
+        </div>
       )}
       <div className="relative">
         <Input

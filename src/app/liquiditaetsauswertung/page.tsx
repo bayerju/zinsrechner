@@ -11,6 +11,7 @@ import {
   YAxis,
 } from "recharts";
 import { TopNav } from "~/components/top_nav";
+import { InfoLabel } from "~/components/info_hover";
 import { LiquidityScenarioBar } from "~/components/liquidity_scenario_bar";
 import { Card, CardContent } from "~/components/ui/card";
 import { PercentInput } from "~/components/ui/percent_input";
@@ -46,6 +47,9 @@ import {
   activeLiquidityScenarioValuesAtom,
   type LiquidityScenarioValues,
 } from "~/state/liquidity_scenarios_atom";
+
+const OPPORTUNITY_RATE_INFO =
+  "Der Opportunitaetszins ist hier ein nominaler Zinssatz p.a. Er beschreibt, welche konservative Alternativrendite freies Kapital erzielen koennte. Inflation ist nicht separat ausgewiesen, sondern nur enthalten, wenn sie in diesem nominalen Zinssatz steckt.";
 
 export default function LiquiditaetsauswertungPage() {
   const [values, setValues] = useAtom(activeLiquidityScenarioValuesAtom);
@@ -194,7 +198,11 @@ export default function LiquiditaetsauswertungPage() {
               <PercentInput
                 value={opportunityRate}
                 onChange={setOpportunityRate}
-                label="Opportunitaetszins p.a."
+                label={
+                  <InfoLabel content={OPPORTUNITY_RATE_INFO}>
+                    Opportunitaetszins p.a.
+                  </InfoLabel>
+                }
                 min={0}
                 className="border-neutral-300 bg-white text-black"
               />
