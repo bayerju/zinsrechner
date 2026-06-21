@@ -11,3 +11,10 @@ Convex agent skills for common tasks can be installed by running
 `npx convex ai-files install`.
 
 <!-- convex-ai-end -->
+
+## Validation
+
+Run these checks after code changes when feasible:
+
+- `pnpm typecheck`
+- `pnpm test:e2e`

@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useId } from "react";
 import { parseGermanNumber } from "~/lib/number_fromat";
 import { cn } from "~/lib/utils";
 import { Input } from "./input";
@@ -38,6 +38,8 @@ export function NumberInput({
   unit?: string;
   parseInput?: (raw: string, locale: string) => number;
 }) {
+  const generatedId = useId();
+  const inputId = props.id ?? generatedId;
   const numberFormatter = useMemo(() => {
     return new Intl.NumberFormat(locale, {
       maximumFractionDigits: 2,
@@ -68,7 +70,7 @@ export function NumberInput({
   return (
     <div>
       {label && (
-        <label className="mb-1 block text-sm font-medium">
+        <label htmlFor={inputId} className="mb-1 block text-sm font-medium">
           {label}
           {/* <span title="Info">ⓘ</span> */}
         </label>
@@ -104,6 +106,7 @@ export function NumberInput({
             );
           }}
           {...props}
+          id={inputId}
         />
         {unit && (
           <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-sm text-neutral-400 dark:text-neutral-200">
