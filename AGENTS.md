@@ -17,4 +17,10 @@ Convex agent skills for common tasks can be installed by running
 Run these checks after code changes when feasible:
 
 - `pnpm typecheck`
+- `pnpm test:unit`
 - `pnpm test:e2e`
+
+Playwright E2E tests include approved screenshot baselines stored in the repo.
+If a UI change is intentional, update those baselines with
+`pnpm test:e2e:update-screenshots` and review the changed PNG files before
+committing.
