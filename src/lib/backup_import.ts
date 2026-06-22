@@ -107,6 +107,15 @@ function asRecord<T>(value: unknown): Record<string, T> {
   return {};
 }
 
+function serializeCreditDataForConvex(credit: Credit): Credit {
+  const { rückzahlungsfreieZeit, ...rest } = credit;
+  if (rückzahlungsfreieZeit === undefined) return rest as Credit;
+  return {
+    ...rest,
+    rueckzahlungsfreieZeit: rückzahlungsfreieZeit,
+  } as Credit;
+}
+
 export type ParsedBackup = {
   financing: FinancingImportCandidate[];
   liquidity: LiquidityImportCandidate[];
@@ -172,7 +181,7 @@ export function parseBackupJson(
 
     const creditEntries = Object.entries(credits).map(([creditId, data]) => ({
       creditId,
-      data,
+      data: serializeCreditDataForConvex(data),
     }));
 
     const scenarioPayload = {

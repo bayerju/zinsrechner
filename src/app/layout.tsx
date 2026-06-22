@@ -20,10 +20,19 @@ const geist = Geist({
   variable: "--font-geist-sans",
 });
 
+async function getInitialAuthToken() {
+  try {
+    return await getToken();
+  } catch (error) {
+    console.warn("Failed to preload auth token", error);
+    return null;
+  }
+}
+
 export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  const token = await getToken();
+  const token = await getInitialAuthToken();
 
   return (
     <html lang="de-DE" className={`${geist.variable}`}>

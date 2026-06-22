@@ -63,4 +63,41 @@ describe("backup import", () => {
     expect(parsed.liquidity).toHaveLength(1);
     expect(parsed.liquidity[0]?.items).toHaveLength(1);
   });
+
+  test("serializes imported credit keys for Convex", () => {
+    const raw = JSON.stringify({
+      storage: {
+        scenarios: JSON.stringify({
+          basis: { id: "basis", name: "Basis", createdAt: 0, color: "#60a5fa" },
+        }),
+        activeScenarioId: JSON.stringify("basis"),
+        scenarioValues: JSON.stringify({
+          basis: {
+            effzins: 3.8,
+            kaufpreis: 235000,
+            modernisierungskosten: 200000,
+            eigenkapital: 0,
+            tilgungssatz: 2,
+            zinsbindung: 10,
+            credits: {
+              bank: {
+                name: "Bank",
+                summeDarlehen: 100000,
+                rückzahlungsfreieZeit: 2,
+              },
+            },
+          },
+        }),
+      },
+    });
+
+    const parsed = parseBackupJson(raw, "target-project");
+    const data = parsed.financing[0]?.credits[0]?.data as Record<
+      string,
+      unknown
+    >;
+
+    expect(data.rückzahlungsfreieZeit).toBeUndefined();
+    expect(data.rueckzahlungsfreieZeit).toBe(2);
+  });
 });
