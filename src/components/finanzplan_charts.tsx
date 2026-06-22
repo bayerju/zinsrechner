@@ -171,6 +171,7 @@ export function ScenarioMonthlyRateChart({
                 stroke={`var(--color-${key})`}
                 fill={`var(--color-${key})`}
                 fillOpacity={0.25}
+                isAnimationActive={false}
               />
             ))}
           </AreaChart>
@@ -223,6 +224,7 @@ export function ScenarioMonthlyRateChart({
                 stroke={`var(--color-${scenarioId})`}
                 strokeWidth={2}
                 dot={false}
+                isAnimationActive={false}
               />
             ))}
           </LineChart>
@@ -389,6 +391,7 @@ export function DetailRestschuldStackChart({
               stroke={`var(--color-${key})`}
               fill={`var(--color-${key})`}
               fillOpacity={0.25}
+              isAnimationActive={false}
             />
           ))}
         </AreaChart>

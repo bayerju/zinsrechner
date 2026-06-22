@@ -1,5 +1,5 @@
 "use client";
-import { type ReactNode, useState, useEffect, useMemo } from "react";
+import { type ReactNode, useState, useEffect, useMemo, useId } from "react";
 import { parseGermanNumber } from "~/lib/number_fromat";
 import { cn } from "~/lib/utils";
 import { Input } from "./input";
@@ -38,6 +38,9 @@ export function NumberInput({
   unit?: string;
   parseInput?: (raw: string, locale: string) => number;
 }) {
+  const generatedId = useId();
+  const inputId = props.id ?? generatedId;
+  const labelId = `${inputId}-label`;
   const numberFormatter = useMemo(() => {
     return new Intl.NumberFormat(locale, {
       maximumFractionDigits: 2,
@@ -68,10 +71,14 @@ export function NumberInput({
   return (
     <div>
       {label && (
-        <div className="mb-1 text-sm font-medium">
+        <label
+          id={labelId}
+          htmlFor={inputId}
+          className="mb-1 block text-sm font-medium"
+        >
           {label}
           {/* <span title="Info">ⓘ</span> */}
-        </div>
+        </label>
       )}
       <div className="relative">
         <Input
@@ -104,6 +111,8 @@ export function NumberInput({
             );
           }}
           {...props}
+          aria-labelledby={label ? labelId : props["aria-labelledby"]}
+          id={inputId}
         />
         {unit && (
           <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-sm text-neutral-400 dark:text-neutral-200">

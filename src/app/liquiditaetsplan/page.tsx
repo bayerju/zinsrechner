@@ -416,11 +416,13 @@ export default function LiquiditaetsplanPage() {
               <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 sm:grid-cols-[1fr_180px_auto]">
                 <Input
                   className="col-span-2 h-10 border-neutral-300 bg-white text-black sm:col-span-1 sm:h-9"
+                  aria-label="Name Einnahme"
                   placeholder="Name"
                   value={newIncomeName}
                   onChange={(e) => setNewIncomeName(e.target.value)}
                 />
                 <NumberInput
+                  aria-label="Betrag Einnahme"
                   unit="€"
                   className="h-10 border-neutral-300 bg-white text-black sm:h-9"
                   value={newIncomeAmount}
@@ -556,11 +558,13 @@ export default function LiquiditaetsplanPage() {
               <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 sm:grid-cols-[1fr_180px_auto]">
                 <Input
                   className="col-span-2 h-10 border-neutral-300 bg-white text-black sm:col-span-1 sm:h-9"
+                  aria-label="Name Ausgabe"
                   placeholder="Name"
                   value={newExpenseName}
                   onChange={(e) => setNewExpenseName(e.target.value)}
                 />
                 <NumberInput
+                  aria-label="Betrag Ausgabe"
                   unit="€"
                   className="h-10 border-neutral-300 bg-white text-black sm:h-9"
                   value={newExpenseAmount}
