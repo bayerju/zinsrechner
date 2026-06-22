@@ -1,21 +1,9 @@
 import { NumberInput } from "./ui/number_input";
-import { useAtom } from "jotai";
-import {
-  kaufpreisAtom,
-  modernisierungskostenAtom,
-  eigenkapitalAtom,
-  kaufnebenkostenAtom,
-} from "~/state/conditions_atoms";
+import { useAppState } from "~/state/app_state";
 
 export default function Conditions() {
-  const [kaufpreis, setKaufpreis] = useAtom(kaufpreisAtom);
-  const [modernisierungskosten, setModernisierungskosten] = useAtom(
-    modernisierungskostenAtom,
-  );
-  const [eigenkapital, setEigenkapital] = useAtom(eigenkapitalAtom);
-  const [kaufnebenkosten, setKaufnebenkosten] = useAtom(kaufnebenkostenAtom);
-  // const [zinsbindung, setzinsbindung] = useAtom(zinsbindungAtom);
-  // const [tilgungssatz, setTilgungssatz] = useAtom(tilgungssatzAtom);
+  const { activeScenarioValues, updateActiveScenarioValues } = useAppState();
+  const kaufnebenkosten = activeScenarioValues.kaufpreis * 0.1207;
 
   return (
     <>
@@ -23,8 +11,10 @@ export default function Conditions() {
       <div>
         <NumberInput
           label="Kaufpreis"
-          value={kaufpreis}
-          onChange={setKaufpreis}
+          value={activeScenarioValues.kaufpreis}
+          onChange={(kaufpreis) =>
+            void updateActiveScenarioValues((prev) => ({ ...prev, kaufpreis }))
+          }
           unit="€"
         />
       </div>
@@ -32,8 +22,13 @@ export default function Conditions() {
       <div>
         <NumberInput
           label="Modernisierungskosten"
-          value={modernisierungskosten}
-          onChange={setModernisierungskosten}
+          value={activeScenarioValues.modernisierungskosten}
+          onChange={(modernisierungskosten) =>
+            void updateActiveScenarioValues((prev) => ({
+              ...prev,
+              modernisierungskosten,
+            }))
+          }
           unit="€"
         />
       </div>
@@ -42,7 +37,7 @@ export default function Conditions() {
         <NumberInput
           label="Kaufnebenkosten (Standard: 12,07% vom Kaufpreis)"
           value={kaufnebenkosten}
-          onChange={setKaufnebenkosten}
+          onChange={() => undefined}
           unit="€"
           disabled={true}
         />
@@ -105,8 +100,13 @@ export default function Conditions() {
       <div>
         <NumberInput
           label="Eigenkapital"
-          value={eigenkapital}
-          onChange={setEigenkapital}
+          value={activeScenarioValues.eigenkapital}
+          onChange={(eigenkapital) =>
+            void updateActiveScenarioValues((prev) => ({
+              ...prev,
+              eigenkapital,
+            }))
+          }
           unit="€"
         />
       </div>

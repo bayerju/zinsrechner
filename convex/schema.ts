@@ -6,9 +6,11 @@ export default defineSchema({
     userIdentifier: v.string(),
     activeScenarioId: v.string(),
     comparedScenarioIds: v.array(v.string()),
+    detailScenarioId: v.optional(v.string()),
     activeLiquidityScenarioId: v.string(),
     includeRefinancing: v.boolean(),
     analysisHorizonYears: v.number(),
+    opportunityRate: v.optional(v.number()),
     updatedAt: v.number(),
   }).index("by_userIdentifier", ["userIdentifier"]),
   financingScenarios: defineTable({

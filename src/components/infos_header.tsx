@@ -1,19 +1,11 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useAtomValue, useAtom } from "jotai";
 import { Card, CardContent } from "~/components/ui/card";
 import { formatNumber } from "~/lib/number_fromat";
-import {
-  nettoDarlehensBetragAtom,
-  effzinsAtom,
-  sollzinsAtom,
-  restschuldBankAtom,
-  zinsbindungAtom,
-  tilgungssatzAtom,
-} from "~/state/conditions_atoms";
 import { PercentInput } from "./ui/percent_input";
 import {
+  calculateNettodarlehensbetragBank,
   calculateMonthlyRateFromSollzins,
   calculateRestschuldFromSollzins,
   calculateTilgungszuschussBetrag,
@@ -22,16 +14,12 @@ import {
   calculateImplicitCostsFromEffectiveRate,
 } from "~/lib/calculations";
 import { isBridgeCredit } from "~/lib/credit";
-import { creditsAtom } from "~/state/credits_atom";
 import { TopNav } from "./top_nav";
 import { ScenarioBar } from "./scenario_bar";
-import {
-  analysisHorizonYearsAtom,
-  includeRefinancingAtom,
-} from "~/state/analysis_settings_atom";
 import { AlertTriangle, Info } from "lucide-react";
 import { Button } from "./ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
+import { useAppState } from "~/state/app_state";
 
 function buildRefinancingEndYear({
   restschuld,
@@ -272,31 +260,54 @@ function DueRestschuldInfo({
 }
 
 export default function InfosHeader() {
-  const [sollzins, setSollzins] = useAtom(sollzinsAtom);
-  const [effzins, setEffzins] = useAtom(effzinsAtom);
-  // const zinsbindung = useAtomValue(zinsbindungAtom);
-  const [zinsbindung, setzinsbindung] = useAtom(zinsbindungAtom);
-  const [tilgungssatz, setTilgungssatz] = useAtom(tilgungssatzAtom);
-  // const fullPayment = useAtomValue(fullPaymentAtom);
-  // const bezahlteZinsen = useAtomValue(bezahlteZinsenAtom);
-  // const bezahlteZinsen = calculateTotalInterest(
-  //   calculateMonthlyRate({
-  //     darlehensbetrag: nettoDarlehensbetrag,
-  //     effzins: effzins,
-  //     tilgungssatz: tilgungssatz,
-  //   }),
-  // );
-  const credits = useAtomValue(creditsAtom);
-  const [includeRefinancing, setIncludeRefinancing] = useAtom(
-    includeRefinancingAtom,
-  );
-  const [analysisHorizonYears, setAnalysisHorizonYears] = useAtom(
-    analysisHorizonYearsAtom,
-  );
-  // const tilgungssatz = useAtomValue(tilgungssatzAtom);
-
-  const nettoDarlehensbetrag = useAtomValue(nettoDarlehensBetragAtom);
-  const restschuldBank = useAtomValue(restschuldBankAtom);
+  const {
+    activeScenarioValues,
+    updateActiveScenarioValues,
+    credits,
+    includeRefinancing,
+    analysisHorizonYears,
+    setSettings,
+  } = useAppState();
+  const {
+    sollzins,
+    effzins,
+    zinsbindung,
+    tilgungssatz,
+    kaufpreis,
+    modernisierungskosten,
+    eigenkapital,
+  } = activeScenarioValues;
+  const setSollzins = (value: number) =>
+    void updateActiveScenarioValues((prev) => ({ ...prev, sollzins: value }));
+  const setEffzins = (value: number) =>
+    void updateActiveScenarioValues((prev) => ({ ...prev, effzins: value }));
+  const setzinsbindung = (value: number) =>
+    void updateActiveScenarioValues((prev) => ({
+      ...prev,
+      zinsbindung: value,
+    }));
+  const setTilgungssatz = (value: number) =>
+    void updateActiveScenarioValues((prev) => ({
+      ...prev,
+      tilgungssatz: value,
+    }));
+  const nettoDarlehensbetrag = calculateNettodarlehensbetragBank({
+    kaufpreis,
+    modernisierungskosten,
+    kaufnebenkosten: kaufpreis * 0.1207,
+    eigenkapital,
+    credits: Object.values(credits ?? {}),
+  });
+  const restschuldBank = calculateRestschuldFromSollzins({
+    nettodarlehensbetrag: nettoDarlehensbetrag,
+    monthlyRate: calculateMonthlyRateFromSollzins({
+      darlehensbetrag: nettoDarlehensbetrag,
+      sollzins,
+      tilgungssatz,
+    }),
+    sollzins,
+    years: zinsbindung,
+  });
   const bankMonthlyRate = calculateMonthlyRateFromSollzins({
     darlehensbetrag: nettoDarlehensbetrag,
     sollzins,
@@ -518,9 +529,13 @@ export default function InfosHeader() {
   function includeAllRestschulden() {
     const fullRefinancingHorizon = calculateFullRefinancingHorizon();
     if (fullRefinancingHorizon > 0) {
-      setAnalysisHorizonYears(Math.ceil(fullRefinancingHorizon));
+      void setSettings({
+        analysisHorizonYears: Math.ceil(fullRefinancingHorizon),
+        includeRefinancing: true,
+      });
+      return;
     }
-    setIncludeRefinancing(true);
+    void setSettings({ includeRefinancing: true });
   }
 
   return (

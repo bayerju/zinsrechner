@@ -1,6 +1,5 @@
 "use client";
 
-import { useAtom, useAtomValue } from "jotai";
 import { useEffect, useMemo, useState } from "react";
 import {
   CartesianGrid,
@@ -11,8 +10,10 @@ import {
   YAxis,
 } from "recharts";
 import { TopNav } from "~/components/top_nav";
+import { InfoLabel } from "~/components/info_hover";
 import { LiquidityScenarioBar } from "~/components/liquidity_scenario_bar";
 import { Card, CardContent } from "~/components/ui/card";
+import { PercentInput } from "~/components/ui/percent_input";
 import {
   Dialog,
   DialogContent,
@@ -34,23 +35,23 @@ import {
 } from "~/components/ui/chart";
 import { formatNumber } from "~/lib/number_fromat";
 import { getMonthContributions, simulateLiquidity } from "~/lib/liquidity";
-import {
-  analysisHorizonYearsAtom,
-  includeRefinancingAtom,
-} from "~/state/analysis_settings_atom";
-import { scenarioValuesAtom } from "~/state/scenario_values_atom";
-import { scenariosAtom } from "~/state/scenarios_atom";
-import {
-  activeLiquidityScenarioValuesAtom,
-  type LiquidityScenarioValues,
-} from "~/state/liquidity_scenarios_atom";
+import { type LiquidityScenarioValues } from "~/state/liquidity_scenarios_atom";
+import { useAppState } from "~/state/app_state";
+
+const OPPORTUNITY_RATE_INFO =
+  "Der Opportunitaetszins ist hier ein nominaler Zinssatz p.a. Er beschreibt, welche konservative Alternativrendite freies Kapital erzielen koennte. Inflation ist nicht separat ausgewiesen, sondern nur enthalten, wenn sie in diesem nominalen Zinssatz steckt.";
 
 export default function LiquiditaetsauswertungPage() {
-  const [values, setValues] = useAtom(activeLiquidityScenarioValuesAtom);
-  const creditScenarioValues = useAtomValue(scenarioValuesAtom);
-  const creditScenarios = useAtomValue(scenariosAtom);
-  const includeRefinancing = useAtomValue(includeRefinancingAtom);
-  const analysisHorizonYears = useAtomValue(analysisHorizonYearsAtom);
+  const {
+    activeLiquidityScenarioValues: values,
+    updateActiveLiquidityScenarioValues,
+    scenarioValues: creditScenarioValues,
+    scenarios: creditScenarios,
+    includeRefinancing,
+    analysisHorizonYears,
+    opportunityRate,
+    setSettings,
+  } = useAppState();
 
   const selectedCreditScenario =
     creditScenarioValues[values.creditScenarioId] ?? null;
@@ -78,8 +79,15 @@ export default function LiquiditaetsauswertungPage() {
       simulateLiquidity(values, selectedCreditScenario, {
         includeRefinancing,
         analysisHorizonYears,
+        opportunityRate,
       }),
-    [analysisHorizonYears, includeRefinancing, values, selectedCreditScenario],
+    [
+      analysisHorizonYears,
+      includeRefinancing,
+      opportunityRate,
+      values,
+      selectedCreditScenario,
+    ],
   );
 
   const endCapital =
@@ -87,6 +95,14 @@ export default function LiquiditaetsauswertungPage() {
   const minCapital = Math.min(
     values.startCapital,
     ...resultRows.map((row) => row.capitalEnd),
+  );
+  const totalImplicitCreditCosts = resultRows.reduce(
+    (sum, row) => sum + row.implicitCreditCost,
+    0,
+  );
+  const totalCapitalInterest = resultRows.reduce(
+    (sum, row) => sum + row.capitalInterest,
+    0,
   );
 
   const detailContributions = useMemo(() => {
@@ -125,7 +141,7 @@ export default function LiquiditaetsauswertungPage() {
       | LiquidityScenarioValues
       | ((prev: LiquidityScenarioValues) => LiquidityScenarioValues),
   ) {
-    setValues(update);
+    void updateActiveLiquidityScenarioValues(update);
   }
 
   return (
@@ -172,6 +188,25 @@ export default function LiquiditaetsauswertungPage() {
                 Das gewaehlte Kreditszenario existiert nicht mehr.
               </p>
             )}
+            <div className="mt-3 max-w-44">
+              <PercentInput
+                value={opportunityRate}
+                onChange={(value) =>
+                  void setSettings({ opportunityRate: value })
+                }
+                label={
+                  <InfoLabel content={OPPORTUNITY_RATE_INFO}>
+                    Opportunitaetszins p.a.
+                  </InfoLabel>
+                }
+                min={0}
+                className="border-neutral-300 bg-white text-black"
+              />
+            </div>
+            <p className="mt-1 text-xs text-neutral-600">
+              Verzinst positives freies Kapital und wird konsistent fuer den
+              Szenariovergleich verwendet.
+            </p>
           </div>
 
           <div className="grid grid-cols-2 gap-2 text-sm lg:max-w-2xl lg:gap-3">
@@ -201,6 +236,22 @@ export default function LiquiditaetsauswertungPage() {
                 }
               >
                 {formatNumber(minCapital)} €
+              </span>
+            </div>
+            <div className="rounded-md border border-neutral-300 bg-white p-2 lg:p-4 lg:shadow-sm">
+              <span className="lg:block lg:text-xs lg:font-medium lg:text-neutral-500">
+                Kapitalertrag:
+              </span>{" "}
+              <span className="lg:text-xl lg:font-semibold lg:text-green-700">
+                {formatNumber(totalCapitalInterest)} €
+              </span>
+            </div>
+            <div className="rounded-md border border-neutral-300 bg-white p-2 lg:p-4 lg:shadow-sm">
+              <span className="lg:block lg:text-xs lg:font-medium lg:text-neutral-500">
+                Implizite Kreditkosten:
+              </span>{" "}
+              <span className="lg:text-xl lg:font-semibold lg:text-amber-700">
+                {formatNumber(totalImplicitCreditCosts)} €
               </span>
             </div>
           </div>
@@ -303,6 +354,8 @@ export default function LiquiditaetsauswertungPage() {
                   <th className="px-2 py-1">Einnahmen</th>
                   <th className="px-2 py-1">Ausgaben</th>
                   <th className="px-2 py-1">Kreditrate</th>
+                  <th className="px-2 py-1">Impl. Kosten</th>
+                  <th className="px-2 py-1">Kapitalzins</th>
                   <th className="px-2 py-1">Netto</th>
                   <th className="px-2 py-1">Kontostand</th>
                 </tr>
@@ -335,6 +388,12 @@ export default function LiquiditaetsauswertungPage() {
                     </td>
                     <td className="px-2 py-1">
                       {formatNumber(row.creditRate)} €
+                    </td>
+                    <td className="px-2 py-1 text-amber-700">
+                      {formatNumber(row.implicitCreditCost)} €
+                    </td>
+                    <td className="px-2 py-1 text-green-700">
+                      {formatNumber(row.capitalInterest)} €
                     </td>
                     <td
                       className={`px-2 py-1 ${row.net >= 0 ? "text-green-700" : "text-red-700"}`}

@@ -20,6 +20,7 @@ export default defineConfig({
       DATABASE_URL: "file:./db.sqlite",
       NEXT_PUBLIC_CONVEX_URL: "https://example.convex.cloud",
       NEXT_PUBLIC_CONVEX_SITE_URL: "https://example.convex.site",
+      NEXT_PUBLIC_E2E_LOCAL_STATE: "1",
     },
   },
   projects: [

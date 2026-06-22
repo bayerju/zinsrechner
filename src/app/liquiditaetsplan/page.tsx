@@ -1,6 +1,5 @@
 "use client";
 
-import { useAtom, useAtomValue } from "jotai";
 import { useMemo, useState } from "react";
 import { Plus, Settings2, Trash2 } from "lucide-react";
 import { TopNav } from "~/components/top_nav";
@@ -25,20 +24,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "~/components/ui/dialog";
-import { scenarioValuesAtom } from "~/state/scenario_values_atom";
-import { scenariosAtom } from "~/state/scenarios_atom";
 import {
-  activeLiquidityScenarioValuesAtom,
   type LiquidityFrequency,
   type LiquidityItem,
   type LiquidityScenarioValues,
 } from "~/state/liquidity_scenarios_atom";
 import { buildMonthList, monthKeyToIndex } from "~/lib/liquidity";
 import { cn } from "~/lib/utils";
-import {
-  analysisHorizonYearsAtom,
-  includeRefinancingAtom,
-} from "~/state/analysis_settings_atom";
+import { useAppState } from "~/state/app_state";
 
 function createItemId() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -67,11 +60,14 @@ function getLabelColor(label: string) {
 }
 
 export default function LiquiditaetsplanPage() {
-  const [values, setValues] = useAtom(activeLiquidityScenarioValuesAtom);
-  const creditScenarios = useAtomValue(scenariosAtom);
-  const creditScenarioValues = useAtomValue(scenarioValuesAtom);
-  const includeRefinancing = useAtomValue(includeRefinancingAtom);
-  const analysisHorizonYears = useAtomValue(analysisHorizonYearsAtom);
+  const {
+    activeLiquidityScenarioValues: values,
+    updateActiveLiquidityScenarioValues,
+    scenarios: creditScenarios,
+    scenarioValues: creditScenarioValues,
+    includeRefinancing,
+    analysisHorizonYears,
+  } = useAppState();
 
   const [newIncomeName, setNewIncomeName] = useState("");
   const [newIncomeAmount, setNewIncomeAmount] = useState(0);
@@ -160,7 +156,7 @@ export default function LiquiditaetsplanPage() {
       | LiquidityScenarioValues
       | ((prev: LiquidityScenarioValues) => LiquidityScenarioValues),
   ) {
-    setValues(update);
+    void updateActiveLiquidityScenarioValues(update);
   }
 
   function updateItem(

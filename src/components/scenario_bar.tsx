@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { atom, useAtom, useSetAtom } from "jotai";
+import { useState } from "react";
 import { Button } from "~/components/ui/button";
 import {
   Dialog,
@@ -12,20 +11,8 @@ import {
   DialogTitle,
 } from "~/components/ui/dialog";
 import { Input } from "~/components/ui/input";
-import {
-  activeScenarioIdAtom,
-  defaultScenarioId,
-  scenariosAtom,
-  type Scenario,
-} from "~/state/scenarios_atom";
-import {
-  defaultScenarioValues,
-  scenarioValuesAtom,
-} from "~/state/scenario_values_atom";
-import {
-  defaultScenarioColor,
-  getNextScenarioColor,
-} from "~/lib/scenario_colors";
+import { useAppState } from "~/state/app_state";
+import { getNextScenarioColor } from "~/lib/scenario_colors";
 
 function createScenarioId() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -43,48 +30,16 @@ function buildUniqueName(name: string, takenNames: Set<string>) {
   return `${name} ${i}`;
 }
 
-const createScenarioAndSelectAtom = atom(
-  null,
-  (
-    get,
-    set,
-    payload: {
-      id: string;
-      name: string;
-      createdAt: number;
-      color: string;
-      duplicateFromActive: boolean;
-    },
-  ) => {
-    const { id, name, createdAt, color, duplicateFromActive } = payload;
-    const sourceScenarioId = get(activeScenarioIdAtom);
-
-    set(scenariosAtom, (prev) => ({
-      ...prev,
-      [id]: { id, name, createdAt, color },
-    }));
-
-    set(scenarioValuesAtom, (prev) => {
-      const sourceValues = prev[sourceScenarioId] ?? defaultScenarioValues;
-      const nextValues = duplicateFromActive
-        ? structuredClone(sourceValues)
-        : structuredClone(defaultScenarioValues);
-      return {
-        ...prev,
-        [id]: nextValues,
-      };
-    });
-
-    set(activeScenarioIdAtom, id);
-  },
-);
-
 export function ScenarioBar() {
-  const [scenarios, setScenarios] = useAtom(scenariosAtom);
-  const [activeScenarioId, setActiveScenarioId] = useAtom(activeScenarioIdAtom);
-  const [, setScenarioValues] = useAtom(scenarioValuesAtom);
-  const createScenarioAndSelect = useSetAtom(createScenarioAndSelectAtom);
-  const hasValidatedInitialSelectionRef = useRef(false);
+  const {
+    activeScenarioId,
+    activeScenario,
+    scenarioList,
+    setActiveScenarioId,
+    createScenario: createScenarioInConvex,
+    renameScenario,
+    deleteScenario,
+  } = useAppState();
   const [isActionsOpen, setIsActionsOpen] = useState(false);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [createDuplicateFromActive, setCreateDuplicateFromActive] =
@@ -96,10 +51,6 @@ export function ScenarioBar() {
   const [renameValue, setRenameValue] = useState("");
   const [renameError, setRenameError] = useState<string | null>(null);
 
-  const scenarioList = Object.values(scenarios).sort(
-    (a, b) => a.createdAt - b.createdAt,
-  );
-  const activeScenario = scenarios[activeScenarioId];
   const debugEnabled = process.env.NODE_ENV !== "production";
 
   function debugLog(message: string, details?: Record<string, unknown>) {
@@ -111,66 +62,12 @@ export function ScenarioBar() {
     });
   }
 
-  useEffect(() => {
-    if (scenarioList.length === 0) {
-      const defaultScenario: Scenario = {
-        id: defaultScenarioId,
-        name: "Basis",
-        createdAt: 0,
-        color: defaultScenarioColor,
-      };
-      setScenarios({ [defaultScenario.id]: defaultScenario });
-      setActiveScenarioId(defaultScenario.id);
-      setScenarioValues({ [defaultScenario.id]: defaultScenarioValues });
-      hasValidatedInitialSelectionRef.current = true;
-      return;
-    }
-
-    if (hasValidatedInitialSelectionRef.current) {
-      return;
-    }
-
-    hasValidatedInitialSelectionRef.current = true;
-
-    if (activeScenario) {
-      return;
-    }
-
-    if (!scenarioList[0]) return;
-
-    if (debugEnabled) {
-      console.info("[ScenarioBar]", "fallback to first scenario", {
-        activeScenarioId,
-        scenarioIds: scenarioList.map((scenario) => scenario.id),
-        fallbackScenarioId: scenarioList[0].id,
-      });
-    }
-    setActiveScenarioId(scenarioList[0].id);
-  }, [
-    activeScenario,
-    activeScenarioId,
-    debugEnabled,
-    scenarioList,
-    setActiveScenarioId,
-    setScenarios,
-    setScenarioValues,
-  ]);
-
-  useEffect(() => {
-    if (!debugEnabled) return;
-    console.info("[ScenarioBar]", "state snapshot", {
-      activeScenarioId,
-      hasActiveScenario: Boolean(activeScenario),
-      scenarioIds: scenarioList.map((scenario) => scenario.id),
-    });
-  }, [activeScenario, activeScenarioId, debugEnabled, scenarioList]);
-
   function createScenario(name: string, duplicateFromActive = false) {
     const id = createScenarioId();
     const createdAt = Date.now();
     const color = getNextScenarioColor(scenarioList.map((item) => item.color));
 
-    createScenarioAndSelect({
+    void createScenarioInConvex({
       id,
       name,
       createdAt,
@@ -243,17 +140,7 @@ export function ScenarioBar() {
       return;
     }
 
-    setScenarios((prev) => {
-      const existing = prev[activeScenario.id];
-      if (!existing) return prev;
-      return {
-        ...prev,
-        [activeScenario.id]: {
-          ...existing,
-          name,
-        },
-      };
-    });
+    void renameScenario(activeScenario.id, name);
     setIsRenameOpen(false);
   }
 
@@ -267,23 +154,7 @@ export function ScenarioBar() {
     if (!activeScenario) return;
     if (scenarioList.length <= 1) return;
 
-    const nextScenario = scenarioList.find(
-      (scenario) => scenario.id !== activeScenario.id,
-    );
-
-    setScenarios((prev) => {
-      const next = { ...prev };
-      delete next[activeScenario.id];
-      return next;
-    });
-    setScenarioValues((prev) => {
-      const next = { ...prev };
-      delete next[activeScenario.id];
-      return next;
-    });
-    if (nextScenario) {
-      setActiveScenarioId(nextScenario.id);
-    }
+    void deleteScenario(activeScenario.id);
     setIsDeleteOpen(false);
   }
 
@@ -298,7 +169,7 @@ export function ScenarioBar() {
         onChange={(e) => {
           const nextId = e.target.value;
           debugLog("manual scenario select", { nextScenarioId: nextId });
-          setActiveScenarioId(nextId);
+          void setActiveScenarioId(nextId);
         }}
       >
         {scenarioList.map((scenario) => (

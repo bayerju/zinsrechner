@@ -9,10 +9,14 @@ import {
 const settingsValidator = v.object({
   activeScenarioId: v.string(),
   comparedScenarioIds: v.array(v.string()),
+  detailScenarioId: v.optional(v.string()),
   activeLiquidityScenarioId: v.string(),
   includeRefinancing: v.boolean(),
   analysisHorizonYears: v.number(),
+  opportunityRate: v.optional(v.number()),
 });
+
+const defaultOpportunityRate = 2.5;
 
 const financingScenarioValidator = v.object({
   scenarioId: v.string(),
@@ -47,6 +51,17 @@ const liquidityScenarioValidator = v.object({
 
 const liquidityItemValidator = v.object({
   scenarioId: v.string(),
+  itemId: v.string(),
+  position: v.number(),
+  data: v.any(),
+});
+
+const creditDataValidator = v.object({
+  creditId: v.string(),
+  data: v.any(),
+});
+
+const liquidityItemDataValidator = v.object({
   itemId: v.string(),
   position: v.number(),
   data: v.any(),
@@ -223,11 +238,13 @@ export const getForCurrentUser = query({
         activeScenarioId: settings.activeScenarioId,
         scenarioValues,
         comparedScenarioIds: settings.comparedScenarioIds,
+        detailScenarioId: settings.detailScenarioId,
         liquidityScenarios,
         activeLiquidityScenarioId: settings.activeLiquidityScenarioId,
         liquidityScenarioValues,
         includeRefinancing: settings.includeRefinancing,
         analysisHorizonYears: settings.analysisHorizonYears,
+        opportunityRate: settings.opportunityRate ?? defaultOpportunityRate,
       },
       updatedAt,
       needsMigration: false,
@@ -762,6 +779,273 @@ export const importLocalScenarios = mutation({
   },
 });
 
+export const saveSettings = mutation({
+  args: { settings: settingsValidator },
+  handler: async (ctx, args) => {
+    const identity = await requireIdentity(ctx);
+    const userIdentifier = identity.tokenIdentifier;
+    const updatedAt = Date.now();
+    const existingSettings = await ctx.db
+      .query("userSettings")
+      .withIndex("by_userIdentifier", (q) =>
+        q.eq("userIdentifier", userIdentifier),
+      )
+      .unique();
+    const nextSettings = {
+      userIdentifier,
+      ...args.settings,
+      updatedAt,
+    };
+
+    if (existingSettings === null) {
+      await ctx.db.insert("userSettings", nextSettings);
+      return updatedAt;
+    }
+
+    if (
+      !sameValues(existingSettings, nextSettings, [
+        "activeScenarioId",
+        "comparedScenarioIds",
+        "detailScenarioId",
+        "activeLiquidityScenarioId",
+        "includeRefinancing",
+        "analysisHorizonYears",
+        "opportunityRate",
+      ])
+    ) {
+      await ctx.db.replace("userSettings", existingSettings._id, nextSettings);
+    }
+
+    return updatedAt;
+  },
+});
+
+export const saveFinancingScenario = mutation({
+  args: {
+    scenario: financingScenarioValidator,
+    credits: v.array(creditDataValidator),
+  },
+  handler: async (ctx, args) => {
+    const identity = await requireIdentity(ctx);
+    const userIdentifier = identity.tokenIdentifier;
+    const updatedAt = Date.now();
+    const existingScenario = await ctx.db
+      .query("financingScenarios")
+      .withIndex("by_userIdentifier_and_scenarioId", (q) =>
+        q
+          .eq("userIdentifier", userIdentifier)
+          .eq("scenarioId", args.scenario.scenarioId),
+      )
+      .unique();
+    const nextScenario = { userIdentifier, ...args.scenario, updatedAt };
+
+    if (existingScenario === null) {
+      await ctx.db.insert("financingScenarios", nextScenario);
+    } else if (
+      !sameValues(existingScenario, nextScenario, [
+        "name",
+        "createdAt",
+        "color",
+        "sollzins",
+        "effzins",
+        "kaufpreis",
+        "modernisierungskosten",
+        "eigenkapital",
+        "tilgungssatz",
+        "zinsbindung",
+      ])
+    ) {
+      await ctx.db.replace(
+        "financingScenarios",
+        existingScenario._id,
+        nextScenario,
+      );
+    }
+
+    for (const credit of args.credits) {
+      const existingCredit = await ctx.db
+        .query("credits")
+        .withIndex("by_userIdentifier_and_scenarioId_and_creditId", (q) =>
+          q
+            .eq("userIdentifier", userIdentifier)
+            .eq("scenarioId", args.scenario.scenarioId)
+            .eq("creditId", credit.creditId),
+        )
+        .unique();
+      const nextCredit = {
+        userIdentifier,
+        scenarioId: args.scenario.scenarioId,
+        creditId: credit.creditId,
+        data: credit.data,
+        updatedAt,
+      };
+      if (existingCredit === null) {
+        await ctx.db.insert("credits", nextCredit);
+      } else if (!sameValues(existingCredit, nextCredit, ["data"])) {
+        await ctx.db.replace("credits", existingCredit._id, nextCredit);
+      }
+    }
+
+    const retainedCreditIds = new Set(args.credits.map((row) => row.creditId));
+    const existingCredits = await ctx.db
+      .query("credits")
+      .withIndex("by_userIdentifier_and_scenarioId_and_creditId", (q) =>
+        q
+          .eq("userIdentifier", userIdentifier)
+          .eq("scenarioId", args.scenario.scenarioId),
+      )
+      .take(2000);
+    for (const credit of existingCredits) {
+      if (!retainedCreditIds.has(credit.creditId)) {
+        await ctx.db.delete(credit._id);
+      }
+    }
+
+    return updatedAt;
+  },
+});
+
+export const deleteFinancingScenario = mutation({
+  args: { scenarioId: v.string() },
+  handler: async (ctx, args) => {
+    const identity = await requireIdentity(ctx);
+    const userIdentifier = identity.tokenIdentifier;
+    const scenario = await ctx.db
+      .query("financingScenarios")
+      .withIndex("by_userIdentifier_and_scenarioId", (q) =>
+        q
+          .eq("userIdentifier", userIdentifier)
+          .eq("scenarioId", args.scenarioId),
+      )
+      .unique();
+    if (scenario !== null) await ctx.db.delete(scenario._id);
+
+    const credits = await ctx.db
+      .query("credits")
+      .withIndex("by_userIdentifier_and_scenarioId_and_creditId", (q) =>
+        q
+          .eq("userIdentifier", userIdentifier)
+          .eq("scenarioId", args.scenarioId),
+      )
+      .take(2000);
+    for (const credit of credits) await ctx.db.delete(credit._id);
+
+    return Date.now();
+  },
+});
+
+export const saveLiquidityScenario = mutation({
+  args: {
+    scenario: liquidityScenarioValidator,
+    items: v.array(liquidityItemDataValidator),
+  },
+  handler: async (ctx, args) => {
+    const identity = await requireIdentity(ctx);
+    const userIdentifier = identity.tokenIdentifier;
+    const updatedAt = Date.now();
+    const existingScenario = await ctx.db
+      .query("liquidityScenarios")
+      .withIndex("by_userIdentifier_and_scenarioId", (q) =>
+        q
+          .eq("userIdentifier", userIdentifier)
+          .eq("scenarioId", args.scenario.scenarioId),
+      )
+      .unique();
+    const nextScenario = { userIdentifier, ...args.scenario, updatedAt };
+
+    if (existingScenario === null) {
+      await ctx.db.insert("liquidityScenarios", nextScenario);
+    } else if (
+      !sameValues(existingScenario, nextScenario, [
+        "name",
+        "createdAt",
+        "color",
+        "startCapital",
+        "startMonth",
+        "horizonMonths",
+        "creditScenarioId",
+      ])
+    ) {
+      await ctx.db.replace(
+        "liquidityScenarios",
+        existingScenario._id,
+        nextScenario,
+      );
+    }
+
+    for (const item of args.items) {
+      const existingItem = await ctx.db
+        .query("liquidityItems")
+        .withIndex("by_userIdentifier_and_scenarioId_and_itemId", (q) =>
+          q
+            .eq("userIdentifier", userIdentifier)
+            .eq("scenarioId", args.scenario.scenarioId)
+            .eq("itemId", item.itemId),
+        )
+        .unique();
+      const nextItem = {
+        userIdentifier,
+        scenarioId: args.scenario.scenarioId,
+        itemId: item.itemId,
+        position: item.position,
+        data: item.data,
+        updatedAt,
+      };
+      if (existingItem === null) {
+        await ctx.db.insert("liquidityItems", nextItem);
+      } else if (!sameValues(existingItem, nextItem, ["position", "data"])) {
+        await ctx.db.replace("liquidityItems", existingItem._id, nextItem);
+      }
+    }
+
+    const retainedItemIds = new Set(args.items.map((row) => row.itemId));
+    const existingItems = await ctx.db
+      .query("liquidityItems")
+      .withIndex("by_userIdentifier_and_scenarioId_and_itemId", (q) =>
+        q
+          .eq("userIdentifier", userIdentifier)
+          .eq("scenarioId", args.scenario.scenarioId),
+      )
+      .take(5000);
+    for (const item of existingItems) {
+      if (!retainedItemIds.has(item.itemId)) {
+        await ctx.db.delete(item._id);
+      }
+    }
+
+    return updatedAt;
+  },
+});
+
+export const deleteLiquidityScenario = mutation({
+  args: { scenarioId: v.string() },
+  handler: async (ctx, args) => {
+    const identity = await requireIdentity(ctx);
+    const userIdentifier = identity.tokenIdentifier;
+    const scenario = await ctx.db
+      .query("liquidityScenarios")
+      .withIndex("by_userIdentifier_and_scenarioId", (q) =>
+        q
+          .eq("userIdentifier", userIdentifier)
+          .eq("scenarioId", args.scenarioId),
+      )
+      .unique();
+    if (scenario !== null) await ctx.db.delete(scenario._id);
+
+    const items = await ctx.db
+      .query("liquidityItems")
+      .withIndex("by_userIdentifier_and_scenarioId_and_itemId", (q) =>
+        q
+          .eq("userIdentifier", userIdentifier)
+          .eq("scenarioId", args.scenarioId),
+      )
+      .take(5000);
+    for (const item of items) await ctx.db.delete(item._id);
+
+    return Date.now();
+  },
+});
+
 export const replaceForCurrentUser = mutation({
   args: {
     settings: settingsValidator,
@@ -792,9 +1076,11 @@ export const replaceForCurrentUser = mutation({
       !sameValues(existingSettings, nextSettings, [
         "activeScenarioId",
         "comparedScenarioIds",
+        "detailScenarioId",
         "activeLiquidityScenarioId",
         "includeRefinancing",
         "analysisHorizonYears",
+        "opportunityRate",
       ])
     ) {
       await ctx.db.replace("userSettings", existingSettings._id, nextSettings);

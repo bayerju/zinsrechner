@@ -24,6 +24,7 @@ export const env = createEnv({
   client: {
     NEXT_PUBLIC_CONVEX_URL: z.string().url(),
     NEXT_PUBLIC_CONVEX_SITE_URL: z.string().url(),
+    NEXT_PUBLIC_E2E_LOCAL_STATE: z.literal("1").optional(),
   },
 
   /**
@@ -38,6 +39,7 @@ export const env = createEnv({
     TRUSTED_ORIGINS: process.env.TRUSTED_ORIGINS,
     NEXT_PUBLIC_CONVEX_URL: process.env.NEXT_PUBLIC_CONVEX_URL,
     NEXT_PUBLIC_CONVEX_SITE_URL: process.env.NEXT_PUBLIC_CONVEX_SITE_URL,
+    NEXT_PUBLIC_E2E_LOCAL_STATE: process.env.NEXT_PUBLIC_E2E_LOCAL_STATE,
   },
   /**
    * Run `build` or `dev` with `SKIP_ENV_VALIDATION` to skip env validation. This is especially

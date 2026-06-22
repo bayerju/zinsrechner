@@ -40,9 +40,7 @@ describe("liquidity helpers", () => {
   });
 
   test("checks monthly, quarterly, yearly and one-time occurrences", () => {
-    expect(occursInMonth(item({ frequency: "monthly" }), "2026-04")).toBe(
-      true,
-    );
+    expect(occursInMonth(item({ frequency: "monthly" }), "2026-04")).toBe(true);
     expect(occursInMonth(item({ frequency: "quarterly" }), "2026-04")).toBe(
       true,
     );
@@ -52,7 +50,10 @@ describe("liquidity helpers", () => {
     expect(occursInMonth(item({ frequency: "yearly" }), "2027-01")).toBe(true);
     expect(occursInMonth(item({ frequency: "once" }), "2026-02")).toBe(false);
     expect(
-      occursInMonth(item({ frequency: "monthly", endMonth: "2026-02" }), "2026-03"),
+      occursInMonth(
+        item({ frequency: "monthly", endMonth: "2026-02" }),
+        "2026-03",
+      ),
     ).toBe(false);
   });
 
@@ -69,7 +70,10 @@ describe("liquidity helpers", () => {
           name: "Miete",
           type: "expense",
           defaultAmount: 1_000,
-          overrides: { "2026-02": { amount: 1_200 }, "2026-03": { disabled: true } },
+          overrides: {
+            "2026-02": { amount: 1_200 },
+            "2026-03": { disabled: true },
+          },
         }),
       ],
     };
@@ -80,6 +84,8 @@ describe("liquidity helpers", () => {
         income: 3_000,
         expense: 1_000,
         creditRate: 0,
+        implicitCreditCost: 0,
+        capitalInterest: 0,
         net: 2_000,
         capitalEnd: 3_000,
       },
@@ -88,6 +94,8 @@ describe("liquidity helpers", () => {
         income: 3_000,
         expense: 1_200,
         creditRate: 0,
+        implicitCreditCost: 0,
+        capitalInterest: 0,
         net: 1_800,
         capitalEnd: 4_800,
       },
@@ -96,6 +104,8 @@ describe("liquidity helpers", () => {
         income: 3_000,
         expense: 0,
         creditRate: 0,
+        implicitCreditCost: 0,
+        capitalInterest: 0,
         net: 3_000,
         capitalEnd: 7_800,
       },
