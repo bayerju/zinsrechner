@@ -126,9 +126,20 @@ type AppStateContextValue = {
     color: string;
     duplicateFromActive: boolean;
   }) => Promise<void>;
+  createScenarioWithValues: (options: {
+    id: string;
+    name: string;
+    createdAt: number;
+    color: string;
+    values: ScenarioValues;
+  }) => Promise<void>;
   renameScenario: (scenarioId: string, name: string) => Promise<void>;
   deleteScenario: (scenarioId: string) => Promise<void>;
   updateActiveScenarioValues: (
+    update: ScenarioValues | ((prev: ScenarioValues) => ScenarioValues),
+  ) => Promise<void>;
+  updateScenarioValues: (
+    scenarioId: string,
     update: ScenarioValues | ((prev: ScenarioValues) => ScenarioValues),
   ) => Promise<void>;
   setCredits: (
@@ -994,6 +1005,19 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         await persistScenario(scenario, values);
         await setSettings({ activeScenarioId: options.id });
       },
+      createScenarioWithValues: async (options) => {
+        const scenario = {
+          id: options.id,
+          name: options.name,
+          createdAt: options.createdAt,
+          color: options.color,
+        };
+        await persistScenario(
+          scenario,
+          normalizeScenarioValues(options.values),
+        );
+        await setSettings({ activeScenarioId: options.id });
+      },
       renameScenario: async (scenarioId, name) => {
         const scenario = state.scenarios[scenarioId];
         const values = state.scenarioValues[scenarioId];
@@ -1024,6 +1048,14 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         const nextValues =
           typeof update === "function" ? update(activeScenarioValues) : update;
         await persistScenario(activeScenario, nextValues);
+      },
+      updateScenarioValues: async (scenarioId, update) => {
+        const scenario = state.scenarios[scenarioId];
+        const values = state.scenarioValues[scenarioId];
+        if (!scenario || !values) return;
+        const nextValues =
+          typeof update === "function" ? update(values) : update;
+        await persistScenario(scenario, nextValues);
       },
       setCredits: async (update) => {
         const nextCredits =

@@ -111,17 +111,26 @@ function inferCreditTemplate(credit?: CreditCreate): CreditTemplate | null {
   return "annuitaet";
 }
 
+function createCreditId() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+  return `credit-${Date.now()}-${Math.round(Math.random() * 1_000_000)}`;
+}
+
 export default function Credits() {
   const { credits, setCredits } = useAppState();
   const [openCreditDialog, setOpenCreditDialog] = useState(false);
   const [creditToEdit, setCreditToEdit] = useState<CreditCreate | undefined>(
     undefined,
   );
+  const [editingCreditKey, setEditingCreditKey] = useState<string | null>(null);
   const [forceRemountCreditDialog, setForceRemountCreditDialog] = useState(0);
 
   function OnOpenChange(open: boolean) {
     if (!open) {
       setCreditToEdit(undefined);
+      setEditingCreditKey(null);
     }
     setForceRemountCreditDialog((prev) => prev + 1);
     setOpenCreditDialog(open);
@@ -187,6 +196,7 @@ export default function Credits() {
                     className="h-10 border border-neutral-200 bg-neutral-100 text-neutral-950 shadow-sm hover:bg-white hover:text-black"
                     onClick={() => {
                       setCreditToEdit(credit);
+                      setEditingCreditKey(key);
                       OnOpenChange(true);
                     }}
                   >
@@ -259,6 +269,7 @@ export default function Credits() {
                           className="h-9 w-9 border-neutral-300 bg-neutral-100 text-neutral-950 hover:bg-white hover:text-black"
                           onClick={() => {
                             setCreditToEdit(credit);
+                            setEditingCreditKey(key);
                             OnOpenChange(true);
                           }}
                           title="Bearbeiten"
@@ -298,6 +309,7 @@ export default function Credits() {
         open={openCreditDialog}
         setOpen={OnOpenChange}
         credit={creditToEdit}
+        editingKey={editingCreditKey}
       />
     </div>
   );
@@ -305,10 +317,12 @@ export default function Credits() {
 
 function NewCreditDialog({
   credit,
+  editingKey,
   open,
   setOpen,
 }: {
   credit?: CreditCreate;
+  editingKey?: string | null;
   open: boolean;
   setOpen: (open: boolean) => void;
 }) {
@@ -475,7 +489,6 @@ function NewCreditDialog({
   ]);
 
   useEffect(() => {
-    console.log("creditTilgungssatz", creditTilgungssatz);
     if (creditTilgungssatz > 0 && !fixDurationOfCredit) {
       setcreditKreditdauer(
         calculateFullPaymentTimeFromSollzins({
@@ -512,7 +525,9 @@ function NewCreditDialog({
     }
 
     // Check if name is already taken by a different credit
-    const isNameTaken = credits[name] && (!credit || credit.name !== name);
+    const isNameTaken = Object.values(credits).some(
+      (c) => c.name === name && (!credit || credit.name !== name),
+    );
     if (isNameTaken) {
       setNameError("Ein Kredit mit diesem Namen existiert bereits");
       return false;
@@ -855,13 +870,15 @@ function NewCreditDialog({
                 void setCredits((prev) => {
                   const newCredits = { ...prev };
 
-                  // If we're editing an existing credit and the name changed, remove the old entry
-                  if (credit && credit.name !== creditName) {
-                    delete newCredits[credit.name];
+                  // If we're editing, remove the old entry by key
+                  if (credit && editingKey) {
+                    delete newCredits[editingKey];
                   }
 
-                  // Add/update the credit with the current values
-                  newCredits[creditName] = createCredit({
+                  // Use existing key when editing, otherwise generate a new UUID
+                  const creditKey = editingKey ?? createCreditId();
+
+                  newCredits[creditKey] = createCredit({
                     name: creditName,
                     kreditart: creditType,
                     summeDarlehen: creditSummeDarlehen,

@@ -6,7 +6,8 @@ async function expectApprovedScreenshot(page: Page, name: string) {
       nextjs-portal,
       [data-nextjs-toast],
       [data-nextjs-dialog],
-      [data-nextjs-dialog-overlay] {
+      [data-nextjs-dialog-overlay],
+      [data-testid="copilot-document-upload"] {
         display: none !important;
       }
     `,
