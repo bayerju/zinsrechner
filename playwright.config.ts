@@ -12,15 +12,12 @@ export default defineConfig({
     trace: "on-first-retry",
   },
   webServer: {
-    command: "pnpm dev",
+    command: "pnpm convex:dev & pnpm dev",
     url: "http://localhost:3010",
     reuseExistingServer: !process.env.CI,
     env: {
       SKIP_ENV_VALIDATION: "1",
       DATABASE_URL: "file:./db.sqlite",
-      NEXT_PUBLIC_CONVEX_URL: "https://example.convex.cloud",
-      NEXT_PUBLIC_CONVEX_SITE_URL: "https://example.convex.site",
-      NEXT_PUBLIC_E2E_LOCAL_STATE: "1",
     },
   },
   projects: [
