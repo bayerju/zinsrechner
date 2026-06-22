@@ -6,11 +6,13 @@ import {
   forwardRef,
   type TextareaHTMLAttributes,
   useCallback,
+  useEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
 import {
+  CopilotPopup,
   CopilotSidebar,
   useAgentContext,
   useFrontendTool,
@@ -245,6 +247,8 @@ export function FinanceCopilot({ children }: { children: React.ReactNode }) {
     useState<UploadedBankOffer | null>(null);
   const [uploadStatus, setUploadStatus] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [isMobileViewport, setIsMobileViewport] = useState(false);
+  const [isMobileChatMounted, setIsMobileChatMounted] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const activeCredits = Object.values(app.activeScenarioValues.credits ?? {});
   const bankPrincipal = calculateNettodarlehensbetragBank({
@@ -409,6 +413,16 @@ export function FinanceCopilot({ children }: { children: React.ReactNode }) {
     },
     [handleBankOfferUpload],
   );
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(max-width: 639px)");
+    const updateViewport = () => setIsMobileViewport(mediaQuery.matches);
+
+    updateViewport();
+    mediaQuery.addEventListener("change", updateViewport);
+
+    return () => mediaQuery.removeEventListener("change", updateViewport);
+  }, []);
 
   const handleInputDragEnter = useCallback(
     (event: DragEvent<HTMLDivElement>) => {
@@ -701,27 +715,61 @@ export function FinanceCopilot({ children }: { children: React.ReactNode }) {
           event.currentTarget.value = "";
         }}
       />
-      <CopilotSidebar
-        defaultOpen={false}
-        width={420}
-        input={{
-          showDisclaimer: false,
-          className: isDragging ? "copilot-document-dragging" : undefined,
-          onDragEnter: handleInputDragEnter,
-          onDragOver: handleInputDragOver,
-          onDragLeave: handleInputDragLeave,
-          onDrop: handleInputDrop,
-          addMenuButton: UploadAddMenuButton,
-          textArea: BankOfferTextArea,
-          sendButton:
-            "flex size-8 items-center justify-center rounded-full bg-blue-600 text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400",
-        }}
-        labels={{
-          modalHeaderTitle: "Finanz-Copilot",
-          welcomeMessageText:
-            "Frag mich zu den Berechnungen oder lass ein neues Szenario erstellen.",
-        }}
-      />
+      {isMobileViewport ? (
+        isMobileChatMounted ? (
+          <CopilotPopup
+            defaultOpen={true}
+            input={{
+              showDisclaimer: false,
+              className: isDragging ? "copilot-document-dragging" : undefined,
+              onDragEnter: handleInputDragEnter,
+              onDragOver: handleInputDragOver,
+              onDragLeave: handleInputDragLeave,
+              onDrop: handleInputDrop,
+              addMenuButton: UploadAddMenuButton,
+              textArea: BankOfferTextArea,
+              sendButton:
+                "flex size-8 items-center justify-center rounded-full bg-blue-600 text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400",
+            }}
+            labels={{
+              modalHeaderTitle: "Finanz-Copilot",
+              welcomeMessageText:
+                "Frag mich zu den Berechnungen oder lass ein neues Szenario erstellen.",
+            }}
+          />
+        ) : (
+          <button
+            type="button"
+            aria-label="Open chat"
+            onClick={() => setIsMobileChatMounted(true)}
+            className="fixed right-4 bottom-4 z-50 flex size-12 items-center justify-center rounded-full bg-slate-950 text-sm font-semibold text-white shadow-lg ring-1 ring-white/10 transition hover:bg-slate-800"
+          >
+            AI
+          </button>
+        )
+      ) : (
+        <CopilotSidebar
+          defaultOpen={false}
+          width={420}
+          input={{
+            showDisclaimer: false,
+            className: isDragging ? "copilot-document-dragging" : undefined,
+            onDragEnter: handleInputDragEnter,
+            onDragOver: handleInputDragOver,
+            onDragLeave: handleInputDragLeave,
+            onDrop: handleInputDrop,
+            addMenuButton: UploadAddMenuButton,
+            textArea: BankOfferTextArea,
+            sendButton:
+              "flex size-8 items-center justify-center rounded-full bg-blue-600 text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400",
+          }}
+          labels={{
+            modalHeaderTitle: "Finanz-Copilot",
+            welcomeMessageText:
+              "Frag mich zu den Berechnungen oder lass ein neues Szenario erstellen.",
+          }}
+        />
+      )}
     </>
   );
 }

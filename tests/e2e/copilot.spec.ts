@@ -5,6 +5,21 @@ test.describe("Copilot chat", () => {
     await page.addInitScript(() => window.localStorage.clear());
   });
 
+  test("is closed by default on small devices", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+
+    await expect(page.getByRole("heading", { name: "Raten" })).toBeVisible();
+    await expect(
+      page.getByRole("textbox", { name: "Type a message..." }),
+    ).not.toBeVisible();
+
+    await page.getByRole("button", { name: "Open chat" }).click();
+    await expect(
+      page.getByRole("textbox", { name: "Type a message..." }),
+    ).toBeVisible();
+  });
+
   test("gets a real model response", async ({ page }) => {
     const failedCopilotResponses: string[] = [];
     const copilotConsoleErrors: string[] = [];
