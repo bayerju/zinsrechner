@@ -56,11 +56,17 @@ export function ScenarioMonthlyRateChart({
   chartData,
   presentValueCostData,
   scenarioIds,
+  singleScenarioMonthlyRate,
 }: {
   chartConfig: ChartConfig;
   chartData: YearRow[];
   presentValueCostData: OpportunityRateRow[];
   scenarioIds: string[];
+  singleScenarioMonthlyRate?: {
+    chartConfig: ChartConfig;
+    chartData: YearRow[];
+    seriesKeys: string[];
+  };
 }) {
   const [mode, setMode] = React.useState<"monthlyRate" | "presentValueCost">(
     "monthlyRate",
@@ -69,6 +75,11 @@ export function ScenarioMonthlyRateChart({
   const { chartRef, tooltipActive, reactivateTooltip } =
     useDismissibleChartTooltip();
   const activeData = mode === "monthlyRate" ? chartData : presentValueCostData;
+  const showSingleScenarioStack =
+    mode === "monthlyRate" && singleScenarioMonthlyRate !== undefined;
+  const activeConfig = showSingleScenarioStack
+    ? singleScenarioMonthlyRate.chartConfig
+    : chartConfig;
 
   return (
     <div className="rounded-md border border-neutral-700 bg-neutral-800 p-2 sm:p-3">
@@ -105,61 +116,117 @@ export function ScenarioMonthlyRateChart({
       </div>
       <ChartContainer
         ref={chartRef}
-        config={chartConfig}
+        config={activeConfig}
         className="h-52 w-full sm:h-72"
         onMouseMove={reactivateTooltip}
         onTouchStart={reactivateTooltip}
       >
-        <LineChart
-          data={activeData}
-          margin={{
-            left: isMobile ? 0 : 8,
-            right: isMobile ? 2 : 8,
-            top: 8,
-            bottom: 8,
-          }}
-        >
-          <CartesianGrid vertical={false} />
-          <XAxis
-            dataKey={mode === "monthlyRate" ? "year" : "opportunityRate"}
-            tickLine={false}
-            axisLine={false}
-            tickMargin={8}
-            minTickGap={isMobile ? 20 : 8}
-            tick={{ fontSize: isMobile ? 11 : 12 }}
-            tickFormatter={(value) =>
-              mode === "monthlyRate" ? String(value) : `${value} %`
-            }
-            label={{
-              value: mode === "monthlyRate" ? "Jahr" : "Opportunitaetszins",
-              position: "insideBottom",
-              offset: -5,
+        {showSingleScenarioStack ? (
+          <AreaChart
+            data={singleScenarioMonthlyRate.chartData}
+            margin={{
+              left: isMobile ? 0 : 8,
+              right: isMobile ? 2 : 8,
+              top: 8,
+              bottom: 8,
             }}
-          />
-          <YAxis
-            width={isMobile ? 54 : 96}
-            tickLine={false}
-            axisLine={false}
-            tickMargin={isMobile ? 4 : 8}
-            tick={{ fontSize: isMobile ? 11 : 12 }}
-            tickCount={isMobile ? 4 : 5}
-            tickFormatter={(value) => {
-              const numeric = typeof value === "number" ? value : Number(value);
-              return formatAxisEuro(numeric, isMobile);
-            }}
-          />
-          <Tooltip active={tooltipActive} content={<ChartTooltipContent />} />
-          {scenarioIds.map((scenarioId) => (
-            <Line
-              key={scenarioId}
-              dataKey={scenarioId}
-              type="monotone"
-              stroke={`var(--color-${scenarioId})`}
-              strokeWidth={2}
-              dot={false}
+          >
+            <CartesianGrid vertical={false} />
+            <XAxis
+              dataKey="year"
+              tickLine={false}
+              axisLine={false}
+              tickMargin={8}
+              minTickGap={isMobile ? 20 : 8}
+              tick={{ fontSize: isMobile ? 11 : 12 }}
+              label={{ value: "Jahr", position: "insideBottom", offset: -5 }}
             />
-          ))}
-        </LineChart>
+            <YAxis
+              width={isMobile ? 54 : 96}
+              tickLine={false}
+              axisLine={false}
+              tickMargin={isMobile ? 4 : 8}
+              tick={{ fontSize: isMobile ? 11 : 12 }}
+              tickCount={isMobile ? 4 : 5}
+              tickFormatter={(value) => {
+                const numeric =
+                  typeof value === "number" ? value : Number(value);
+                return formatAxisEuro(numeric, isMobile);
+              }}
+            />
+            <Tooltip
+              active={tooltipActive}
+              content={
+                <StackedCreditTooltip
+                  chartConfig={singleScenarioMonthlyRate.chartConfig}
+                />
+              }
+            />
+            {singleScenarioMonthlyRate.seriesKeys.map((key) => (
+              <Area
+                key={key}
+                dataKey={key}
+                type="monotone"
+                stackId="monthlyRate"
+                stroke={`var(--color-${key})`}
+                fill={`var(--color-${key})`}
+                fillOpacity={0.25}
+              />
+            ))}
+          </AreaChart>
+        ) : (
+          <LineChart
+            data={activeData}
+            margin={{
+              left: isMobile ? 0 : 8,
+              right: isMobile ? 2 : 8,
+              top: 8,
+              bottom: 8,
+            }}
+          >
+            <CartesianGrid vertical={false} />
+            <XAxis
+              dataKey={mode === "monthlyRate" ? "year" : "opportunityRate"}
+              tickLine={false}
+              axisLine={false}
+              tickMargin={8}
+              minTickGap={isMobile ? 20 : 8}
+              tick={{ fontSize: isMobile ? 11 : 12 }}
+              tickFormatter={(value) =>
+                mode === "monthlyRate" ? String(value) : `${value} %`
+              }
+              label={{
+                value: mode === "monthlyRate" ? "Jahr" : "Opportunitaetszins",
+                position: "insideBottom",
+                offset: -5,
+              }}
+            />
+            <YAxis
+              width={isMobile ? 54 : 96}
+              tickLine={false}
+              axisLine={false}
+              tickMargin={isMobile ? 4 : 8}
+              tick={{ fontSize: isMobile ? 11 : 12 }}
+              tickCount={isMobile ? 4 : 5}
+              tickFormatter={(value) => {
+                const numeric =
+                  typeof value === "number" ? value : Number(value);
+                return formatAxisEuro(numeric, isMobile);
+              }}
+            />
+            <Tooltip active={tooltipActive} content={<ChartTooltipContent />} />
+            {scenarioIds.map((scenarioId) => (
+              <Line
+                key={scenarioId}
+                dataKey={scenarioId}
+                type="monotone"
+                stroke={`var(--color-${scenarioId})`}
+                strokeWidth={2}
+                dot={false}
+              />
+            ))}
+          </LineChart>
+        )}
       </ChartContainer>
     </div>
   );

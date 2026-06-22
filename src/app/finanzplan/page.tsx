@@ -1111,6 +1111,23 @@ export default function FinanzplanPage() {
     });
   }, [calculationOptions, comparisonRows, maxComparisonYears, scenarioValues]);
 
+  const singleScenarioMonthlyRateChart = useMemo(() => {
+    if (comparisonRows.length !== 1) return undefined;
+    const scenarioId = comparisonRows[0]!.id;
+    const values = scenarioValues[scenarioId];
+    if (!values) return undefined;
+    const stack = calculateDetailMonthlyRateStack(
+      values,
+      maxComparisonYears,
+      calculationOptions,
+    );
+    return {
+      chartConfig: stack.chartConfig,
+      chartData: stack.chartData,
+      seriesKeys: stack.creditSeries.map((series) => series.key),
+    };
+  }, [calculationOptions, comparisonRows, maxComparisonYears, scenarioValues]);
+
   const presentValueCostChartData = useMemo(() => {
     const opportunityRates = Array.from(
       { length: 17 },
@@ -1257,6 +1274,7 @@ export default function FinanzplanPage() {
             chartData={chartData}
             presentValueCostData={presentValueCostChartData}
             scenarioIds={comparisonRows.map((scenario) => scenario.id)}
+            singleScenarioMonthlyRate={singleScenarioMonthlyRateChart}
           />
 
           <div className="space-y-2 sm:hidden">
