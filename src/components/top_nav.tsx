@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, type FormEvent, type ReactNode } from "react";
-import { NumberInput } from "~/components/ui/number_input";
 import { Button } from "~/components/ui/button";
 import {
   Dialog,
@@ -17,9 +16,10 @@ import { Input } from "~/components/ui/input";
 import {
   CheckCircle2,
   ChevronDown,
+  FolderKanban,
   Loader2,
   LogOut,
-  Pencil,
+  Settings,
   UserRound,
   WifiOff,
 } from "lucide-react";
@@ -36,14 +36,6 @@ export function TopNav() {
   const pathname = usePathname();
   const isLiquiditySection =
     pathname === "/liquiditaetsplan" || pathname === "/liquiditaetsauswertung";
-  const { includeRefinancing, analysisHorizonYears, setSettings } =
-    useAppState();
-
-  function updateHorizon(value: number) {
-    if (!Number.isFinite(value)) return;
-    const next = Math.min(50, Math.max(5, Math.round(value)));
-    void setSettings({ analysisHorizonYears: next });
-  }
 
   return (
     <nav className="mb-3 text-sm">
@@ -57,14 +49,6 @@ export function TopNav() {
         <ContextNavigation
           isLiquiditySection={isLiquiditySection}
           pathname={pathname}
-        />
-        <CalculationStatus
-          includeRefinancing={includeRefinancing}
-          analysisHorizonYears={analysisHorizonYears}
-          setIncludeRefinancing={(value) =>
-            void setSettings({ includeRefinancing: value })
-          }
-          updateHorizon={updateHorizon}
         />
       </div>
 
@@ -111,15 +95,6 @@ export function TopNav() {
             </DesktopNavigationGroup>
           </div>
           <div className="ml-auto flex items-center gap-3 pb-3">
-            <CalculationStatus
-              includeRefinancing={includeRefinancing}
-              analysisHorizonYears={analysisHorizonYears}
-              setIncludeRefinancing={(value) =>
-                void setSettings({ includeRefinancing: value })
-              }
-              updateHorizon={updateHorizon}
-              desktop
-            />
             <AuthStatus />
           </div>
         </div>
@@ -168,6 +143,8 @@ function UserProfileMenu({
   isConvexAuthenticated: boolean;
   isConvexLoading: boolean;
 }) {
+  const [open, setOpen] = useState(false);
+  const { projectList, activeProjectId, setActiveProjectId } = useAppState();
   const trimmedName = user.name?.trim();
   const displayName =
     trimmedName !== undefined && trimmedName.length > 0
@@ -179,9 +156,19 @@ function UserProfileMenu({
     : isConvexAuthenticated
       ? "Daten sind synchronisiert"
       : "Synchronisierung nicht verbunden";
+  const recentProjects = [...projectList]
+    .sort((a, b) => b.createdAt - a.createdAt)
+    .slice(0, 5);
+
+  async function selectProject(projectId: string) {
+    setOpen(false);
+    if (projectId !== activeProjectId) {
+      await setActiveProjectId(projectId);
+    }
+  }
 
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
           type="button"
@@ -227,6 +214,74 @@ function UserProfileMenu({
             )}
             <span>{syncLabel}</span>
           </div>
+        </div>
+        <div className="border-t border-neutral-200 p-2">
+          <p className="px-2 pb-1 text-xs font-medium uppercase tracking-wide text-neutral-500">
+            Projekte
+          </p>
+          <div className="max-h-60 space-y-0.5 overflow-y-auto">
+            {recentProjects.map((project) => {
+              const isActive = project.id === activeProjectId;
+              return (
+                <button
+                  key={project.id}
+                  type="button"
+                  className={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm transition-colors ${
+                    isActive
+                      ? "bg-neutral-100 font-medium text-black"
+                      : "text-neutral-700 hover:bg-neutral-100 hover:text-black"
+                  }`}
+                  onClick={() => void selectProject(project.id)}
+                >
+                  <span
+                    className="size-2 shrink-0 rounded-full"
+                    style={{
+                      backgroundColor: isActive ? "#059669" : "#d4d4d4",
+                    }}
+                    aria-hidden="true"
+                  />
+                  <span className="min-w-0 flex-1 truncate">
+                    {project.name}
+                  </span>
+                  {isActive && (
+                    <CheckCircle2
+                      className="size-4 shrink-0 text-emerald-600"
+                      aria-hidden="true"
+                    />
+                  )}
+                </button>
+              );
+            })}
+            {recentProjects.length === 0 && (
+              <p className="px-2 py-2 text-xs text-neutral-500">
+                Keine Projekte vorhanden.
+              </p>
+            )}
+          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            className="mt-1 h-9 w-full justify-start px-2 text-neutral-700 hover:bg-neutral-100 hover:text-black"
+            asChild
+          >
+            <Link href="/projekte">
+              <FolderKanban className="size-4" aria-hidden="true" />
+              Alle anzeigen
+            </Link>
+          </Button>
+        </div>
+        <div className="border-t border-neutral-200 p-2">
+          <Button
+            type="button"
+            variant="ghost"
+            className="h-9 w-full justify-start px-2 text-neutral-700 hover:bg-neutral-100 hover:text-black"
+            asChild
+          >
+            <Link href="/einstellungen">
+              <Settings className="size-4" aria-hidden="true" />
+              Einstellungen
+            </Link>
+          </Button>
           <Button
             type="button"
             variant="ghost"
@@ -519,130 +574,6 @@ function DesktopMenuLink({
     >
       {children}
     </Link>
-  );
-}
-
-function CalculationStatus({
-  includeRefinancing,
-  analysisHorizonYears,
-  setIncludeRefinancing,
-  updateHorizon,
-  desktop = false,
-}: {
-  includeRefinancing: boolean;
-  analysisHorizonYears: number;
-  setIncludeRefinancing: (value: boolean) => void;
-  updateHorizon: (value: number) => void;
-  desktop?: boolean;
-}) {
-  return (
-    <div
-      className={`flex items-center justify-between gap-3 rounded-md bg-neutral-50 px-3 py-2 ${
-        desktop ? "border border-neutral-200" : ""
-      }`}
-    >
-      <p className="min-w-0 text-xs font-medium text-neutral-700">
-        {includeRefinancing
-          ? `Berechnet über ${analysisHorizonYears} Jahre`
-          : "Berechnet bis Zinsbindung"}
-      </p>
-      <Dialog>
-        <DialogTrigger asChild>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="h-8 shrink-0 border-neutral-300 bg-white px-2.5 text-neutral-700"
-          >
-            <Pencil className="h-3.5 w-3.5" />
-            Ändern
-          </Button>
-        </DialogTrigger>
-        <DialogContent className="border-neutral-300 bg-white text-black shadow-2xl sm:max-w-md">
-          <DialogTitle>Berechnung anpassen</DialogTitle>
-          <DialogDescription className="text-neutral-600">
-            Lege fest, wie Restschulden nach dem Ende der Zinsbindung behandelt
-            werden.
-          </DialogDescription>
-
-          <div className="space-y-4">
-            <section className="space-y-3 rounded-lg border border-neutral-200 p-4">
-              <h3 className="font-medium">Berechnungsumfang</h3>
-              <div className="space-y-2" role="radiogroup">
-                <button
-                  type="button"
-                  role="radio"
-                  aria-checked={!includeRefinancing}
-                  className={`flex w-full gap-3 rounded-lg border p-3 text-left transition-colors ${
-                    !includeRefinancing
-                      ? "border-neutral-900 bg-neutral-50"
-                      : "border-neutral-200 hover:border-neutral-400"
-                  }`}
-                  onClick={() => setIncludeRefinancing(false)}
-                >
-                  <SelectionIndicator selected={!includeRefinancing} />
-                  <span>
-                    <span className="block text-sm font-medium">
-                      Nur bis zum Ende der Zinsbindung
-                    </span>
-                    <span className="mt-0.5 block text-xs text-neutral-500">
-                      Danach verbleibende Schulden werden als fällig angezeigt.
-                    </span>
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  role="radio"
-                  aria-checked={includeRefinancing}
-                  className={`flex w-full gap-3 rounded-lg border p-3 text-left transition-colors ${
-                    includeRefinancing
-                      ? "border-neutral-900 bg-neutral-50"
-                      : "border-neutral-200 hover:border-neutral-400"
-                  }`}
-                  onClick={() => setIncludeRefinancing(true)}
-                >
-                  <SelectionIndicator selected={includeRefinancing} />
-                  <span>
-                    <span className="block text-sm font-medium">
-                      Mit Weiterfinanzierung
-                    </span>
-                    <span className="mt-0.5 block text-xs text-neutral-500">
-                      Verbleibende Schulden werden mit den aktuellen Konditionen
-                      weiterberechnet.
-                    </span>
-                  </span>
-                </button>
-              </div>
-              {includeRefinancing && (
-                <div>
-                  <label className="mb-1 block text-sm font-medium">
-                    Betrachtungszeitraum
-                  </label>
-                  <NumberInput
-                    value={analysisHorizonYears}
-                    onChange={updateHorizon}
-                    unit="J"
-                    className="h-9 border-neutral-300 bg-white text-right text-black"
-                  />
-                </div>
-              )}
-            </section>
-          </div>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
-}
-
-function SelectionIndicator({ selected }: { selected: boolean }) {
-  return (
-    <span
-      className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${
-        selected ? "border-neutral-900" : "border-neutral-400"
-      }`}
-    >
-      {selected && <span className="h-2 w-2 rounded-full bg-neutral-900" />}
-    </span>
   );
 }
 

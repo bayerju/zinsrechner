@@ -2,8 +2,20 @@ import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
 export default defineSchema({
+  projects: defineTable({
+    userIdentifier: v.string(),
+    projectId: v.string(),
+    name: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    lastActiveScenarioId: v.optional(v.string()),
+    lastActiveLiquidityScenarioId: v.optional(v.string()),
+  })
+    .index("by_userIdentifier", ["userIdentifier"])
+    .index("by_userIdentifier_and_projectId", ["userIdentifier", "projectId"]),
   userSettings: defineTable({
     userIdentifier: v.string(),
+    activeProjectId: v.optional(v.string()),
     activeScenarioId: v.string(),
     comparedScenarioIds: v.array(v.string()),
     detailScenarioId: v.optional(v.string()),
@@ -15,6 +27,7 @@ export default defineSchema({
   }).index("by_userIdentifier", ["userIdentifier"]),
   financingScenarios: defineTable({
     userIdentifier: v.string(),
+    projectId: v.optional(v.string()),
     scenarioId: v.string(),
     name: v.string(),
     createdAt: v.number(),
@@ -29,25 +42,37 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index("by_userIdentifier", ["userIdentifier"])
-    .index("by_userIdentifier_and_scenarioId", [
+    .index("by_userIdentifier_and_projectId", ["userIdentifier", "projectId"])
+    .index("by_userIdentifier_and_scenarioId", ["userIdentifier", "scenarioId"])
+    .index("by_userIdentifier_and_projectId_and_scenarioId", [
       "userIdentifier",
+      "projectId",
       "scenarioId",
     ]),
   credits: defineTable({
     userIdentifier: v.string(),
+    projectId: v.optional(v.string()),
     scenarioId: v.string(),
     creditId: v.string(),
     data: v.any(),
     updatedAt: v.number(),
   })
     .index("by_userIdentifier", ["userIdentifier"])
+    .index("by_userIdentifier_and_projectId", ["userIdentifier", "projectId"])
     .index("by_userIdentifier_and_scenarioId_and_creditId", [
       "userIdentifier",
+      "scenarioId",
+      "creditId",
+    ])
+    .index("by_userIdentifier_and_projectId_and_scenarioId_and_creditId", [
+      "userIdentifier",
+      "projectId",
       "scenarioId",
       "creditId",
     ]),
   liquidityScenarios: defineTable({
     userIdentifier: v.string(),
+    projectId: v.optional(v.string()),
     scenarioId: v.string(),
     name: v.string(),
     createdAt: v.number(),
@@ -59,12 +84,16 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index("by_userIdentifier", ["userIdentifier"])
-    .index("by_userIdentifier_and_scenarioId", [
+    .index("by_userIdentifier_and_projectId", ["userIdentifier", "projectId"])
+    .index("by_userIdentifier_and_scenarioId", ["userIdentifier", "scenarioId"])
+    .index("by_userIdentifier_and_projectId_and_scenarioId", [
       "userIdentifier",
+      "projectId",
       "scenarioId",
     ]),
   liquidityItems: defineTable({
     userIdentifier: v.string(),
+    projectId: v.optional(v.string()),
     scenarioId: v.string(),
     itemId: v.string(),
     position: v.number(),
@@ -72,8 +101,15 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index("by_userIdentifier", ["userIdentifier"])
+    .index("by_userIdentifier_and_projectId", ["userIdentifier", "projectId"])
     .index("by_userIdentifier_and_scenarioId_and_itemId", [
       "userIdentifier",
+      "scenarioId",
+      "itemId",
+    ])
+    .index("by_userIdentifier_and_projectId_and_scenarioId_and_itemId", [
+      "userIdentifier",
+      "projectId",
       "scenarioId",
       "itemId",
     ]),
@@ -93,4 +129,14 @@ export default defineSchema({
     state: v.any(),
     updatedAt: v.number(),
   }).index("by_userIdentifier", ["userIdentifier"]),
+  projectShares: defineTable({
+    token: v.string(),
+    userIdentifier: v.string(),
+    projectId: v.string(),
+    liquidityScenarioIds: v.array(v.string()),
+    createdAt: v.number(),
+    revokedAt: v.optional(v.number()),
+  })
+    .index("by_token", ["token"])
+    .index("by_userIdentifier_and_projectId", ["userIdentifier", "projectId"]),
 });
