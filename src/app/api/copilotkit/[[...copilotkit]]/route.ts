@@ -3,19 +3,16 @@ import {
   CopilotRuntime,
   createCopilotRuntimeHandler,
 } from "@copilotkit/runtime/v2";
-import { createOpenRouter } from "@openrouter/ai-sdk-provider";
+import { createOpenAI } from "@ai-sdk/openai";
 
-const openrouter = createOpenRouter({
-  apiKey: process.env.OPENROUTER_API_KEY,
-  appName: "JRZinsrechner",
+const openai = createOpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
 });
 
 const runtime = new CopilotRuntime({
   agents: {
     default: new BuiltInAgent({
-      model: openrouter.chat(
-        process.env.OPENROUTER_MODEL ?? "openai/gpt-4.1-mini",
-      ),
+      model: openai(process.env.OPENAI_MODEL ?? "gpt-4.1-mini"),
       maxSteps: 3,
       prompt: `Du bist ein deutschsprachiger Copilot fuer eine Immobilienfinanzierungs-App.
 

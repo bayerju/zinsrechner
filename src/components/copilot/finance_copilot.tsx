@@ -1,12 +1,21 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import {
+  type ButtonHTMLAttributes,
+  type DragEvent,
+  forwardRef,
+  type TextareaHTMLAttributes,
+  useCallback,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   CopilotSidebar,
   useAgentContext,
   useFrontendTool,
 } from "@copilotkit/react-core/v2";
-import { Plus, UploadCloud, FileText, X } from "lucide-react";
+import { FileText, Plus, X } from "lucide-react";
 import { z } from "zod";
 import {
   calculateMonthlyRateFromSollzins,
@@ -244,14 +253,107 @@ export function FinanceCopilot({ children }: { children: React.ReactNode }) {
     fileInputRef.current?.click();
   }, []);
 
-  const handleDrop = useCallback(
-    (event: React.DragEvent<HTMLButtonElement>) => {
-      event.preventDefault();
-      setIsDragging(false);
-      const file = event.dataTransfer.files?.[0] ?? null;
+  const uploadBankOfferFile = useCallback(
+    (file: File | null) => {
       void handleBankOfferUpload(file);
     },
     [handleBankOfferUpload],
+  );
+
+  const handleInputDragEnter = useCallback((event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    setIsDragging(true);
+  }, []);
+
+  const handleInputDragOver = useCallback((event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    setIsDragging(true);
+  }, []);
+
+  const handleInputDragLeave = useCallback((event: DragEvent<HTMLDivElement>) => {
+    if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+      setIsDragging(false);
+    }
+  }, []);
+
+  const handleInputDrop = useCallback(
+    (event: DragEvent<HTMLDivElement>) => {
+      event.preventDefault();
+      setIsDragging(false);
+      uploadBankOfferFile(event.dataTransfer.files?.[0] ?? null);
+    },
+    [uploadBankOfferFile],
+  );
+
+  const BankOfferTextArea = useMemo(
+    () =>
+      forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<HTMLTextAreaElement>>(
+        function BankOfferTextArea({ className, ...props }, ref) {
+          return (
+            <>
+              {uploadedBankOffer ? (
+                <div className="mb-2 flex max-w-full items-center gap-2 self-start rounded-xl border border-slate-200 bg-white px-2 py-1 text-xs shadow-sm">
+                  <FileText className="size-4 shrink-0 text-blue-600" />
+                  <div className="min-w-0">
+                    <p className="max-w-56 truncate font-medium text-slate-900">
+                      {uploadedBankOffer.filename}
+                    </p>
+                    <p className="text-[11px] leading-4 text-slate-500">
+                      {uploadStatus ?? "Als Kontext verfuegbar"}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={clearUploadedBankOffer}
+                    className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                    aria-label="Dokument entfernen"
+                  >
+                    <X className="size-3.5" />
+                  </button>
+                </div>
+              ) : null}
+              <textarea
+                ref={ref}
+                {...props}
+                placeholder={
+                  isDragging
+                    ? "Datei hier ablegen"
+                    : "Nachricht schreiben oder Datei hierher ziehen"
+                }
+                className={[
+                  className,
+                  "min-h-9 w-full resize-none bg-transparent px-0 py-1 text-sm leading-6 text-slate-900 outline-none placeholder:text-slate-500",
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
+              />
+              {uploadStatus && !uploadedBankOffer ? (
+                <p className="mt-1 text-xs text-slate-500">{uploadStatus}</p>
+              ) : null}
+            </>
+          );
+        },
+      ),
+    [clearUploadedBankOffer, isDragging, uploadStatus, uploadedBankOffer],
+  );
+
+  const UploadAddMenuButton = useCallback(
+    ({
+      className: _className,
+      disabled: _disabled,
+      ...props
+    }: ButtonHTMLAttributes<HTMLButtonElement>) => (
+      <button
+        {...props}
+        type="button"
+        onClick={openFilePicker}
+        className="flex size-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
+        aria-label="Datei auswaehlen"
+      >
+        <Plus className="size-4" />
+      </button>
+    ),
+    [openFilePicker],
   );
 
   useFrontendTool(
@@ -393,82 +495,31 @@ export function FinanceCopilot({ children }: { children: React.ReactNode }) {
   return (
     <>
       {children}
-      <section
-        className="fixed right-4 bottom-4 z-[2147483000] flex w-[min(24rem,calc(100vw-2rem))] flex-col gap-2 rounded-2xl border border-slate-200 bg-white/95 p-2 text-sm shadow-lg backdrop-blur"
-        data-testid="copilot-document-upload"
-        aria-label="Bankangebot hochladen"
-      >
-        <input
-          ref={fileInputRef}
-          className="sr-only"
-          type="file"
-          accept=".pdf,.docx,.xlsx,.pptx,.odt,.ods,.odp,.rtf,.csv,.txt,.md,.html"
-          onChange={(event) => {
-            void handleBankOfferUpload(event.currentTarget.files?.[0] ?? null);
-            event.currentTarget.value = "";
-          }}
-        />
-        {uploadedBankOffer ? (
-          <div className="flex items-start gap-2 rounded-xl bg-slate-50 p-2">
-            <FileText className="mt-0.5 size-4 shrink-0 text-blue-600" />
-            <div className="min-w-0 flex-1">
-              <p className="truncate font-medium text-slate-900">
-                {uploadedBankOffer.filename}
-              </p>
-              <p className="text-xs text-slate-600">
-                Als Kontext verfuegbar
-              </p>
-              {uploadStatus ? (
-                <p className="mt-0.5 text-xs text-slate-500">{uploadStatus}</p>
-              ) : null}
-            </div>
-            <button
-              type="button"
-              onClick={clearUploadedBankOffer}
-              className="rounded-md p-1 text-slate-400 hover:bg-slate-200 hover:text-slate-700"
-              aria-label="Dokument entfernen"
-            >
-              <X className="size-4" />
-            </button>
-          </div>
-        ) : null}
-        <button
-          type="button"
-          onClick={openFilePicker}
-          onDragOver={(event) => {
-            event.preventDefault();
-            setIsDragging(true);
-          }}
-          onDragLeave={() => setIsDragging(false)}
-          onDrop={handleDrop}
-          className={[
-            "flex items-center justify-center gap-2 rounded-xl border-2 border-dashed px-3 py-3 text-xs font-medium transition-colors",
-            isDragging
-              ? "border-blue-500 bg-blue-50 text-blue-700"
-              : "border-slate-300 bg-slate-50 text-slate-600 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-700",
-          ].join(" ")}
-          aria-label="Datei per Drag-and-Drop ablegen oder auswaehlen"
-        >
-          <UploadCloud className="size-4" />
-          <span>
-            {isDragging
-              ? "Datei hier ablegen"
-              : "Datei hierher ziehen oder klicken zum Auswaehlen"}
-          </span>
-          <Plus className="ml-1 size-4 rounded-full bg-blue-600 p-0.5 text-white" />
-        </button>
-        {!uploadedBankOffer ? (
-          <p className="px-1 text-xs text-slate-500">
-            PDF, Word, Excel, PowerPoint oder Textdatei bis 10 MB
-          </p>
-        ) : null}
-        {uploadStatus && !uploadedBankOffer ? (
-          <p className="px-1 text-xs text-slate-500">{uploadStatus}</p>
-        ) : null}
-      </section>
+      <input
+        ref={fileInputRef}
+        className="sr-only"
+        type="file"
+        accept=".pdf,.docx,.xlsx,.pptx,.odt,.ods,.odp,.rtf,.csv,.txt,.md,.html"
+        onChange={(event) => {
+          uploadBankOfferFile(event.currentTarget.files?.[0] ?? null);
+          event.currentTarget.value = "";
+        }}
+      />
       <CopilotSidebar
         defaultOpen={false}
         width={420}
+        input={{
+          showDisclaimer: false,
+          className: isDragging ? "copilot-document-dragging" : undefined,
+          onDragEnter: handleInputDragEnter,
+          onDragOver: handleInputDragOver,
+          onDragLeave: handleInputDragLeave,
+          onDrop: handleInputDrop,
+          addMenuButton: UploadAddMenuButton,
+          textArea: BankOfferTextArea,
+          sendButton:
+            "flex size-8 items-center justify-center rounded-full bg-blue-600 text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400",
+        }}
         labels={{
           modalHeaderTitle: "Finanz-Copilot",
           welcomeMessageText:

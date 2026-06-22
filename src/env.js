@@ -14,8 +14,8 @@ export const env = createEnv({
       .default("development"),
     SITE_URL: z.string().url().optional(),
     TRUSTED_ORIGINS: z.string().optional(),
-    OPENROUTER_API_KEY: z.string().min(1).optional(),
-    OPENROUTER_MODEL: z.string().min(1).optional(),
+    OPENAI_API_KEY: z.string().min(1).optional(),
+    OPENAI_MODEL: z.string().min(1).optional(),
   },
 
   /**
@@ -38,8 +38,8 @@ export const env = createEnv({
     NODE_ENV: process.env.NODE_ENV,
     SITE_URL: process.env.SITE_URL,
     TRUSTED_ORIGINS: process.env.TRUSTED_ORIGINS,
-    OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,
-    OPENROUTER_MODEL: process.env.OPENROUTER_MODEL,
+    OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+    OPENAI_MODEL: process.env.OPENAI_MODEL,
     NEXT_PUBLIC_CONVEX_URL: process.env.NEXT_PUBLIC_CONVEX_URL,
     NEXT_PUBLIC_CONVEX_SITE_URL: process.env.NEXT_PUBLIC_CONVEX_SITE_URL,
   },
