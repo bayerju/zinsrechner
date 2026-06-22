@@ -27,6 +27,7 @@ type Overview = NonNullable<
 type Project = Overview["projects"][number];
 type FinancingScenario = Overview["financingScenarios"][number];
 type LiquidityScenario = Overview["liquidityScenarios"][number];
+type ShareAccess = "view" | "edit";
 
 function createId() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -74,6 +75,8 @@ export default function ProjectsPage() {
   const [selectedLiquidity, setSelectedLiquidity] = useState<Set<string>>(
     new Set(),
   );
+  const [shareAccess, setShareAccess] = useState<ShareAccess>("view");
+  const [copyStatus, setCopyStatus] = useState("");
 
   const projects = overview?.projects ?? [];
   const financingByProject = useMemo(
@@ -136,9 +139,11 @@ export default function ProjectsPage() {
 
   async function openShare(projectId: string) {
     setSelectedLiquidity(new Set());
+    setShareAccess("view");
+    setCopyStatus("");
     setError("");
     setDialog({ type: "share", projectId, url: "" });
-    const token = await createProjectShare(projectId, []);
+    const token = await createProjectShare(projectId, [], "view");
     setDialog({
       type: "share",
       projectId,
@@ -148,9 +153,12 @@ export default function ProjectsPage() {
 
   async function regenerateShareLink() {
     if (dialog?.type !== "share") return;
-    const token = await createProjectShare(dialog.projectId, [
-      ...selectedLiquidity,
-    ]);
+    setCopyStatus("");
+    const token = await createProjectShare(
+      dialog.projectId,
+      [...selectedLiquidity],
+      shareAccess,
+    );
     setDialog({
       type: "share",
       projectId: dialog.projectId,
@@ -424,10 +432,31 @@ export default function ProjectsPage() {
             <DialogTitle>Projekt teilen</DialogTitle>
             <DialogDescription>
               Waehle, welche Liquiditaetsszenarien zusaetzlich zu den
-              Finanzierungsszenarien geteilt werden sollen. Der Empfaenger
-              oeffnet alles in einem separaten Projekt.
+              Finanzierungsszenarien geteilt werden sollen. Der Link zeigt die
+              Live-Daten des Projekts; es wird keine Kopie erstellt.
             </DialogDescription>
           </DialogHeader>
+
+          <div className="grid gap-2 rounded-md border border-neutral-200 p-2 text-sm text-black sm:grid-cols-2">
+            <label className="flex cursor-pointer items-center gap-2 rounded-md p-2 hover:bg-neutral-50">
+              <input
+                type="radio"
+                name="shareAccess"
+                checked={shareAccess === "view"}
+                onChange={() => setShareAccess("view")}
+              />
+              Nur ansehen
+            </label>
+            <label className="flex cursor-pointer items-center gap-2 rounded-md p-2 hover:bg-neutral-50">
+              <input
+                type="radio"
+                name="shareAccess"
+                checked={shareAccess === "edit"}
+                onChange={() => setShareAccess("edit")}
+              />
+              Bearbeiten erlauben
+            </label>
+          </div>
 
           {liquidityScenarios.length > 0 && (
             <div className="max-h-60 space-y-1 overflow-y-auto rounded-md border border-neutral-200 p-2">
@@ -457,6 +486,9 @@ export default function ProjectsPage() {
               onFocus={(event) => event.currentTarget.select()}
             />
           )}
+          {copyStatus && (
+            <p className="text-sm text-emerald-700">{copyStatus}</p>
+          )}
           {error && <p className="text-sm text-red-600">{error}</p>}
           <DialogFooter>
             <Button
@@ -481,11 +513,14 @@ export default function ProjectsPage() {
               type="button"
               onClick={() => {
                 if (dialog?.type === "share" && dialog.url) {
-                  void navigator.clipboard.writeText(dialog.url);
+                  void navigator.clipboard
+                    .writeText(dialog.url)
+                    .then(() => setCopyStatus("Link wurde kopiert."))
+                    .catch(() => setError("Link konnte nicht kopiert werden."));
                 }
               }}
             >
-              Link kopieren
+              {copyStatus ? "Kopiert" : "Link kopieren"}
             </Button>
           </DialogFooter>
         </DialogContent>

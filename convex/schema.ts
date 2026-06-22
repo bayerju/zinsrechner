@@ -134,6 +134,7 @@ export default defineSchema({
     userIdentifier: v.string(),
     projectId: v.string(),
     liquidityScenarioIds: v.array(v.string()),
+    access: v.optional(v.union(v.literal("view"), v.literal("edit"))),
     createdAt: v.number(),
     revokedAt: v.optional(v.number()),
   })

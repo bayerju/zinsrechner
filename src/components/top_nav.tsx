@@ -34,28 +34,36 @@ import {
 
 export function TopNav() {
   const pathname = usePathname();
+  const shareBase = getShareBase(pathname);
   const isLiquiditySection =
-    pathname === "/liquiditaetsplan" || pathname === "/liquiditaetsauswertung";
+    pathname === "/liquiditaetsplan" ||
+    pathname === "/liquiditaetsauswertung" ||
+    pathname.endsWith("/liquiditaetsplan") ||
+    pathname.endsWith("/liquiditaetsauswertung");
 
   return (
     <nav className="mb-3 text-sm">
       <div className="space-y-3 border-b border-neutral-300 pb-3 lg:hidden">
         <div className="flex items-center gap-2">
           <div className="min-w-0 flex-1">
-            <PrimaryNavigation isLiquiditySection={isLiquiditySection} />
+            <PrimaryNavigation
+              isLiquiditySection={isLiquiditySection}
+              shareBase={shareBase}
+            />
           </div>
           <AuthStatus />
         </div>
         <ContextNavigation
           isLiquiditySection={isLiquiditySection}
           pathname={pathname}
+          shareBase={shareBase}
         />
       </div>
 
       <div className="hidden lg:block">
         <div className="flex items-center gap-8 border-b border-neutral-200">
           <Link
-            href="/"
+            href={shareHref(shareBase, "/")}
             className="shrink-0 pb-3 text-lg font-semibold text-black"
           >
             Zinsrechner
@@ -64,15 +72,17 @@ export function TopNav() {
             <DesktopNavigationGroup>
               <DesktopMenuLink
                 href="/"
-                active={pathname === "/"}
+                active={isActivePath(pathname, shareBase, "/")}
                 activeClass="border-blue-600 text-blue-800"
+                shareBase={shareBase}
               >
                 Konditionen
               </DesktopMenuLink>
               <DesktopMenuLink
                 href="/finanzplan"
-                active={pathname === "/finanzplan"}
+                active={isActivePath(pathname, shareBase, "/finanzplan")}
                 activeClass="border-blue-600 text-blue-800"
+                shareBase={shareBase}
               >
                 Finanzplan
               </DesktopMenuLink>
@@ -80,15 +90,21 @@ export function TopNav() {
             <DesktopNavigationGroup>
               <DesktopMenuLink
                 href="/liquiditaetsplan"
-                active={pathname === "/liquiditaetsplan"}
+                active={isActivePath(pathname, shareBase, "/liquiditaetsplan")}
                 activeClass="border-emerald-600 text-emerald-800"
+                shareBase={shareBase}
               >
                 Eingaben
               </DesktopMenuLink>
               <DesktopMenuLink
                 href="/liquiditaetsauswertung"
-                active={pathname === "/liquiditaetsauswertung"}
+                active={isActivePath(
+                  pathname,
+                  shareBase,
+                  "/liquiditaetsauswertung",
+                )}
                 activeClass="border-emerald-600 text-emerald-800"
+                shareBase={shareBase}
               >
                 Auswertung
               </DesktopMenuLink>
@@ -101,6 +117,25 @@ export function TopNav() {
       </div>
     </nav>
   );
+}
+
+function getShareBase(pathname: string) {
+  const match = pathname.match(/^\/projekt\/share\/[^/]+/);
+  return match?.[0] ?? null;
+}
+
+function shareHref(shareBase: string | null, href: string) {
+  if (!shareBase) return href;
+  if (href === "/") return `${shareBase}/konditionen`;
+  return `${shareBase}${href}`;
+}
+
+function isActivePath(
+  pathname: string,
+  shareBase: string | null,
+  href: string,
+) {
+  return pathname === shareHref(shareBase, href);
 }
 
 function AuthStatus() {
@@ -216,7 +251,7 @@ function UserProfileMenu({
           </div>
         </div>
         <div className="border-t border-neutral-200 p-2">
-          <p className="px-2 pb-1 text-xs font-medium uppercase tracking-wide text-neutral-500">
+          <p className="px-2 pb-1 text-xs font-medium tracking-wide text-neutral-500 uppercase">
             Projekte
           </p>
           <div className="max-h-60 space-y-0.5 overflow-y-auto">
@@ -476,13 +511,15 @@ function AuthDialog({ children }: { children: ReactNode }) {
 
 function PrimaryNavigation({
   isLiquiditySection,
+  shareBase,
 }: {
   isLiquiditySection: boolean;
+  shareBase: string | null;
 }) {
   return (
     <div className="grid grid-cols-2 rounded-lg bg-neutral-100 p-1">
       <Link
-        href="/"
+        href={shareHref(shareBase, "/")}
         className={`rounded-md px-3 py-2 text-center font-medium transition-colors ${
           !isLiquiditySection
             ? "bg-white text-black shadow-sm"
@@ -492,7 +529,7 @@ function PrimaryNavigation({
         Finanzierung
       </Link>
       <Link
-        href="/liquiditaetsplan"
+        href={shareHref(shareBase, "/liquiditaetsplan")}
         className={`rounded-md px-3 py-2 text-center font-medium transition-colors ${
           isLiquiditySection
             ? "bg-white text-black shadow-sm"
@@ -508,10 +545,12 @@ function PrimaryNavigation({
 function ContextNavigation({
   isLiquiditySection,
   pathname,
+  shareBase,
   desktop = false,
 }: {
   isLiquiditySection: boolean;
   pathname: string;
+  shareBase: string | null;
   desktop?: boolean;
 }) {
   return (
@@ -520,25 +559,36 @@ function ContextNavigation({
         <>
           <SubNavigationLink
             href="/liquiditaetsplan"
-            active={pathname === "/liquiditaetsplan"}
+            active={isActivePath(pathname, shareBase, "/liquiditaetsplan")}
+            shareBase={shareBase}
           >
             Eingaben
           </SubNavigationLink>
           <SubNavigationLink
             href="/liquiditaetsauswertung"
-            active={pathname === "/liquiditaetsauswertung"}
+            active={isActivePath(
+              pathname,
+              shareBase,
+              "/liquiditaetsauswertung",
+            )}
+            shareBase={shareBase}
           >
             Auswertung
           </SubNavigationLink>
         </>
       ) : (
         <>
-          <SubNavigationLink href="/" active={pathname === "/"}>
+          <SubNavigationLink
+            href="/"
+            active={isActivePath(pathname, shareBase, "/")}
+            shareBase={shareBase}
+          >
             Konditionen
           </SubNavigationLink>
           <SubNavigationLink
             href="/finanzplan"
-            active={pathname === "/finanzplan"}
+            active={isActivePath(pathname, shareBase, "/finanzplan")}
+            shareBase={shareBase}
           >
             Finanzplan
           </SubNavigationLink>
@@ -556,16 +606,18 @@ function DesktopMenuLink({
   href,
   active,
   activeClass,
+  shareBase,
   children,
 }: {
   href: string;
   active: boolean;
   activeClass: string;
+  shareBase: string | null;
   children: ReactNode;
 }) {
   return (
     <Link
-      href={href}
+      href={shareHref(shareBase, href)}
       className={`border-b-2 px-3 pt-1 pb-3 font-medium transition-colors ${
         active
           ? activeClass
@@ -580,15 +632,17 @@ function DesktopMenuLink({
 function SubNavigationLink({
   href,
   active,
+  shareBase,
   children,
 }: {
   href: string;
   active: boolean;
+  shareBase: string | null;
   children: ReactNode;
 }) {
   return (
     <Link
-      href={href}
+      href={shareHref(shareBase, href)}
       className={`border-b-2 px-3 py-2 text-center font-medium transition-colors ${
         active
           ? "border-neutral-900 text-black"

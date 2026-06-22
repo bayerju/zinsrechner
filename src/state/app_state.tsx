@@ -10,6 +10,7 @@ import {
   useEffect,
   useMemo,
   useRef,
+  useState,
 } from "react";
 import { api } from "../../convex/_generated/api";
 import { authClient } from "~/lib/auth-client";
@@ -69,6 +70,10 @@ type RemoteState = {
   needsMigration: boolean;
 };
 
+type SharedProjectResult = NonNullable<
+  ReturnType<typeof useQuery<typeof api.appState.getSharedProject>>
+>;
+
 type Settings = {
   activeProjectId?: string;
   activeScenarioId: string;
@@ -116,6 +121,7 @@ type AppStateContextValue = {
   createProjectShare: (
     projectId: string,
     liquidityScenarioIds: string[],
+    access: "view" | "edit",
   ) => Promise<string>;
   revokeProjectShare: (projectId: string) => Promise<void>;
   importSharedProject: (token: string) => Promise<string>;
@@ -395,6 +401,91 @@ function toSettings(state: SyncedState): Settings {
   };
 }
 
+function sharedProjectToState(shared: SharedProjectResult): SyncedState {
+  const scenarios: Record<string, Scenario> = {};
+  const scenarioValues: Record<string, ScenarioValues> = {};
+  for (const scenario of shared.financingScenarios) {
+    scenarios[scenario.scenarioId] = {
+      id: scenario.scenarioId,
+      name: scenario.name,
+      createdAt: scenario.createdAt,
+      color: scenario.color,
+    };
+    scenarioValues[scenario.scenarioId] = normalizeScenarioValues({
+      sollzins: scenario.sollzins ?? scenario.effzins,
+      effzins: scenario.effzins,
+      kaufpreis: scenario.kaufpreis,
+      modernisierungskosten: scenario.modernisierungskosten,
+      eigenkapital: scenario.eigenkapital,
+      tilgungssatz: scenario.tilgungssatz,
+      zinsbindung: scenario.zinsbindung,
+      credits: {},
+    });
+  }
+  for (const credit of shared.credits) {
+    const values = scenarioValues[credit.scenarioId];
+    const normalized = normalizeCredit(credit.data);
+    if (values && normalized) values.credits[credit.creditId] = normalized;
+  }
+
+  const liquidityScenarios: Record<string, LiquidityScenario> = {};
+  const liquidityScenarioValues: Record<string, LiquidityScenarioValues> = {};
+  for (const scenario of shared.liquidityScenarios) {
+    liquidityScenarios[scenario.scenarioId] = {
+      id: scenario.scenarioId,
+      name: scenario.name,
+      createdAt: scenario.createdAt,
+      color: scenario.color,
+    };
+    liquidityScenarioValues[scenario.scenarioId] =
+      normalizeLiquidityScenarioValues({
+        startCapital: scenario.startCapital,
+        startMonth: scenario.startMonth,
+        horizonMonths: scenario.horizonMonths,
+        creditScenarioId: scenario.creditScenarioId,
+        items: [],
+      });
+  }
+  for (const item of [...shared.liquidityItems].sort(
+    (left, right) => left.position - right.position,
+  )) {
+    const values = liquidityScenarioValues[item.scenarioId];
+    if (values) {
+      values.items.push(
+        item.data as unknown as LiquidityScenarioValues["items"][number],
+      );
+    }
+  }
+
+  const firstScenarioId =
+    shared.financingScenarios[0]?.scenarioId ?? defaultScenarioId;
+  const firstLiquidityScenarioId =
+    shared.liquidityScenarios[0]?.scenarioId ?? defaultLiquidityScenarioId;
+
+  return normalizeState({
+    version: 1,
+    projects: {
+      [shared.project.projectId]: {
+        id: shared.project.projectId,
+        name: shared.project.name,
+        createdAt: shared.project.createdAt,
+      },
+    },
+    activeProjectId: shared.project.projectId,
+    scenarios,
+    activeScenarioId: firstScenarioId,
+    scenarioValues,
+    comparedScenarioIds: [],
+    detailScenarioId: firstScenarioId,
+    liquidityScenarios,
+    activeLiquidityScenarioId: firstLiquidityScenarioId,
+    liquidityScenarioValues,
+    includeRefinancing: false,
+    analysisHorizonYears: defaultAnalysisHorizonYears,
+    opportunityRate: defaultOpportunityRate,
+  });
+}
+
 function updateQueryState(
   localStore: OptimisticLocalStore,
   updater: (state: SyncedState) => SyncedState,
@@ -498,6 +589,10 @@ function LoadingScreen() {
 
 export function AppStateProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const shareToken = pathname.startsWith("/projekt/share/")
+    ? pathname.split("/")[3]
+    : undefined;
+  const [shareSettings, setShareSettings] = useState<Partial<Settings>>({});
   const session = authClient.useSession();
   const { isAuthenticated } = useConvexAuth();
   const anonymousSignInRunning = useRef(false);
@@ -505,8 +600,12 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
 
   const remoteResult = useQuery(
     api.appState.getForCurrentUser,
-    isAuthenticated && !pathname.startsWith("/projekt/share/") ? {} : "skip",
+    isAuthenticated && shareToken === undefined ? {} : "skip",
   ) as RemoteState | null | undefined;
+  const sharedProject = useQuery(
+    api.appState.getSharedProject,
+    shareToken ? { token: shareToken } : "skip",
+  ) as SharedProjectResult | null | undefined;
 
   const replaceState = useMutation(api.appState.replaceForCurrentUser);
   const saveProjectMutation = useMutation(api.appState.saveProject);
@@ -644,10 +743,14 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     });
   });
 
-  const bypassAppState = pathname.startsWith("/projekt/share/");
+  const bypassAppState = false;
 
   useEffect(() => {
-    if (bypassAppState) return;
+    setShareSettings({});
+  }, [shareToken]);
+
+  useEffect(() => {
+    if (shareToken !== undefined) return;
     if (session.isPending || session.data || anonymousSignInRunning.current) {
       return;
     }
@@ -661,10 +764,14 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       .finally(() => {
         anonymousSignInRunning.current = false;
       });
-  }, [bypassAppState, session.data, session.isPending]);
+  }, [session.data, session.isPending, shareToken]);
 
   useEffect(() => {
-    if (bypassAppState || !isAuthenticated || remoteResult === undefined)
+    if (
+      shareToken !== undefined ||
+      !isAuthenticated ||
+      remoteResult === undefined
+    )
       return;
     if (remoteResult !== null && !remoteResult.needsMigration) return;
     if (initializingRemote.current) return;
@@ -682,12 +789,19 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       .finally(() => {
         initializingRemote.current = false;
       });
-  }, [bypassAppState, isAuthenticated, remoteResult, replaceState]);
+  }, [isAuthenticated, remoteResult, replaceState, shareToken]);
 
   const appState = useMemo(() => {
+    if (shareToken !== undefined) {
+      if (!sharedProject) return null;
+      return normalizeState({
+        ...sharedProjectToState(sharedProject),
+        ...shareSettings,
+      });
+    }
     if (!remoteResult || !isSyncedState(remoteResult.state)) return null;
     return normalizeState(remoteResult.state);
-  }, [remoteResult]);
+  }, [remoteResult, shareSettings, shareToken, sharedProject]);
 
   const value = useMemo<AppStateContextValue | null>(() => {
     if (!appState) return null;
@@ -716,6 +830,10 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     );
 
     async function setSettings(settings: Partial<Settings>) {
+      if (shareToken !== undefined) {
+        setShareSettings((current) => ({ ...current, ...settings }));
+        return;
+      }
       const nextSettings = {
         ...toSettings(state),
         ...settings,
@@ -724,6 +842,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     }
 
     async function persistScenario(scenario: Scenario, values: ScenarioValues) {
+      if (shareToken !== undefined) return;
       await saveFinancingScenarioMutation(
         scenarioMutationPayload(
           state.activeProjectId,
@@ -737,6 +856,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       scenario: LiquidityScenario,
       values: LiquidityScenarioValues,
     ) {
+      if (shareToken !== undefined) return;
       await saveLiquidityScenarioMutation(
         liquidityMutationPayload(
           state.activeProjectId,
@@ -776,6 +896,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       opportunityRate: state.opportunityRate,
       setSettings,
       setActiveProjectId: async (projectId) => {
+        if (shareToken !== undefined) return;
         if (projectId === state.activeProjectId) return;
         const currentProject = state.projects[state.activeProjectId];
         if (currentProject) {
@@ -802,6 +923,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         });
       },
       createProject: async (options) => {
+        if (shareToken !== undefined) return;
         const currentProject = state.projects[state.activeProjectId];
         if (currentProject) {
           await saveProjectMutation({
@@ -828,6 +950,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         });
       },
       renameProject: async (projectId, name) => {
+        if (shareToken !== undefined) return;
         const project = state.projects[projectId];
         if (!project) return;
         await saveProjectMutation({
@@ -835,6 +958,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         });
       },
       deleteProject: async (projectId) => {
+        if (shareToken !== undefined) return;
         if (projectId === defaultProjectId) return;
         await deleteProjectMutation({ projectId });
         if (state.activeProjectId === projectId) {
@@ -846,10 +970,11 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
           });
         }
       },
-      createProjectShare: async (projectId, liquidityScenarioIds) =>
+      createProjectShare: async (projectId, liquidityScenarioIds, access) =>
         await createProjectShareMutation({
           projectId,
           liquidityScenarioIds,
+          access,
         }),
       revokeProjectShare: async (projectId) => {
         await revokeProjectShareMutation({ projectId });
@@ -973,15 +1098,20 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     saveFinancingScenarioMutation,
     saveLiquidityScenarioMutation,
     saveSettingsMutation,
+    shareToken,
     appState,
   ]);
 
   const isLoading =
-    session.isPending ||
-    !isAuthenticated ||
-    remoteResult === undefined ||
-    !value;
+    shareToken === undefined
+      ? session.isPending ||
+        !isAuthenticated ||
+        remoteResult === undefined ||
+        !value
+      : sharedProject === undefined || !value;
 
+  if (shareToken !== undefined && sharedProject === null)
+    return <>{children}</>;
   if (bypassAppState) return <>{children}</>;
   if (isLoading) return <LoadingScreen />;
 

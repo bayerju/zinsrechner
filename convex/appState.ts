@@ -19,6 +19,7 @@ const settingsValidator = v.object({
 
 const defaultOpportunityRate = 2.5;
 const defaultProjectId = "default";
+const shareAccessValidator = v.union(v.literal("view"), v.literal("edit"));
 
 const projectValidator = v.object({
   projectId: v.string(),
@@ -110,6 +111,23 @@ async function requireIdentity(ctx: QueryCtx | MutationCtx) {
     throw new ConvexError("Authentication required");
   }
   return identity;
+}
+
+async function requireEditableShare(
+  ctx: QueryCtx | MutationCtx,
+  token: string,
+) {
+  const share = await ctx.db
+    .query("projectShares")
+    .withIndex("by_token", (q) => q.eq("token", token))
+    .unique();
+  if (share === null || share.revokedAt !== undefined) {
+    throw new ConvexError("Share link is not available");
+  }
+  if ((share.access ?? "view") !== "edit") {
+    throw new ConvexError("Share link is read-only");
+  }
+  return share;
 }
 
 async function getLegacyState(ctx: QueryCtx, userIdentifier: string) {
@@ -1405,6 +1423,7 @@ export const createProjectShare = mutation({
   args: {
     projectId: v.string(),
     liquidityScenarioIds: v.array(v.string()),
+    access: shareAccessValidator,
   },
   handler: async (ctx, args) => {
     const identity = await requireIdentity(ctx);
@@ -1418,6 +1437,7 @@ export const createProjectShare = mutation({
     const activeShare = existingShares.find(
       (share) =>
         share.revokedAt === undefined &&
+        (share.access ?? "view") === args.access &&
         JSON.stringify(share.liquidityScenarioIds.sort()) ===
           JSON.stringify([...args.liquidityScenarioIds].sort()),
     );
@@ -1428,6 +1448,7 @@ export const createProjectShare = mutation({
       userIdentifier,
       projectId: args.projectId,
       liquidityScenarioIds: args.liquidityScenarioIds,
+      access: args.access,
       createdAt: Date.now(),
     });
     return token;
@@ -1462,12 +1483,65 @@ export const getSharedProject = query({
       .withIndex("by_token", (q) => q.eq("token", args.token))
       .unique();
     if (share === null || share.revokedAt !== undefined) return null;
-    return await projectSnapshot(
+    const snapshot = await projectSnapshot(
       ctx,
       share.userIdentifier,
       share.projectId,
       share.liquidityScenarioIds,
     );
+    return { ...snapshot, access: share.access ?? "view" };
+  },
+});
+
+export const updateSharedProject = mutation({
+  args: { token: v.string(), name: v.string() },
+  handler: async (ctx, args) => {
+    const share = await requireEditableShare(ctx, args.token);
+    const project = await ctx.db
+      .query("projects")
+      .withIndex("by_userIdentifier_and_projectId", (q) =>
+        q
+          .eq("userIdentifier", share.userIdentifier)
+          .eq("projectId", share.projectId),
+      )
+      .unique();
+    if (project === null) throw new ConvexError("Project not found");
+    const name = args.name.trim();
+    if (!name) throw new ConvexError("Project name is required");
+    await ctx.db.patch(project._id, { name, updatedAt: Date.now() });
+    return Date.now();
+  },
+});
+
+export const updateSharedFinancingScenario = mutation({
+  args: { token: v.string(), scenario: financingScenarioValidator },
+  handler: async (ctx, args) => {
+    const share = await requireEditableShare(ctx, args.token);
+    const projectId = args.scenario.projectId ?? share.projectId;
+    if (projectId !== share.projectId)
+      throw new ConvexError("Scenario not shared");
+    const scenario = await ctx.db
+      .query("financingScenarios")
+      .withIndex("by_userIdentifier_and_projectId_and_scenarioId", (q) =>
+        q
+          .eq("userIdentifier", share.userIdentifier)
+          .eq("projectId", share.projectId)
+          .eq("scenarioId", args.scenario.scenarioId),
+      )
+      .unique();
+    if (scenario === null) throw new ConvexError("Scenario not found");
+    await ctx.db.patch(scenario._id, {
+      name: args.scenario.name,
+      sollzins: args.scenario.sollzins,
+      effzins: args.scenario.effzins,
+      kaufpreis: args.scenario.kaufpreis,
+      modernisierungskosten: args.scenario.modernisierungskosten,
+      eigenkapital: args.scenario.eigenkapital,
+      tilgungssatz: args.scenario.tilgungssatz,
+      zinsbindung: args.scenario.zinsbindung,
+      updatedAt: Date.now(),
+    });
+    return Date.now();
   },
 });
 
