@@ -7,6 +7,7 @@ import {
 } from "./_generated/server";
 
 const settingsValidator = v.object({
+  activeProjectId: v.optional(v.string()),
   activeScenarioId: v.string(),
   comparedScenarioIds: v.array(v.string()),
   detailScenarioId: v.optional(v.string()),
@@ -17,8 +18,19 @@ const settingsValidator = v.object({
 });
 
 const defaultOpportunityRate = 2.5;
+const defaultProjectId = "default";
+const shareAccessValidator = v.union(v.literal("view"), v.literal("edit"));
+
+const projectValidator = v.object({
+  projectId: v.string(),
+  name: v.string(),
+  createdAt: v.number(),
+  lastActiveScenarioId: v.optional(v.string()),
+  lastActiveLiquidityScenarioId: v.optional(v.string()),
+});
 
 const financingScenarioValidator = v.object({
+  projectId: v.optional(v.string()),
   scenarioId: v.string(),
   name: v.string(),
   createdAt: v.number(),
@@ -33,12 +45,14 @@ const financingScenarioValidator = v.object({
 });
 
 const creditValidator = v.object({
+  projectId: v.optional(v.string()),
   scenarioId: v.string(),
   creditId: v.string(),
   data: v.any(),
 });
 
 const liquidityScenarioValidator = v.object({
+  projectId: v.optional(v.string()),
   scenarioId: v.string(),
   name: v.string(),
   createdAt: v.number(),
@@ -50,6 +64,7 @@ const liquidityScenarioValidator = v.object({
 });
 
 const liquidityItemValidator = v.object({
+  projectId: v.optional(v.string()),
   scenarioId: v.string(),
   itemId: v.string(),
   position: v.number(),
@@ -98,6 +113,23 @@ async function requireIdentity(ctx: QueryCtx | MutationCtx) {
   return identity;
 }
 
+async function requireEditableShare(
+  ctx: QueryCtx | MutationCtx,
+  token: string,
+) {
+  const share = await ctx.db
+    .query("projectShares")
+    .withIndex("by_token", (q) => q.eq("token", token))
+    .unique();
+  if (share === null || share.revokedAt !== undefined) {
+    throw new ConvexError("Share link is not available");
+  }
+  if ((share.access ?? "view") !== "edit") {
+    throw new ConvexError("Share link is read-only");
+  }
+  return share;
+}
+
 async function getLegacyState(ctx: QueryCtx, userIdentifier: string) {
   return await ctx.db
     .query("appStates")
@@ -115,6 +147,24 @@ function sameValues(
   return keys.every(
     (key) => JSON.stringify(left[key]) === JSON.stringify(right[key]),
   );
+}
+
+function defaultProject(createdAt = 0) {
+  return {
+    projectId: defaultProjectId,
+    name: "Mein Projekt",
+    createdAt,
+    lastActiveScenarioId: undefined as string | undefined,
+    lastActiveLiquidityScenarioId: undefined as string | undefined,
+  };
+}
+
+function projectForRow(row: { projectId?: string }) {
+  return row.projectId ?? defaultProjectId;
+}
+
+function belongsToProject(row: { projectId?: string }, projectId: string) {
+  return projectForRow(row) === projectId;
 }
 
 export const getForCurrentUser = query({
@@ -142,33 +192,72 @@ export const getForCurrentUser = query({
       };
     }
 
-    const [scenarioRows, creditRows, liquidityScenarioRows, liquidityItemRows] =
-      await Promise.all([
-        ctx.db
-          .query("financingScenarios")
-          .withIndex("by_userIdentifier", (q) =>
-            q.eq("userIdentifier", userIdentifier),
-          )
-          .take(500),
-        ctx.db
-          .query("credits")
-          .withIndex("by_userIdentifier", (q) =>
-            q.eq("userIdentifier", userIdentifier),
-          )
-          .take(2000),
-        ctx.db
-          .query("liquidityScenarios")
-          .withIndex("by_userIdentifier", (q) =>
-            q.eq("userIdentifier", userIdentifier),
-          )
-          .take(500),
-        ctx.db
-          .query("liquidityItems")
-          .withIndex("by_userIdentifier", (q) =>
-            q.eq("userIdentifier", userIdentifier),
-          )
-          .take(5000),
-      ]);
+    const projectRows = await ctx.db
+      .query("projects")
+      .withIndex("by_userIdentifier", (q) =>
+        q.eq("userIdentifier", userIdentifier),
+      )
+      .take(500);
+    const projects = Object.fromEntries(
+      (projectRows.length > 0 ? projectRows : [defaultProject()]).map((row) => [
+        row.projectId,
+        {
+          id: row.projectId,
+          name: row.name,
+          createdAt: row.createdAt,
+          lastActiveScenarioId: row.lastActiveScenarioId,
+          lastActiveLiquidityScenarioId: row.lastActiveLiquidityScenarioId,
+        },
+      ]),
+    );
+    const activeProjectId =
+      settings.activeProjectId && projects[settings.activeProjectId]
+        ? settings.activeProjectId
+        : (projectRows[0]?.projectId ?? defaultProjectId);
+
+    const [
+      allScenarioRows,
+      allCreditRows,
+      allLiquidityScenarioRows,
+      allLiquidityItemRows,
+    ] = await Promise.all([
+      ctx.db
+        .query("financingScenarios")
+        .withIndex("by_userIdentifier", (q) =>
+          q.eq("userIdentifier", userIdentifier),
+        )
+        .take(500),
+      ctx.db
+        .query("credits")
+        .withIndex("by_userIdentifier", (q) =>
+          q.eq("userIdentifier", userIdentifier),
+        )
+        .take(2000),
+      ctx.db
+        .query("liquidityScenarios")
+        .withIndex("by_userIdentifier", (q) =>
+          q.eq("userIdentifier", userIdentifier),
+        )
+        .take(500),
+      ctx.db
+        .query("liquidityItems")
+        .withIndex("by_userIdentifier", (q) =>
+          q.eq("userIdentifier", userIdentifier),
+        )
+        .take(5000),
+    ]);
+    const scenarioRows = allScenarioRows.filter((row) =>
+      belongsToProject(row, activeProjectId),
+    );
+    const creditRows = allCreditRows.filter((row) =>
+      belongsToProject(row, activeProjectId),
+    );
+    const liquidityScenarioRows = allLiquidityScenarioRows.filter((row) =>
+      belongsToProject(row, activeProjectId),
+    );
+    const liquidityItemRows = allLiquidityItemRows.filter((row) =>
+      belongsToProject(row, activeProjectId),
+    );
 
     const scenarios: Record<string, unknown> = {};
     const scenarioValues: Record<string, unknown> = {};
@@ -234,6 +323,8 @@ export const getForCurrentUser = query({
       userIdentifier,
       state: {
         version: 1,
+        projects,
+        activeProjectId,
         scenarios,
         activeScenarioId: settings.activeScenarioId,
         scenarioValues,
@@ -794,6 +885,7 @@ export const saveSettings = mutation({
     const nextSettings = {
       userIdentifier,
       ...args.settings,
+      activeProjectId: args.settings.activeProjectId ?? defaultProjectId,
       updatedAt,
     };
 
@@ -804,6 +896,7 @@ export const saveSettings = mutation({
 
     if (
       !sameValues(existingSettings, nextSettings, [
+        "activeProjectId",
         "activeScenarioId",
         "comparedScenarioIds",
         "detailScenarioId",
@@ -828,16 +921,23 @@ export const saveFinancingScenario = mutation({
   handler: async (ctx, args) => {
     const identity = await requireIdentity(ctx);
     const userIdentifier = identity.tokenIdentifier;
+    const projectId = args.scenario.projectId ?? defaultProjectId;
     const updatedAt = Date.now();
     const existingScenario = await ctx.db
       .query("financingScenarios")
-      .withIndex("by_userIdentifier_and_scenarioId", (q) =>
+      .withIndex("by_userIdentifier_and_projectId_and_scenarioId", (q) =>
         q
           .eq("userIdentifier", userIdentifier)
+          .eq("projectId", projectId)
           .eq("scenarioId", args.scenario.scenarioId),
       )
       .unique();
-    const nextScenario = { userIdentifier, ...args.scenario, updatedAt };
+    const nextScenario = {
+      userIdentifier,
+      ...args.scenario,
+      projectId,
+      updatedAt,
+    };
 
     if (existingScenario === null) {
       await ctx.db.insert("financingScenarios", nextScenario);
@@ -865,15 +965,19 @@ export const saveFinancingScenario = mutation({
     for (const credit of args.credits) {
       const existingCredit = await ctx.db
         .query("credits")
-        .withIndex("by_userIdentifier_and_scenarioId_and_creditId", (q) =>
-          q
-            .eq("userIdentifier", userIdentifier)
-            .eq("scenarioId", args.scenario.scenarioId)
-            .eq("creditId", credit.creditId),
+        .withIndex(
+          "by_userIdentifier_and_projectId_and_scenarioId_and_creditId",
+          (q) =>
+            q
+              .eq("userIdentifier", userIdentifier)
+              .eq("projectId", projectId)
+              .eq("scenarioId", args.scenario.scenarioId)
+              .eq("creditId", credit.creditId),
         )
         .unique();
       const nextCredit = {
         userIdentifier,
+        projectId,
         scenarioId: args.scenario.scenarioId,
         creditId: credit.creditId,
         data: credit.data,
@@ -889,10 +993,13 @@ export const saveFinancingScenario = mutation({
     const retainedCreditIds = new Set(args.credits.map((row) => row.creditId));
     const existingCredits = await ctx.db
       .query("credits")
-      .withIndex("by_userIdentifier_and_scenarioId_and_creditId", (q) =>
-        q
-          .eq("userIdentifier", userIdentifier)
-          .eq("scenarioId", args.scenario.scenarioId),
+      .withIndex(
+        "by_userIdentifier_and_projectId_and_scenarioId_and_creditId",
+        (q) =>
+          q
+            .eq("userIdentifier", userIdentifier)
+            .eq("projectId", projectId)
+            .eq("scenarioId", args.scenario.scenarioId),
       )
       .take(2000);
     for (const credit of existingCredits) {
@@ -906,15 +1013,17 @@ export const saveFinancingScenario = mutation({
 });
 
 export const deleteFinancingScenario = mutation({
-  args: { scenarioId: v.string() },
+  args: { projectId: v.optional(v.string()), scenarioId: v.string() },
   handler: async (ctx, args) => {
     const identity = await requireIdentity(ctx);
     const userIdentifier = identity.tokenIdentifier;
-    const scenario = await ctx.db
+    const projectId = args.projectId ?? defaultProjectId;
+    let scenario = await ctx.db
       .query("financingScenarios")
-      .withIndex("by_userIdentifier_and_scenarioId", (q) =>
+      .withIndex("by_userIdentifier_and_projectId_and_scenarioId", (q) =>
         q
           .eq("userIdentifier", userIdentifier)
+          .eq("projectId", projectId)
           .eq("scenarioId", args.scenarioId),
       )
       .unique();
@@ -922,10 +1031,13 @@ export const deleteFinancingScenario = mutation({
 
     const credits = await ctx.db
       .query("credits")
-      .withIndex("by_userIdentifier_and_scenarioId_and_creditId", (q) =>
-        q
-          .eq("userIdentifier", userIdentifier)
-          .eq("scenarioId", args.scenarioId),
+      .withIndex(
+        "by_userIdentifier_and_projectId_and_scenarioId_and_creditId",
+        (q) =>
+          q
+            .eq("userIdentifier", userIdentifier)
+            .eq("projectId", projectId)
+            .eq("scenarioId", args.scenarioId),
       )
       .take(2000);
     for (const credit of credits) await ctx.db.delete(credit._id);
@@ -942,16 +1054,23 @@ export const saveLiquidityScenario = mutation({
   handler: async (ctx, args) => {
     const identity = await requireIdentity(ctx);
     const userIdentifier = identity.tokenIdentifier;
+    const projectId = args.scenario.projectId ?? defaultProjectId;
     const updatedAt = Date.now();
     const existingScenario = await ctx.db
       .query("liquidityScenarios")
-      .withIndex("by_userIdentifier_and_scenarioId", (q) =>
+      .withIndex("by_userIdentifier_and_projectId_and_scenarioId", (q) =>
         q
           .eq("userIdentifier", userIdentifier)
+          .eq("projectId", projectId)
           .eq("scenarioId", args.scenario.scenarioId),
       )
       .unique();
-    const nextScenario = { userIdentifier, ...args.scenario, updatedAt };
+    const nextScenario = {
+      userIdentifier,
+      ...args.scenario,
+      projectId,
+      updatedAt,
+    };
 
     if (existingScenario === null) {
       await ctx.db.insert("liquidityScenarios", nextScenario);
@@ -976,15 +1095,19 @@ export const saveLiquidityScenario = mutation({
     for (const item of args.items) {
       const existingItem = await ctx.db
         .query("liquidityItems")
-        .withIndex("by_userIdentifier_and_scenarioId_and_itemId", (q) =>
-          q
-            .eq("userIdentifier", userIdentifier)
-            .eq("scenarioId", args.scenario.scenarioId)
-            .eq("itemId", item.itemId),
+        .withIndex(
+          "by_userIdentifier_and_projectId_and_scenarioId_and_itemId",
+          (q) =>
+            q
+              .eq("userIdentifier", userIdentifier)
+              .eq("projectId", projectId)
+              .eq("scenarioId", args.scenario.scenarioId)
+              .eq("itemId", item.itemId),
         )
         .unique();
       const nextItem = {
         userIdentifier,
+        projectId,
         scenarioId: args.scenario.scenarioId,
         itemId: item.itemId,
         position: item.position,
@@ -1001,10 +1124,13 @@ export const saveLiquidityScenario = mutation({
     const retainedItemIds = new Set(args.items.map((row) => row.itemId));
     const existingItems = await ctx.db
       .query("liquidityItems")
-      .withIndex("by_userIdentifier_and_scenarioId_and_itemId", (q) =>
-        q
-          .eq("userIdentifier", userIdentifier)
-          .eq("scenarioId", args.scenario.scenarioId),
+      .withIndex(
+        "by_userIdentifier_and_projectId_and_scenarioId_and_itemId",
+        (q) =>
+          q
+            .eq("userIdentifier", userIdentifier)
+            .eq("projectId", projectId)
+            .eq("scenarioId", args.scenario.scenarioId),
       )
       .take(5000);
     for (const item of existingItems) {
@@ -1018,15 +1144,17 @@ export const saveLiquidityScenario = mutation({
 });
 
 export const deleteLiquidityScenario = mutation({
-  args: { scenarioId: v.string() },
+  args: { projectId: v.optional(v.string()), scenarioId: v.string() },
   handler: async (ctx, args) => {
     const identity = await requireIdentity(ctx);
     const userIdentifier = identity.tokenIdentifier;
-    const scenario = await ctx.db
+    const projectId = args.projectId ?? defaultProjectId;
+    let scenario = await ctx.db
       .query("liquidityScenarios")
-      .withIndex("by_userIdentifier_and_scenarioId", (q) =>
+      .withIndex("by_userIdentifier_and_projectId_and_scenarioId", (q) =>
         q
           .eq("userIdentifier", userIdentifier)
+          .eq("projectId", projectId)
           .eq("scenarioId", args.scenarioId),
       )
       .unique();
@@ -1034,10 +1162,13 @@ export const deleteLiquidityScenario = mutation({
 
     const items = await ctx.db
       .query("liquidityItems")
-      .withIndex("by_userIdentifier_and_scenarioId_and_itemId", (q) =>
-        q
-          .eq("userIdentifier", userIdentifier)
-          .eq("scenarioId", args.scenarioId),
+      .withIndex(
+        "by_userIdentifier_and_projectId_and_scenarioId_and_itemId",
+        (q) =>
+          q
+            .eq("userIdentifier", userIdentifier)
+            .eq("projectId", projectId)
+            .eq("scenarioId", args.scenarioId),
       )
       .take(5000);
     for (const item of items) await ctx.db.delete(item._id);
@@ -1046,8 +1177,495 @@ export const deleteLiquidityScenario = mutation({
   },
 });
 
+export const getProjectOverview = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await requireIdentity(ctx);
+    const userIdentifier = identity.tokenIdentifier;
+    const [projectRows, financingRows, liquidityRows] = await Promise.all([
+      ctx.db
+        .query("projects")
+        .withIndex("by_userIdentifier", (q) =>
+          q.eq("userIdentifier", userIdentifier),
+        )
+        .take(500),
+      ctx.db
+        .query("financingScenarios")
+        .withIndex("by_userIdentifier", (q) =>
+          q.eq("userIdentifier", userIdentifier),
+        )
+        .take(500),
+      ctx.db
+        .query("liquidityScenarios")
+        .withIndex("by_userIdentifier", (q) =>
+          q.eq("userIdentifier", userIdentifier),
+        )
+        .take(500),
+    ]);
+
+    const projects = (projectRows.length > 0 ? projectRows : [defaultProject()])
+      .map((project) => ({
+        projectId: project.projectId,
+        name: project.name,
+        createdAt: project.createdAt,
+      }))
+      .sort((left, right) => left.createdAt - right.createdAt);
+
+    return {
+      projects,
+      financingScenarios: financingRows.map((scenario) => ({
+        projectId: projectForRow(scenario),
+        scenarioId: scenario.scenarioId,
+        name: scenario.name,
+        createdAt: scenario.createdAt,
+        color: scenario.color,
+      })),
+      liquidityScenarios: liquidityRows
+        .map((scenario) => ({
+          scenarioId: scenario.scenarioId,
+          name: scenario.name,
+          createdAt: scenario.createdAt,
+          color: scenario.color,
+          creditScenarioId: scenario.creditScenarioId,
+        }))
+        .sort((left, right) => left.createdAt - right.createdAt),
+    };
+  },
+});
+
+export const moveFinancingScenarioToProject = mutation({
+  args: {
+    scenarioId: v.string(),
+    fromProjectId: v.string(),
+    toProjectId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const identity = await requireIdentity(ctx);
+    const userIdentifier = identity.tokenIdentifier;
+    const updatedAt = Date.now();
+    let scenario = await ctx.db
+      .query("financingScenarios")
+      .withIndex("by_userIdentifier_and_projectId_and_scenarioId", (q) =>
+        q
+          .eq("userIdentifier", userIdentifier)
+          .eq("projectId", args.fromProjectId)
+          .eq("scenarioId", args.scenarioId),
+      )
+      .unique();
+    if (scenario === null && args.fromProjectId === defaultProjectId) {
+      scenario = await ctx.db
+        .query("financingScenarios")
+        .withIndex("by_userIdentifier_and_scenarioId", (q) =>
+          q
+            .eq("userIdentifier", userIdentifier)
+            .eq("scenarioId", args.scenarioId),
+        )
+        .unique();
+    }
+    if (scenario === null) throw new ConvexError("Scenario not found");
+
+    await ctx.db.patch(scenario._id, {
+      projectId: args.toProjectId,
+      updatedAt,
+    });
+    const credits = await ctx.db
+      .query("credits")
+      .withIndex("by_userIdentifier_and_scenarioId_and_creditId", (q) =>
+        q
+          .eq("userIdentifier", userIdentifier)
+          .eq("scenarioId", args.scenarioId),
+      )
+      .take(2000);
+    for (const credit of credits) {
+      if (!belongsToProject(credit, args.fromProjectId)) continue;
+      await ctx.db.patch(credit._id, {
+        projectId: args.toProjectId,
+        updatedAt,
+      });
+    }
+    return updatedAt;
+  },
+});
+
+async function projectSnapshot(
+  ctx: QueryCtx | MutationCtx,
+  userIdentifier: string,
+  projectId: string,
+  selectedLiquidityScenarioIds: string[],
+) {
+  const project = await ctx.db
+    .query("projects")
+    .withIndex("by_userIdentifier_and_projectId", (q) =>
+      q.eq("userIdentifier", userIdentifier).eq("projectId", projectId),
+    )
+    .unique();
+  const [scenarioRows, creditRows, liquidityScenarioRows, liquidityItemRows] =
+    await Promise.all([
+      ctx.db
+        .query("financingScenarios")
+        .withIndex("by_userIdentifier", (q) =>
+          q.eq("userIdentifier", userIdentifier),
+        )
+        .take(500),
+      ctx.db
+        .query("credits")
+        .withIndex("by_userIdentifier", (q) =>
+          q.eq("userIdentifier", userIdentifier),
+        )
+        .take(2000),
+      ctx.db
+        .query("liquidityScenarios")
+        .withIndex("by_userIdentifier", (q) =>
+          q.eq("userIdentifier", userIdentifier),
+        )
+        .take(500),
+      ctx.db
+        .query("liquidityItems")
+        .withIndex("by_userIdentifier", (q) =>
+          q.eq("userIdentifier", userIdentifier),
+        )
+        .take(5000),
+    ]);
+
+  const selectedSet = new Set(selectedLiquidityScenarioIds);
+
+  return {
+    project: {
+      projectId,
+      name: project?.name ?? defaultProject().name,
+      createdAt: project?.createdAt ?? 0,
+    },
+    financingScenarios: scenarioRows.filter((row) =>
+      belongsToProject(row, projectId),
+    ),
+    credits: creditRows.filter((row) => belongsToProject(row, projectId)),
+    liquidityScenarios: liquidityScenarioRows.filter(
+      (row) => selectedSet.size === 0 || selectedSet.has(row.scenarioId),
+    ),
+    liquidityItems: liquidityItemRows.filter(
+      (row) =>
+        (selectedSet.size === 0 || selectedSet.has(row.scenarioId)) &&
+        belongsToProject(row, projectId),
+    ),
+  };
+}
+
+export const saveProject = mutation({
+  args: { project: projectValidator },
+  handler: async (ctx, args) => {
+    const identity = await requireIdentity(ctx);
+    const userIdentifier = identity.tokenIdentifier;
+    const updatedAt = Date.now();
+    const existing = await ctx.db
+      .query("projects")
+      .withIndex("by_userIdentifier_and_projectId", (q) =>
+        q
+          .eq("userIdentifier", userIdentifier)
+          .eq("projectId", args.project.projectId),
+      )
+      .unique();
+    const next = { userIdentifier, ...args.project, updatedAt };
+    if (existing === null) await ctx.db.insert("projects", next);
+    else if (
+      !sameValues(existing, next, [
+        "name",
+        "createdAt",
+        "lastActiveScenarioId",
+        "lastActiveLiquidityScenarioId",
+      ])
+    ) {
+      await ctx.db.replace("projects", existing._id, next);
+    }
+    return updatedAt;
+  },
+});
+
+export const deleteProject = mutation({
+  args: { projectId: v.string() },
+  handler: async (ctx, args) => {
+    if (args.projectId === defaultProjectId) {
+      throw new ConvexError("Default project cannot be deleted");
+    }
+    const identity = await requireIdentity(ctx);
+    const userIdentifier = identity.tokenIdentifier;
+    const project = await ctx.db
+      .query("projects")
+      .withIndex("by_userIdentifier_and_projectId", (q) =>
+        q.eq("userIdentifier", userIdentifier).eq("projectId", args.projectId),
+      )
+      .unique();
+    if (project !== null) await ctx.db.delete(project._id);
+    for (const table of ["financingScenarios", "credits"] as const) {
+      const rows = await ctx.db
+        .query(table)
+        .withIndex("by_userIdentifier_and_projectId", (q) =>
+          q
+            .eq("userIdentifier", userIdentifier)
+            .eq("projectId", args.projectId),
+        )
+        .take(5000);
+      for (const row of rows) await ctx.db.delete(row._id);
+    }
+    const shares = await ctx.db
+      .query("projectShares")
+      .withIndex("by_userIdentifier_and_projectId", (q) =>
+        q.eq("userIdentifier", userIdentifier).eq("projectId", args.projectId),
+      )
+      .take(100);
+    for (const share of shares) {
+      await ctx.db.patch(share._id, { revokedAt: Date.now() });
+    }
+    return Date.now();
+  },
+});
+
+export const createProjectShare = mutation({
+  args: {
+    projectId: v.string(),
+    liquidityScenarioIds: v.array(v.string()),
+    access: shareAccessValidator,
+  },
+  handler: async (ctx, args) => {
+    const identity = await requireIdentity(ctx);
+    const userIdentifier = identity.tokenIdentifier;
+    const existingShares = await ctx.db
+      .query("projectShares")
+      .withIndex("by_userIdentifier_and_projectId", (q) =>
+        q.eq("userIdentifier", userIdentifier).eq("projectId", args.projectId),
+      )
+      .take(100);
+    const activeShare = existingShares.find(
+      (share) =>
+        share.revokedAt === undefined &&
+        (share.access ?? "view") === args.access &&
+        JSON.stringify(share.liquidityScenarioIds.sort()) ===
+          JSON.stringify([...args.liquidityScenarioIds].sort()),
+    );
+    if (activeShare) return activeShare.token;
+    const token = crypto.randomUUID();
+    await ctx.db.insert("projectShares", {
+      token,
+      userIdentifier,
+      projectId: args.projectId,
+      liquidityScenarioIds: args.liquidityScenarioIds,
+      access: args.access,
+      createdAt: Date.now(),
+    });
+    return token;
+  },
+});
+
+export const revokeProjectShare = mutation({
+  args: { projectId: v.string() },
+  handler: async (ctx, args) => {
+    const identity = await requireIdentity(ctx);
+    const userIdentifier = identity.tokenIdentifier;
+    const shares = await ctx.db
+      .query("projectShares")
+      .withIndex("by_userIdentifier_and_projectId", (q) =>
+        q.eq("userIdentifier", userIdentifier).eq("projectId", args.projectId),
+      )
+      .take(100);
+    const now = Date.now();
+    for (const share of shares) {
+      if (share.revokedAt === undefined)
+        await ctx.db.patch(share._id, { revokedAt: now });
+    }
+    return now;
+  },
+});
+
+export const getSharedProject = query({
+  args: { token: v.string() },
+  handler: async (ctx, args) => {
+    const share = await ctx.db
+      .query("projectShares")
+      .withIndex("by_token", (q) => q.eq("token", args.token))
+      .unique();
+    if (share === null || share.revokedAt !== undefined) return null;
+    const snapshot = await projectSnapshot(
+      ctx,
+      share.userIdentifier,
+      share.projectId,
+      share.liquidityScenarioIds,
+    );
+    return { ...snapshot, access: share.access ?? "view" };
+  },
+});
+
+export const updateSharedProject = mutation({
+  args: { token: v.string(), name: v.string() },
+  handler: async (ctx, args) => {
+    const share = await requireEditableShare(ctx, args.token);
+    const project = await ctx.db
+      .query("projects")
+      .withIndex("by_userIdentifier_and_projectId", (q) =>
+        q
+          .eq("userIdentifier", share.userIdentifier)
+          .eq("projectId", share.projectId),
+      )
+      .unique();
+    if (project === null) throw new ConvexError("Project not found");
+    const name = args.name.trim();
+    if (!name) throw new ConvexError("Project name is required");
+    await ctx.db.patch(project._id, { name, updatedAt: Date.now() });
+    return Date.now();
+  },
+});
+
+export const updateSharedFinancingScenario = mutation({
+  args: { token: v.string(), scenario: financingScenarioValidator },
+  handler: async (ctx, args) => {
+    const share = await requireEditableShare(ctx, args.token);
+    const projectId = args.scenario.projectId ?? share.projectId;
+    if (projectId !== share.projectId)
+      throw new ConvexError("Scenario not shared");
+    const scenario = await ctx.db
+      .query("financingScenarios")
+      .withIndex("by_userIdentifier_and_projectId_and_scenarioId", (q) =>
+        q
+          .eq("userIdentifier", share.userIdentifier)
+          .eq("projectId", share.projectId)
+          .eq("scenarioId", args.scenario.scenarioId),
+      )
+      .unique();
+    if (scenario === null) throw new ConvexError("Scenario not found");
+    await ctx.db.patch(scenario._id, {
+      name: args.scenario.name,
+      sollzins: args.scenario.sollzins,
+      effzins: args.scenario.effzins,
+      kaufpreis: args.scenario.kaufpreis,
+      modernisierungskosten: args.scenario.modernisierungskosten,
+      eigenkapital: args.scenario.eigenkapital,
+      tilgungssatz: args.scenario.tilgungssatz,
+      zinsbindung: args.scenario.zinsbindung,
+      updatedAt: Date.now(),
+    });
+    return Date.now();
+  },
+});
+
+export const importSharedProject = mutation({
+  args: { token: v.string() },
+  handler: async (ctx, args) => {
+    const identity = await requireIdentity(ctx);
+    const targetUserIdentifier = identity.tokenIdentifier;
+    const share = await ctx.db
+      .query("projectShares")
+      .withIndex("by_token", (q) => q.eq("token", args.token))
+      .unique();
+    if (share === null || share.revokedAt !== undefined) {
+      throw new ConvexError("Share link is not available");
+    }
+    const snapshot = await projectSnapshot(
+      ctx,
+      share.userIdentifier,
+      share.projectId,
+      share.liquidityScenarioIds,
+    );
+    const importedAt = Date.now();
+    const projectId = crypto.randomUUID();
+    await ctx.db.insert("projects", {
+      userIdentifier: targetUserIdentifier,
+      projectId,
+      name: `${snapshot.project.name} Kopie`,
+      createdAt: importedAt,
+      updatedAt: importedAt,
+    });
+    const scenarioIdMap = new Map<string, string>();
+    let firstScenarioId = "basis";
+    for (const scenario of snapshot.financingScenarios) {
+      const scenarioId = crypto.randomUUID();
+      if (scenarioIdMap.size === 0) firstScenarioId = scenarioId;
+      scenarioIdMap.set(scenario.scenarioId, scenarioId);
+      await ctx.db.insert("financingScenarios", {
+        userIdentifier: targetUserIdentifier,
+        projectId,
+        scenarioId,
+        name: scenario.name,
+        createdAt: importedAt,
+        color: scenario.color,
+        sollzins: scenario.sollzins,
+        effzins: scenario.effzins,
+        kaufpreis: scenario.kaufpreis,
+        modernisierungskosten: scenario.modernisierungskosten,
+        eigenkapital: scenario.eigenkapital,
+        tilgungssatz: scenario.tilgungssatz,
+        zinsbindung: scenario.zinsbindung,
+        updatedAt: importedAt,
+      });
+    }
+    for (const credit of snapshot.credits) {
+      await ctx.db.insert("credits", {
+        userIdentifier: targetUserIdentifier,
+        projectId,
+        scenarioId: scenarioIdMap.get(credit.scenarioId) ?? credit.scenarioId,
+        creditId: credit.creditId,
+        data: credit.data,
+        updatedAt: importedAt,
+      });
+    }
+    const liquidityIdMap = new Map<string, string>();
+    let firstLiquidityScenarioId = "basis";
+    for (const scenario of snapshot.liquidityScenarios) {
+      const scenarioId = crypto.randomUUID();
+      if (liquidityIdMap.size === 0) firstLiquidityScenarioId = scenarioId;
+      liquidityIdMap.set(scenario.scenarioId, scenarioId);
+      await ctx.db.insert("liquidityScenarios", {
+        userIdentifier: targetUserIdentifier,
+        scenarioId,
+        name: scenario.name,
+        createdAt: importedAt,
+        color: scenario.color,
+        startCapital: scenario.startCapital,
+        startMonth: scenario.startMonth,
+        horizonMonths: scenario.horizonMonths,
+        creditScenarioId:
+          scenarioIdMap.get(scenario.creditScenarioId) ??
+          scenario.creditScenarioId,
+        updatedAt: importedAt,
+      });
+    }
+    for (const item of snapshot.liquidityItems) {
+      await ctx.db.insert("liquidityItems", {
+        userIdentifier: targetUserIdentifier,
+        scenarioId: liquidityIdMap.get(item.scenarioId) ?? item.scenarioId,
+        itemId: item.itemId,
+        position: item.position,
+        data: item.data,
+        updatedAt: importedAt,
+      });
+    }
+    const existingSettings = await ctx.db
+      .query("userSettings")
+      .withIndex("by_userIdentifier", (q) =>
+        q.eq("userIdentifier", targetUserIdentifier),
+      )
+      .unique();
+    const nextSettings = {
+      userIdentifier: targetUserIdentifier,
+      activeProjectId: projectId,
+      activeScenarioId: firstScenarioId,
+      comparedScenarioIds: [],
+      detailScenarioId: firstScenarioId,
+      activeLiquidityScenarioId: firstLiquidityScenarioId,
+      includeRefinancing: false,
+      analysisHorizonYears: 30,
+      opportunityRate: defaultOpportunityRate,
+      updatedAt: importedAt,
+    };
+    if (existingSettings === null) {
+      await ctx.db.insert("userSettings", nextSettings);
+    } else {
+      await ctx.db.replace("userSettings", existingSettings._id, nextSettings);
+    }
+    return { projectId, importedAt };
+  },
+});
+
 export const replaceForCurrentUser = mutation({
   args: {
+    projects: v.optional(v.array(projectValidator)),
     settings: settingsValidator,
     financingScenarios: v.array(financingScenarioValidator),
     credits: v.array(creditValidator),
@@ -1074,6 +1692,7 @@ export const replaceForCurrentUser = mutation({
       await ctx.db.insert("userSettings", nextSettings);
     } else if (
       !sameValues(existingSettings, nextSettings, [
+        "activeProjectId",
         "activeScenarioId",
         "comparedScenarioIds",
         "detailScenarioId",
@@ -1086,6 +1705,25 @@ export const replaceForCurrentUser = mutation({
       await ctx.db.replace("userSettings", existingSettings._id, nextSettings);
     }
 
+    for (const project of args.projects ?? [defaultProject()]) {
+      const existingProject = await ctx.db
+        .query("projects")
+        .withIndex("by_userIdentifier_and_projectId", (q) =>
+          q
+            .eq("userIdentifier", userIdentifier)
+            .eq("projectId", project.projectId),
+        )
+        .unique();
+      const nextProject = { userIdentifier, ...project, updatedAt };
+      if (existingProject === null) {
+        await ctx.db.insert("projects", nextProject);
+      } else if (
+        !sameValues(existingProject, nextProject, ["name", "createdAt"])
+      ) {
+        await ctx.db.replace("projects", existingProject._id, nextProject);
+      }
+    }
+
     for (const scenario of args.financingScenarios) {
       const existing = await ctx.db
         .query("financingScenarios")
@@ -1095,7 +1733,12 @@ export const replaceForCurrentUser = mutation({
             .eq("scenarioId", scenario.scenarioId),
         )
         .unique();
-      const next = { userIdentifier, ...scenario, updatedAt };
+      const next = {
+        userIdentifier,
+        ...scenario,
+        projectId: scenario.projectId ?? defaultProjectId,
+        updatedAt,
+      };
       if (existing === null) {
         await ctx.db.insert("financingScenarios", next);
       } else if (
@@ -1126,7 +1769,12 @@ export const replaceForCurrentUser = mutation({
             .eq("creditId", credit.creditId),
         )
         .unique();
-      const next = { userIdentifier, ...credit, updatedAt };
+      const next = {
+        userIdentifier,
+        ...credit,
+        projectId: credit.projectId ?? defaultProjectId,
+        updatedAt,
+      };
       if (existing === null) {
         await ctx.db.insert("credits", next);
       } else if (!sameValues(existing, next, ["data"])) {
@@ -1143,7 +1791,12 @@ export const replaceForCurrentUser = mutation({
             .eq("scenarioId", scenario.scenarioId),
         )
         .unique();
-      const next = { userIdentifier, ...scenario, updatedAt };
+      const next = {
+        userIdentifier,
+        ...scenario,
+        projectId: scenario.projectId ?? defaultProjectId,
+        updatedAt,
+      };
       if (existing === null) {
         await ctx.db.insert("liquidityScenarios", next);
       } else if (
@@ -1171,7 +1824,12 @@ export const replaceForCurrentUser = mutation({
             .eq("itemId", item.itemId),
         )
         .unique();
-      const next = { userIdentifier, ...item, updatedAt };
+      const next = {
+        userIdentifier,
+        ...item,
+        projectId: item.projectId ?? defaultProjectId,
+        updatedAt,
+      };
       if (existing === null) {
         await ctx.db.insert("liquidityItems", next);
       } else if (!sameValues(existing, next, ["position", "data"])) {

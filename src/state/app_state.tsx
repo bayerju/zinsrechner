@@ -2,6 +2,7 @@
 
 import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import type { OptimisticLocalStore } from "convex/browser";
+import { usePathname } from "next/navigation";
 import {
   createContext,
   type ReactNode,
@@ -9,6 +10,7 @@ import {
   useEffect,
   useMemo,
   useRef,
+  useState,
 } from "react";
 import { api } from "../../convex/_generated/api";
 import { authClient } from "~/lib/auth-client";
@@ -38,6 +40,8 @@ import {
 
 type SyncedState = {
   version: 1;
+  projects: Record<string, Project>;
+  activeProjectId: string;
   scenarios: Record<string, Scenario>;
   activeScenarioId: string;
   scenarioValues: Record<string, ScenarioValues>;
@@ -51,6 +55,14 @@ type SyncedState = {
   opportunityRate: number;
 };
 
+type Project = {
+  id: string;
+  name: string;
+  createdAt: number;
+  lastActiveScenarioId?: string;
+  lastActiveLiquidityScenarioId?: string;
+};
+
 type RemoteState = {
   userIdentifier: string;
   state: SyncedState;
@@ -58,7 +70,12 @@ type RemoteState = {
   needsMigration: boolean;
 };
 
+type SharedProjectResult = NonNullable<
+  ReturnType<typeof useQuery<typeof api.appState.getSharedProject>>
+>;
+
 type Settings = {
+  activeProjectId?: string;
   activeScenarioId: string;
   comparedScenarioIds: string[];
   detailScenarioId?: string;
@@ -70,6 +87,10 @@ type Settings = {
 
 type AppStateContextValue = {
   state: SyncedState;
+  projects: Record<string, Project>;
+  projectList: Project[];
+  activeProjectId: string;
+  activeProject: Project;
   scenarios: Record<string, Scenario>;
   scenarioList: Scenario[];
   activeScenarioId: string;
@@ -89,6 +110,21 @@ type AppStateContextValue = {
   analysisHorizonYears: number;
   opportunityRate: number;
   setSettings: (settings: Partial<Settings>) => Promise<void>;
+  setActiveProjectId: (projectId: string) => Promise<void>;
+  createProject: (options: {
+    id: string;
+    name: string;
+    createdAt: number;
+  }) => Promise<void>;
+  renameProject: (projectId: string, name: string) => Promise<void>;
+  deleteProject: (projectId: string) => Promise<void>;
+  createProjectShare: (
+    projectId: string,
+    liquidityScenarioIds: string[],
+    access: "view" | "edit",
+  ) => Promise<string>;
+  revokeProjectShare: (projectId: string) => Promise<void>;
+  importSharedProject: (token: string) => Promise<string>;
   setActiveScenarioId: (scenarioId: string) => Promise<void>;
   createScenario: (options: {
     id: string;
@@ -134,6 +170,9 @@ function isSyncedState(value: unknown): value is SyncedState {
   if (!isRecord(value)) return false;
   return (
     value.version === 1 &&
+    (value.projects === undefined || isRecord(value.projects)) &&
+    (value.activeProjectId === undefined ||
+      typeof value.activeProjectId === "string") &&
     isRecord(value.scenarios) &&
     typeof value.activeScenarioId === "string" &&
     isRecord(value.scenarioValues) &&
@@ -150,9 +189,23 @@ function isSyncedState(value: unknown): value is SyncedState {
   );
 }
 
+const defaultProjectId = "default";
+
+function defaultProjects(): Record<string, Project> {
+  return {
+    [defaultProjectId]: {
+      id: defaultProjectId,
+      name: "Mein Projekt",
+      createdAt: 0,
+    },
+  };
+}
+
 function defaultSyncedState(): SyncedState {
   return {
     version: 1,
+    projects: defaultProjects(),
+    activeProjectId: defaultProjectId,
     scenarios: structuredClone(defaultScenarios),
     activeScenarioId: defaultScenarioId,
     scenarioValues: {
@@ -174,6 +227,14 @@ function defaultSyncedState(): SyncedState {
 }
 
 function normalizeState(state: SyncedState): SyncedState {
+  const projects =
+    state.projects && Object.keys(state.projects).length > 0
+      ? state.projects
+      : defaultProjects();
+  const projectIds = Object.keys(projects);
+  const activeProjectId = projects[state.activeProjectId]
+    ? state.activeProjectId
+    : (projectIds[0] ?? defaultProjectId);
   const scenarios =
     Object.keys(state.scenarios).length > 0
       ? state.scenarios
@@ -216,6 +277,8 @@ function normalizeState(state: SyncedState): SyncedState {
 
   return {
     ...state,
+    projects,
+    activeProjectId,
     scenarios,
     activeScenarioId,
     scenarioValues,
@@ -241,6 +304,12 @@ function normalizeState(state: SyncedState): SyncedState {
 }
 
 function toConvexSnapshot(state: SyncedState) {
+  const projectId = state.activeProjectId;
+  const projects = Object.values(state.projects).map((project) => ({
+    projectId: project.id,
+    name: project.name,
+    createdAt: project.createdAt,
+  }));
   const financingScenarios = Object.values(state.scenarios).flatMap(
     (scenario) => {
       const values = state.scenarioValues[scenario.id];
@@ -248,6 +317,7 @@ function toConvexSnapshot(state: SyncedState) {
       return [
         {
           scenarioId: scenario.id,
+          projectId,
           name: scenario.name,
           createdAt: scenario.createdAt,
           color: scenario.color,
@@ -270,6 +340,7 @@ function toConvexSnapshot(state: SyncedState) {
           ? [
               {
                 scenarioId,
+                projectId,
                 creditId,
                 data: serializeCreditForConvex(normalized),
               },
@@ -284,6 +355,7 @@ function toConvexSnapshot(state: SyncedState) {
       return [
         {
           scenarioId: scenario.id,
+          projectId,
           name: scenario.name,
           createdAt: scenario.createdAt,
           color: scenario.color,
@@ -299,6 +371,7 @@ function toConvexSnapshot(state: SyncedState) {
     ([scenarioId, values]) =>
       values.items.map((data, position) => ({
         scenarioId,
+        projectId,
         itemId: data.id,
         position,
         data,
@@ -306,6 +379,7 @@ function toConvexSnapshot(state: SyncedState) {
   );
 
   return {
+    projects,
     settings: toSettings(state),
     financingScenarios,
     credits,
@@ -316,6 +390,7 @@ function toConvexSnapshot(state: SyncedState) {
 
 function toSettings(state: SyncedState): Settings {
   return {
+    activeProjectId: state.activeProjectId,
     activeScenarioId: state.activeScenarioId,
     comparedScenarioIds: state.comparedScenarioIds,
     detailScenarioId: state.detailScenarioId,
@@ -324,6 +399,91 @@ function toSettings(state: SyncedState): Settings {
     analysisHorizonYears: state.analysisHorizonYears,
     opportunityRate: state.opportunityRate,
   };
+}
+
+function sharedProjectToState(shared: SharedProjectResult): SyncedState {
+  const scenarios: Record<string, Scenario> = {};
+  const scenarioValues: Record<string, ScenarioValues> = {};
+  for (const scenario of shared.financingScenarios) {
+    scenarios[scenario.scenarioId] = {
+      id: scenario.scenarioId,
+      name: scenario.name,
+      createdAt: scenario.createdAt,
+      color: scenario.color,
+    };
+    scenarioValues[scenario.scenarioId] = normalizeScenarioValues({
+      sollzins: scenario.sollzins ?? scenario.effzins,
+      effzins: scenario.effzins,
+      kaufpreis: scenario.kaufpreis,
+      modernisierungskosten: scenario.modernisierungskosten,
+      eigenkapital: scenario.eigenkapital,
+      tilgungssatz: scenario.tilgungssatz,
+      zinsbindung: scenario.zinsbindung,
+      credits: {},
+    });
+  }
+  for (const credit of shared.credits) {
+    const values = scenarioValues[credit.scenarioId];
+    const normalized = normalizeCredit(credit.data);
+    if (values && normalized) values.credits[credit.creditId] = normalized;
+  }
+
+  const liquidityScenarios: Record<string, LiquidityScenario> = {};
+  const liquidityScenarioValues: Record<string, LiquidityScenarioValues> = {};
+  for (const scenario of shared.liquidityScenarios) {
+    liquidityScenarios[scenario.scenarioId] = {
+      id: scenario.scenarioId,
+      name: scenario.name,
+      createdAt: scenario.createdAt,
+      color: scenario.color,
+    };
+    liquidityScenarioValues[scenario.scenarioId] =
+      normalizeLiquidityScenarioValues({
+        startCapital: scenario.startCapital,
+        startMonth: scenario.startMonth,
+        horizonMonths: scenario.horizonMonths,
+        creditScenarioId: scenario.creditScenarioId,
+        items: [],
+      });
+  }
+  for (const item of [...shared.liquidityItems].sort(
+    (left, right) => left.position - right.position,
+  )) {
+    const values = liquidityScenarioValues[item.scenarioId];
+    if (values) {
+      values.items.push(
+        item.data as unknown as LiquidityScenarioValues["items"][number],
+      );
+    }
+  }
+
+  const firstScenarioId =
+    shared.financingScenarios[0]?.scenarioId ?? defaultScenarioId;
+  const firstLiquidityScenarioId =
+    shared.liquidityScenarios[0]?.scenarioId ?? defaultLiquidityScenarioId;
+
+  return normalizeState({
+    version: 1,
+    projects: {
+      [shared.project.projectId]: {
+        id: shared.project.projectId,
+        name: shared.project.name,
+        createdAt: shared.project.createdAt,
+      },
+    },
+    activeProjectId: shared.project.projectId,
+    scenarios,
+    activeScenarioId: firstScenarioId,
+    scenarioValues,
+    comparedScenarioIds: [],
+    detailScenarioId: firstScenarioId,
+    liquidityScenarios,
+    activeLiquidityScenarioId: firstLiquidityScenarioId,
+    liquidityScenarioValues,
+    includeRefinancing: false,
+    analysisHorizonYears: defaultAnalysisHorizonYears,
+    opportunityRate: defaultOpportunityRate,
+  });
 }
 
 function updateQueryState(
@@ -365,9 +525,14 @@ function applyScenarioToState(
   });
 }
 
-function scenarioMutationPayload(scenario: Scenario, values: ScenarioValues) {
+function scenarioMutationPayload(
+  projectId: string,
+  scenario: Scenario,
+  values: ScenarioValues,
+) {
   return {
     scenario: {
+      projectId,
       scenarioId: scenario.id,
       name: scenario.name,
       createdAt: scenario.createdAt,
@@ -390,11 +555,13 @@ function scenarioMutationPayload(scenario: Scenario, values: ScenarioValues) {
 }
 
 function liquidityMutationPayload(
+  projectId: string,
   scenario: LiquidityScenario,
   values: LiquidityScenarioValues,
 ) {
   return {
     scenario: {
+      projectId,
       scenarioId: scenario.id,
       name: scenario.name,
       createdAt: scenario.createdAt,
@@ -421,6 +588,11 @@ function LoadingScreen() {
 }
 
 export function AppStateProvider({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
+  const shareToken = pathname.startsWith("/projekt/share/")
+    ? pathname.split("/")[3]
+    : undefined;
+  const [shareSettings, setShareSettings] = useState<Partial<Settings>>({});
   const session = authClient.useSession();
   const { isAuthenticated } = useConvexAuth();
   const anonymousSignInRunning = useRef(false);
@@ -428,10 +600,25 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
 
   const remoteResult = useQuery(
     api.appState.getForCurrentUser,
-    isAuthenticated ? {} : "skip",
+    isAuthenticated && shareToken === undefined ? {} : "skip",
   ) as RemoteState | null | undefined;
+  const sharedProject = useQuery(
+    api.appState.getSharedProject,
+    shareToken ? { token: shareToken } : "skip",
+  ) as SharedProjectResult | null | undefined;
 
   const replaceState = useMutation(api.appState.replaceForCurrentUser);
+  const saveProjectMutation = useMutation(api.appState.saveProject);
+  const deleteProjectMutation = useMutation(api.appState.deleteProject);
+  const createProjectShareMutation = useMutation(
+    api.appState.createProjectShare,
+  );
+  const revokeProjectShareMutation = useMutation(
+    api.appState.revokeProjectShare,
+  );
+  const importSharedProjectMutation = useMutation(
+    api.appState.importSharedProject,
+  );
   const saveSettingsMutation = useMutation(
     api.appState.saveSettings,
   ).withOptimisticUpdate((localStore, args) => {
@@ -439,6 +626,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       normalizeState({
         ...state,
         ...args.settings,
+        activeProjectId: args.settings.activeProjectId ?? state.activeProjectId,
         detailScenarioId: args.settings.detailScenarioId ?? "",
         opportunityRate:
           args.settings.opportunityRate ?? defaultOpportunityRate,
@@ -555,7 +743,14 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     });
   });
 
+  const bypassAppState = false;
+
   useEffect(() => {
+    setShareSettings({});
+  }, [shareToken]);
+
+  useEffect(() => {
+    if (shareToken !== undefined) return;
     if (session.isPending || session.data || anonymousSignInRunning.current) {
       return;
     }
@@ -569,10 +764,15 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       .finally(() => {
         anonymousSignInRunning.current = false;
       });
-  }, [session.data, session.isPending]);
+  }, [session.data, session.isPending, shareToken]);
 
   useEffect(() => {
-    if (!isAuthenticated || remoteResult === undefined) return;
+    if (
+      shareToken !== undefined ||
+      !isAuthenticated ||
+      remoteResult === undefined
+    )
+      return;
     if (remoteResult !== null && !remoteResult.needsMigration) return;
     if (initializingRemote.current) return;
 
@@ -589,12 +789,19 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       .finally(() => {
         initializingRemote.current = false;
       });
-  }, [isAuthenticated, remoteResult, replaceState]);
+  }, [isAuthenticated, remoteResult, replaceState, shareToken]);
 
   const appState = useMemo(() => {
+    if (shareToken !== undefined) {
+      if (!sharedProject) return null;
+      return normalizeState({
+        ...sharedProjectToState(sharedProject),
+        ...shareSettings,
+      });
+    }
     if (!remoteResult || !isSyncedState(remoteResult.state)) return null;
     return normalizeState(remoteResult.state);
-  }, [remoteResult]);
+  }, [remoteResult, shareSettings, shareToken, sharedProject]);
 
   const value = useMemo<AppStateContextValue | null>(() => {
     if (!appState) return null;
@@ -623,6 +830,10 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     );
 
     async function setSettings(settings: Partial<Settings>) {
+      if (shareToken !== undefined) {
+        setShareSettings((current) => ({ ...current, ...settings }));
+        return;
+      }
       const nextSettings = {
         ...toSettings(state),
         ...settings,
@@ -631,8 +842,13 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     }
 
     async function persistScenario(scenario: Scenario, values: ScenarioValues) {
+      if (shareToken !== undefined) return;
       await saveFinancingScenarioMutation(
-        scenarioMutationPayload(scenario, normalizeScenarioValues(values)),
+        scenarioMutationPayload(
+          state.activeProjectId,
+          scenario,
+          normalizeScenarioValues(values),
+        ),
       );
     }
 
@@ -640,8 +856,10 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       scenario: LiquidityScenario,
       values: LiquidityScenarioValues,
     ) {
+      if (shareToken !== undefined) return;
       await saveLiquidityScenarioMutation(
         liquidityMutationPayload(
+          state.activeProjectId,
           scenario,
           normalizeLiquidityScenarioValues(values),
         ),
@@ -650,6 +868,14 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
 
     return {
       state,
+      projects: state.projects,
+      projectList: Object.values(state.projects).sort(
+        (a, b) => a.createdAt - b.createdAt,
+      ),
+      activeProjectId: state.activeProjectId,
+      activeProject:
+        state.projects[state.activeProjectId] ??
+        defaultProjects()[defaultProjectId]!,
       scenarios: state.scenarios,
       scenarioList,
       activeScenarioId: state.activeScenarioId,
@@ -669,6 +895,95 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       analysisHorizonYears: state.analysisHorizonYears,
       opportunityRate: state.opportunityRate,
       setSettings,
+      setActiveProjectId: async (projectId) => {
+        if (shareToken !== undefined) return;
+        if (projectId === state.activeProjectId) return;
+        const currentProject = state.projects[state.activeProjectId];
+        if (currentProject) {
+          await saveProjectMutation({
+            project: {
+              projectId: currentProject.id,
+              name: currentProject.name,
+              createdAt: currentProject.createdAt,
+              lastActiveScenarioId: state.activeScenarioId,
+              lastActiveLiquidityScenarioId: state.activeLiquidityScenarioId,
+            },
+          });
+        }
+        const targetProject = state.projects[projectId];
+        const nextScenarioId =
+          targetProject?.lastActiveScenarioId ?? defaultScenarioId;
+        const nextLiquidityScenarioId =
+          targetProject?.lastActiveLiquidityScenarioId ??
+          defaultLiquidityScenarioId;
+        await setSettings({
+          activeProjectId: projectId,
+          activeScenarioId: nextScenarioId,
+          activeLiquidityScenarioId: nextLiquidityScenarioId,
+        });
+      },
+      createProject: async (options) => {
+        if (shareToken !== undefined) return;
+        const currentProject = state.projects[state.activeProjectId];
+        if (currentProject) {
+          await saveProjectMutation({
+            project: {
+              projectId: currentProject.id,
+              name: currentProject.name,
+              createdAt: currentProject.createdAt,
+              lastActiveScenarioId: state.activeScenarioId,
+              lastActiveLiquidityScenarioId: state.activeLiquidityScenarioId,
+            },
+          });
+        }
+        await saveProjectMutation({
+          project: {
+            projectId: options.id,
+            name: options.name,
+            createdAt: options.createdAt,
+          },
+        });
+        await setSettings({
+          activeProjectId: options.id,
+          activeScenarioId: defaultScenarioId,
+          activeLiquidityScenarioId: defaultLiquidityScenarioId,
+        });
+      },
+      renameProject: async (projectId, name) => {
+        if (shareToken !== undefined) return;
+        const project = state.projects[projectId];
+        if (!project) return;
+        await saveProjectMutation({
+          project: { projectId, name, createdAt: project.createdAt },
+        });
+      },
+      deleteProject: async (projectId) => {
+        if (shareToken !== undefined) return;
+        if (projectId === defaultProjectId) return;
+        await deleteProjectMutation({ projectId });
+        if (state.activeProjectId === projectId) {
+          const nextProject = Object.values(state.projects).find(
+            (project) => project.id !== projectId,
+          );
+          await setSettings({
+            activeProjectId: nextProject?.id ?? defaultProjectId,
+          });
+        }
+      },
+      createProjectShare: async (projectId, liquidityScenarioIds, access) =>
+        await createProjectShareMutation({
+          projectId,
+          liquidityScenarioIds,
+          access,
+        }),
+      revokeProjectShare: async (projectId) => {
+        await revokeProjectShareMutation({ projectId });
+      },
+      importSharedProject: async (token) => {
+        const result = await importSharedProjectMutation({ token });
+        await setSettings({ activeProjectId: result.projectId });
+        return result.projectId;
+      },
       setActiveScenarioId: (scenarioId) =>
         setSettings({ activeScenarioId: scenarioId }),
       createScenario: async (options) => {
@@ -697,7 +1012,10 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         const next = scenarioList.find(
           (scenario) => scenario.id !== scenarioId,
         );
-        await deleteFinancingScenarioMutation({ scenarioId });
+        await deleteFinancingScenarioMutation({
+          projectId: state.activeProjectId,
+          scenarioId,
+        });
         await setSettings({
           activeScenarioId: next?.id ?? defaultScenarioId,
           comparedScenarioIds: state.comparedScenarioIds.filter(
@@ -753,7 +1071,10 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         const next = liquidityScenarioList.find(
           (scenario) => scenario.id !== scenarioId,
         );
-        await deleteLiquidityScenarioMutation({ scenarioId });
+        await deleteLiquidityScenarioMutation({
+          projectId: state.activeProjectId,
+          scenarioId,
+        });
         await setSettings({
           activeLiquidityScenarioId: next?.id ?? defaultLiquidityScenarioId,
         });
@@ -769,18 +1090,29 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   }, [
     deleteFinancingScenarioMutation,
     deleteLiquidityScenarioMutation,
+    deleteProjectMutation,
+    createProjectShareMutation,
+    importSharedProjectMutation,
+    revokeProjectShareMutation,
+    saveProjectMutation,
     saveFinancingScenarioMutation,
     saveLiquidityScenarioMutation,
     saveSettingsMutation,
+    shareToken,
     appState,
   ]);
 
   const isLoading =
-    session.isPending ||
-    !isAuthenticated ||
-    remoteResult === undefined ||
-    !value;
+    shareToken === undefined
+      ? session.isPending ||
+        !isAuthenticated ||
+        remoteResult === undefined ||
+        !value
+      : sharedProject === undefined || !value;
 
+  if (shareToken !== undefined && sharedProject === null)
+    return <>{children}</>;
+  if (bypassAppState) return <>{children}</>;
   if (isLoading) return <LoadingScreen />;
 
   return (
