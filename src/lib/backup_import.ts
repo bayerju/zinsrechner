@@ -78,7 +78,9 @@ type BackupLiquidityScenarioValues = {
   }[];
 };
 
-type RawBackup = Record<string, string>;
+type RawBackup = Record<string, string> & {
+  storage?: Record<string, string>;
+};
 
 function parseJsonField(value: string | undefined): unknown {
   if (value === undefined) return undefined;
@@ -114,7 +116,8 @@ export function parseBackupJson(
   rawContent: string,
   targetProjectId: string,
 ): ParsedBackup {
-  const raw = JSON.parse(rawContent) as RawBackup;
+  const parsedRaw = JSON.parse(rawContent) as RawBackup;
+  const raw = parsedRaw.storage ?? parsedRaw;
 
   const scenarios = asRecord<BackupScenario>(parseJsonField(raw.scenarios));
   const scenarioValues = asRecord<BackupScenarioValues>(
