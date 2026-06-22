@@ -97,6 +97,13 @@ type AppStateContextValue = {
     color: string;
     duplicateFromActive: boolean;
   }) => Promise<void>;
+  createScenarioWithValues: (options: {
+    id: string;
+    name: string;
+    createdAt: number;
+    color: string;
+    values: ScenarioValues;
+  }) => Promise<void>;
   renameScenario: (scenarioId: string, name: string) => Promise<void>;
   deleteScenario: (scenarioId: string) => Promise<void>;
   updateActiveScenarioValues: (
@@ -684,6 +691,19 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
           color: options.color,
         };
         await persistScenario(scenario, values);
+        await setSettings({ activeScenarioId: options.id });
+      },
+      createScenarioWithValues: async (options) => {
+        const scenario = {
+          id: options.id,
+          name: options.name,
+          createdAt: options.createdAt,
+          color: options.color,
+        };
+        await persistScenario(
+          scenario,
+          normalizeScenarioValues(options.values),
+        );
         await setSettings({ activeScenarioId: options.id });
       },
       renameScenario: async (scenarioId, name) => {

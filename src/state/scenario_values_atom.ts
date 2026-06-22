@@ -22,6 +22,15 @@ export const defaultScenarioValues: ScenarioValues = {
   credits: {},
 };
 
+const ASCII_KEY_PATTERN = /^[ -~]+$/;
+
+function createCreditId() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+  return `credit-${Date.now()}-${Math.round(Math.random() * 1_000_000)}`;
+}
+
 export function normalizeScenarioValues(
   values: ScenarioValues,
 ): ScenarioValues {
@@ -31,7 +40,9 @@ export function normalizeScenarioValues(
     credits: Object.fromEntries(
       Object.entries(values.credits ?? {}).flatMap(([key, credit]) => {
         const normalized = normalizeCredit(credit);
-        return normalized ? [[key, normalized]] : [];
+        if (!normalized) return [];
+        const safeKey = ASCII_KEY_PATTERN.test(key) ? key : createCreditId();
+        return [[safeKey, normalized]];
       }),
     ),
   };

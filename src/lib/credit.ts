@@ -340,6 +340,5 @@ export function createRatesByTime(overrides: CreditCreate): RatesByTime {
     rate: mainMonthlyRate,
     key: "tilgung",
   });
-  console.log("rates", result);
   return result;
 }

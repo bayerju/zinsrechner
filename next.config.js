@@ -6,6 +6,7 @@ import "./src/env.js";
 
 /** @type {import("next").NextConfig} */
 const config = {
+  serverExternalPackages: ["@copilotkit/runtime", "express", "officeparser"],
   allowedDevOrigins: [
     "http://localhost:3010",
     "http://127.0.0.1:3010",

@@ -1,5 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
+const baseURL = process.env.E2E_BASE_URL ?? "http://localhost:3010";
+
 export default defineConfig({
   testDir: "./tests/e2e",
   expect: {
@@ -11,18 +13,20 @@ export default defineConfig({
   workers: 1,
   reporter: "html",
   use: {
-    baseURL: "http://localhost:3010",
+    baseURL,
     trace: "on-first-retry",
   },
-  webServer: {
-    command: "pnpm test:e2e:webserver",
-    url: "http://localhost:3010",
-    reuseExistingServer: !process.env.CI,
-    env: {
-      SKIP_ENV_VALIDATION: "1",
-      DATABASE_URL: "file:./db.sqlite",
-    },
-  },
+  webServer: process.env.E2E_SKIP_WEBSERVER
+    ? undefined
+    : {
+        command: "pnpm test:e2e:webserver",
+        url: baseURL,
+        reuseExistingServer: !process.env.CI,
+        env: {
+          SKIP_ENV_VALIDATION: "1",
+          DATABASE_URL: "file:./db.sqlite",
+        },
+      },
   projects: [
     {
       name: "chromium",

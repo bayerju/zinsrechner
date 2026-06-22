@@ -6,6 +6,8 @@ import { Geist } from "next/font/google";
 import { TRPCReactProvider } from "~/trpc/react";
 import { AppStateProvider } from "~/state/app_state";
 import { PostHogProvider } from "~/components/PostHogProvider";
+import { AppCopilotProvider } from "~/components/copilot/copilot_provider";
+import { FinanceCopilot } from "~/components/copilot/finance_copilot";
 import { ConvexClientProvider } from "./convex_client_provider";
 import { getToken } from "~/lib/auth-server";
 
@@ -31,7 +33,11 @@ export default async function RootLayout({
         <ConvexClientProvider initialToken={token}>
           <PostHogProvider>
             <TRPCReactProvider>
-              <AppStateProvider>{children}</AppStateProvider>
+              <AppCopilotProvider>
+                <AppStateProvider>
+                  <FinanceCopilot>{children}</FinanceCopilot>
+                </AppStateProvider>
+              </AppCopilotProvider>
             </TRPCReactProvider>
           </PostHogProvider>
         </ConvexClientProvider>
