@@ -199,6 +199,22 @@ function createBridgeCredit(credit: z.infer<typeof bridgeCreditSchema>) {
   });
 }
 
+function creditDeduplicationKey(
+  credit:
+    | ReturnType<typeof createStandardCredit>
+    | ReturnType<typeof createBridgeCredit>,
+) {
+  return [
+    credit.kreditart ?? "standard",
+    credit.summeDarlehen,
+    credit.sollzinssatz ?? credit.effektiverZinssatz,
+    credit.effektiverZinssatz,
+    credit.tilgungssatz,
+    credit.laufzeitMonate ?? credit.kreditdauer,
+    credit.zinsbindung,
+  ].join("|");
+}
+
 function applyScenarioChanges(
   source: ScenarioValues,
   changes: z.infer<typeof scenarioChangesSchema>,
@@ -214,6 +230,20 @@ function applyScenarioChanges(
     ...valueChanges,
     credits: structuredClone(source.credits),
   };
+  const creditKeys = new Set(
+    Object.values(next.credits).map((credit) => creditDeduplicationKey(credit)),
+  );
+
+  const addCredit = (
+    credit:
+      | ReturnType<typeof createStandardCredit>
+      | ReturnType<typeof createBridgeCredit>,
+  ) => {
+    const key = creditDeduplicationKey(credit);
+    if (creditKeys.has(key)) return;
+    creditKeys.add(key);
+    next.credits[createCreditId()] = credit;
+  };
 
   if (changes.sollzins !== undefined && changes.effzins === undefined) {
     next.effzins = changes.sollzins;
@@ -223,11 +253,11 @@ function applyScenarioChanges(
   }
 
   for (const credit of standardCreditsToAdd ?? []) {
-    next.credits[createCreditId()] = createStandardCredit(credit);
+    addCredit(createStandardCredit(credit));
   }
 
   for (const credit of bridgeCreditsToAdd ?? []) {
-    next.credits[createCreditId()] = createBridgeCredit(credit);
+    addCredit(createBridgeCredit(credit));
   }
 
   for (const credit of creditsToAdd ?? []) {
@@ -235,7 +265,7 @@ function applyScenarioChanges(
       credit.kreditart === "standard"
         ? createStandardCredit(credit)
         : createBridgeCredit(credit);
-    next.credits[createCreditId()] = createdCredit;
+    addCredit(createdCredit);
   }
 
   return next;

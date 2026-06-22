@@ -167,6 +167,25 @@ function belongsToProject(row: { projectId?: string }, projectId: string) {
   return projectForRow(row) === projectId;
 }
 
+function dedupeProjectRows<T extends { projectId?: string }>(
+  rows: T[],
+  activeProjectId: string,
+  keyForRow: (row: T) => string,
+) {
+  const byKey = new Map<string, T>();
+  for (const row of rows) {
+    const key = keyForRow(row);
+    const existing = byKey.get(key);
+    if (
+      existing === undefined ||
+      (existing.projectId === undefined && row.projectId === activeProjectId)
+    ) {
+      byKey.set(key, row);
+    }
+  }
+  return [...byKey.values()];
+}
+
 export const getForCurrentUser = query({
   args: {},
   handler: async (ctx) => {
@@ -249,14 +268,20 @@ export const getForCurrentUser = query({
     const scenarioRows = allScenarioRows.filter((row) =>
       belongsToProject(row, activeProjectId),
     );
-    const creditRows = allCreditRows.filter((row) =>
-      belongsToProject(row, activeProjectId),
+    const creditRows = dedupeProjectRows(
+      allCreditRows.filter((row) => belongsToProject(row, activeProjectId)),
+      activeProjectId,
+      (row) => `${row.scenarioId}\u0000${row.creditId}`,
     );
     const liquidityScenarioRows = allLiquidityScenarioRows.filter((row) =>
       belongsToProject(row, activeProjectId),
     );
-    const liquidityItemRows = allLiquidityItemRows.filter((row) =>
-      belongsToProject(row, activeProjectId),
+    const liquidityItemRows = dedupeProjectRows(
+      allLiquidityItemRows.filter((row) =>
+        belongsToProject(row, activeProjectId),
+      ),
+      activeProjectId,
+      (row) => `${row.scenarioId}\u0000${row.itemId}`,
     );
 
     const scenarios: Record<string, unknown> = {};
@@ -577,14 +602,21 @@ export const importLocalScenarios = mutation({
     const userIdentifier = identity.tokenIdentifier;
     const importedAt = Date.now();
     const financingIdMap = new Map<string, string>();
+    const projectId =
+      args.financing[0]?.scenario.projectId ??
+      args.liquidity[0]?.scenario.projectId ??
+      defaultProjectId;
     const financingRows = await ctx.db
       .query("financingScenarios")
       .withIndex("by_userIdentifier", (q) =>
         q.eq("userIdentifier", userIdentifier),
       )
       .take(500);
+    const projectFinancingRows = financingRows.filter((row) =>
+      belongsToProject(row, projectId),
+    );
     const financingNames = new Set(
-      financingRows.map((row) => row.name.toLowerCase()),
+      projectFinancingRows.map((row) => row.name.toLowerCase()),
     );
     const creditRows = await ctx.db
       .query("credits")
@@ -592,6 +624,9 @@ export const importLocalScenarios = mutation({
         q.eq("userIdentifier", userIdentifier),
       )
       .take(2000);
+    const projectCreditRows = creditRows.filter((row) =>
+      belongsToProject(row, projectId),
+    );
     let didImport = false;
 
     for (const candidate of args.financing) {
@@ -622,11 +657,11 @@ export const importLocalScenarios = mutation({
         }
       }
 
-      const contentMatch = financingRows.find((row) =>
+      const contentMatch = projectFinancingRows.find((row) =>
         sameFinancingContent(
           row,
           candidate,
-          creditRows
+          projectCreditRows
             .filter((credit) => credit.scenarioId === row.scenarioId)
             .map((credit) => credit.data),
         ),
@@ -689,9 +724,11 @@ export const importLocalScenarios = mutation({
         createdAt: importedAt,
         updatedAt: importedAt,
       });
+      projectFinancingRows.push(financingRows[financingRows.length - 1]!);
       for (const credit of candidate.credits) {
         const insertedCreditId = await ctx.db.insert("credits", {
           userIdentifier,
+          projectId,
           scenarioId,
           creditId: credit.creditId,
           data: credit.data,
@@ -701,11 +738,13 @@ export const importLocalScenarios = mutation({
           _id: insertedCreditId,
           _creationTime: importedAt,
           userIdentifier,
+          projectId,
           scenarioId,
           creditId: credit.creditId,
           data: credit.data,
           updatedAt: importedAt,
         });
+        projectCreditRows.push(creditRows[creditRows.length - 1]!);
       }
       const nextImport = {
         userIdentifier,
@@ -728,8 +767,11 @@ export const importLocalScenarios = mutation({
         q.eq("userIdentifier", userIdentifier),
       )
       .take(500);
+    const projectLiquidityRows = liquidityRows.filter((row) =>
+      belongsToProject(row, projectId),
+    );
     const liquidityNames = new Set(
-      liquidityRows.map((row) => row.name.toLowerCase()),
+      projectLiquidityRows.map((row) => row.name.toLowerCase()),
     );
     const liquidityItemRows = await ctx.db
       .query("liquidityItems")
@@ -737,6 +779,9 @@ export const importLocalScenarios = mutation({
         q.eq("userIdentifier", userIdentifier),
       )
       .take(5000);
+    const projectLiquidityItemRows = liquidityItemRows.filter((row) =>
+      belongsToProject(row, projectId),
+    );
 
     for (const candidate of args.liquidity) {
       const previousImport = await ctx.db
@@ -763,12 +808,12 @@ export const importLocalScenarios = mutation({
       const expectedCreditScenarioId =
         financingIdMap.get(candidate.scenario.creditScenarioId) ??
         candidate.scenario.creditScenarioId;
-      const contentMatch = liquidityRows.find((row) =>
+      const contentMatch = projectLiquidityRows.find((row) =>
         sameLiquidityContent(
           row,
           candidate,
           expectedCreditScenarioId,
-          liquidityItemRows
+          projectLiquidityItemRows
             .filter((item) => item.scenarioId === row.scenarioId)
             .map((item) => ({
               position: item.position,
@@ -831,9 +876,11 @@ export const importLocalScenarios = mutation({
         creditScenarioId: expectedCreditScenarioId,
         updatedAt: importedAt,
       });
+      projectLiquidityRows.push(liquidityRows[liquidityRows.length - 1]!);
       for (const item of candidate.items) {
         const insertedItemId = await ctx.db.insert("liquidityItems", {
           userIdentifier,
+          projectId,
           scenarioId,
           itemId: item.itemId,
           position: item.position,
@@ -844,12 +891,16 @@ export const importLocalScenarios = mutation({
           _id: insertedItemId,
           _creationTime: importedAt,
           userIdentifier,
+          projectId,
           scenarioId,
           itemId: item.itemId,
           position: item.position,
           data: item.data,
           updatedAt: importedAt,
         });
+        projectLiquidityItemRows.push(
+          liquidityItemRows[liquidityItemRows.length - 1]!,
+        );
       }
       const nextImport = {
         userIdentifier,
