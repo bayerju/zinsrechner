@@ -14,11 +14,15 @@ Convex agent skills for common tasks can be installed by running
 
 ## Validation
 
-Run these checks after code changes when feasible:
+Agents must run these checks after code changes when feasible, and report any
+check that could not be run with the reason:
 
 - `pnpm typecheck`
 - `pnpm test:unit`
 - `pnpm test:e2e`
+
+Pull requests run the same validation in GitHub Actions. Keep the PR pipeline in
+sync with this list when validation requirements change.
 
 Playwright E2E tests include approved screenshot baselines stored in the repo.
 If a UI change is intentional, update those baselines with

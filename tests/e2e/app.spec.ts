@@ -1,22 +1,18 @@
 import { expect, test, type Page } from "@playwright/test";
 
 async function expectApprovedScreenshot(page: Page, name: string) {
-  await page.waitForTimeout(2_000);
   await page.addStyleTag({
     content: `
       nextjs-portal,
       [data-nextjs-toast],
       [data-nextjs-dialog],
-      [data-nextjs-dialog-overlay],
-      .recharts-line-curve,
-      .recharts-area-area,
-      .recharts-area-curve,
-      .recharts-dot,
-      .recharts-active-dot {
+      [data-nextjs-dialog-overlay] {
         display: none !important;
       }
     `,
   });
+  await expect(page.getByRole("button", { name: "Anmelden" })).toBeVisible();
+  await page.waitForTimeout(1_000);
   await expect(page).toHaveScreenshot(name, {
     fullPage: true,
     animations: "disabled",
@@ -26,6 +22,10 @@ async function expectApprovedScreenshot(page: Page, name: string) {
 }
 
 test.describe("Zinsrechner", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => window.localStorage.clear());
+  });
+
   test("updates financing figures when purchase data changes", async ({ page }) => {
     await page.goto("/");
 
