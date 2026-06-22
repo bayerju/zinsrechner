@@ -21,7 +21,31 @@ function DialogTrigger({
 function DialogPortal({
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Portal>) {
-  return <DialogPrimitive.Portal data-slot="dialog-portal" {...props} />;
+  return (
+    <DialogPrimitive.Portal
+      data-slot="dialog-portal"
+      container={getDialogPortalContainer()}
+      {...props}
+    />
+  );
+}
+
+function getDialogPortalContainer() {
+  if (typeof document === "undefined") return undefined;
+
+  const containerId = "app-dialog-portal-root";
+  let container = document.getElementById(containerId);
+  if (!container) {
+    container = document.createElement("div");
+    container.id = containerId;
+    container.style.position = "fixed";
+    container.style.inset = "0";
+    container.style.margin = "0";
+    container.style.pointerEvents = "none";
+    container.style.zIndex = "50";
+    document.documentElement.appendChild(container);
+  }
+  return container;
 }
 
 function DialogClose({
@@ -37,10 +61,10 @@ function DialogOverlay({
   return (
     <DialogPrimitive.Overlay
       data-slot="dialog-overlay"
-      className={cn(
-        "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/55 backdrop-blur-[1px]",
-        className,
-      )}
+        className={cn(
+          "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/55 backdrop-blur-[1px] pointer-events-auto",
+          className,
+        )}
       {...props}
     />
   );
@@ -62,7 +86,7 @@ function DialogContent({
         className={cn(
           "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] gap-4 rounded-lg border p-6 shadow-lg duration-200 sm:max-w-lg",
           "top-[50%] max-h-[calc(100vh-5rem)] translate-y-[-50%] overflow-y-auto supports-[height:100dvh]:max-h-[calc(100dvh-2rem)] sm:top-[50%] sm:translate-y-[-50%]",
-          "sm:max-h-[calc(100vh-2rem)] sm:supports-[height:100dvh]:max-h-[calc(100dvh-2rem)]",
+          "sm:max-h-[calc(100vh-2rem)] sm:supports-[height:100dvh]:max-h-[calc(100dvh-2rem)] pointer-events-auto",
           className,
         )}
         {...props}

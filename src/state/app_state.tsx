@@ -109,6 +109,10 @@ type AppStateContextValue = {
   updateActiveScenarioValues: (
     update: ScenarioValues | ((prev: ScenarioValues) => ScenarioValues),
   ) => Promise<void>;
+  updateScenarioValues: (
+    scenarioId: string,
+    update: ScenarioValues | ((prev: ScenarioValues) => ScenarioValues),
+  ) => Promise<void>;
   setCredits: (
     update:
       | ScenarioValues["credits"]
@@ -733,6 +737,14 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         const nextValues =
           typeof update === "function" ? update(activeScenarioValues) : update;
         await persistScenario(activeScenario, nextValues);
+      },
+      updateScenarioValues: async (scenarioId, update) => {
+        const scenario = state.scenarios[scenarioId];
+        const values = state.scenarioValues[scenarioId];
+        if (!scenario || !values) return;
+        const nextValues =
+          typeof update === "function" ? update(values) : update;
+        await persistScenario(scenario, nextValues);
       },
       setCredits: async (update) => {
         const nextCredits =
