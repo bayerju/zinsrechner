@@ -21,13 +21,22 @@ async function expectApprovedScreenshot(page: Page, name: string) {
   });
 }
 
+async function gotoApp(page: Page, path: string) {
+  await page.goto(path, { waitUntil: "domcontentloaded" });
+}
+
+async function clickNav(page: Page, name: string, path: RegExp) {
+  await page.getByRole("link", { name }).click({ noWaitAfter: true });
+  await page.waitForURL(path, { waitUntil: "domcontentloaded" });
+}
+
 test.describe("Zinsrechner", () => {
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(() => window.localStorage.clear());
   });
 
   test("updates financing figures when purchase data changes", async ({ page }) => {
-    await page.goto("/");
+    await gotoApp(page, "/");
 
     await expect(page.getByText("Ihre Bedingungen")).toBeVisible();
     await expect(page.getByRole("heading", { name: "Raten" })).toBeVisible();
@@ -51,24 +60,21 @@ test.describe("Zinsrechner", () => {
 
   test("navigates between calculation views", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
-    await page.goto("/");
+    await gotoApp(page, "/");
 
-    await page.getByRole("link", { name: "Finanzplan" }).click();
-    await expect(page).toHaveURL(/\/finanzplan$/);
+    await clickNav(page, "Finanzplan", /\/finanzplan$/);
     await expect(page.getByRole("columnheader", { name: "Stichtag" }).first()).toBeVisible();
 
-    await page.getByRole("link", { name: "Eingaben" }).click();
-    await expect(page).toHaveURL(/\/liquiditaetsplan$/);
+    await clickNav(page, "Eingaben", /\/liquiditaetsplan$/);
     await expect(page.getByRole("heading", { name: "Rahmendaten Liquiditaet" })).toBeVisible();
 
-    await page.getByRole("link", { name: "Auswertung" }).click();
-    await expect(page).toHaveURL(/\/liquiditaetsauswertung$/);
+    await clickNav(page, "Auswertung", /\/liquiditaetsauswertung$/);
     await expect(page.getByText("Endkapital:")).toBeVisible();
     await expect(page.getByRole("columnheader", { name: "Monat" })).toBeVisible();
   });
 
   test("adds income and expense items to the liquidity plan", async ({ page }) => {
-    await page.goto("/liquiditaetsplan");
+    await gotoApp(page, "/liquiditaetsplan");
 
     await expect(page.getByRole("heading", { name: "Rahmendaten Liquiditaet" })).toBeVisible();
 
@@ -86,7 +92,7 @@ test.describe("Zinsrechner", () => {
     await expect(page.getByText("Summe: 1.200 €")).toBeVisible();
     await expect(page.getByLabel("Miete bearbeiten")).toBeVisible();
 
-    await page.getByRole("link", { name: "Auswertung" }).click();
+    await clickNav(page, "Auswertung", /\/liquiditaetsauswertung$/);
     await expect(page.getByText("Endkapital:")).toBeVisible();
     await expect(page.getByRole("button", { name: "3.500,00 €" }).first()).toBeVisible();
     await expect(page.getByRole("button", { name: "1.200,00 €" }).first()).toBeVisible();
@@ -95,15 +101,15 @@ test.describe("Zinsrechner", () => {
   test("matches approved screenshots for core screens", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
 
-    await page.goto("/");
+    await gotoApp(page, "/");
     await expect(page.getByRole("heading", { name: "Raten" })).toBeVisible();
     await expectApprovedScreenshot(page, "konditionen-desktop.png");
 
-    await page.getByRole("link", { name: "Finanzplan" }).click();
+    await clickNav(page, "Finanzplan", /\/finanzplan$/);
     await expect(page.getByRole("columnheader", { name: "Stichtag" }).first()).toBeVisible();
     await expectApprovedScreenshot(page, "finanzplan-desktop.png");
 
-    await page.getByRole("link", { name: "Eingaben" }).click();
+    await clickNav(page, "Eingaben", /\/liquiditaetsplan$/);
     await expect(page.getByRole("heading", { name: "Rahmendaten Liquiditaet" })).toBeVisible();
     await page.getByLabel("Name Einnahme").fill("Gehalt");
     await page.getByLabel("Betrag Einnahme").fill("3500");
@@ -114,7 +120,7 @@ test.describe("Zinsrechner", () => {
     await expect(page.getByText("Summe: 3.500 €")).toBeVisible();
     await expectApprovedScreenshot(page, "liquiditaetsplan-mit-positionen-desktop.png");
 
-    await page.getByRole("link", { name: "Auswertung" }).click();
+    await clickNav(page, "Auswertung", /\/liquiditaetsauswertung$/);
     await expect(page.getByRole("button", { name: "3.500,00 €" }).first()).toBeVisible();
     await expectApprovedScreenshot(page, "liquiditaetsauswertung-mit-positionen-desktop.png");
   });
