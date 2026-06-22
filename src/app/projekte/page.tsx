@@ -24,8 +24,6 @@ import {
 type Overview = NonNullable<
   ReturnType<typeof useQuery<typeof api.appState.getProjectOverview>>
 >;
-type Project = Overview["projects"][number];
-type FinancingScenario = Overview["financingScenarios"][number];
 type LiquidityScenario = Overview["liquidityScenarios"][number];
 type ShareAccess = "view" | "edit";
 
@@ -50,7 +48,7 @@ export default function ProjectsPage() {
   const overview = useQuery(
     api.appState.getProjectOverview,
     isSignedIn ? {} : "skip",
-  ) as Overview | undefined;
+  );
   const moveFinancingScenario = useMutation(
     api.appState.moveFinancingScenarioToProject,
   );

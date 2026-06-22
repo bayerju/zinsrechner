@@ -17,10 +17,7 @@ type FinancingScenario = SharedProject["financingScenarios"][number];
 export default function SharedProjectPage() {
   const params = useParams<{ token: string }>();
   const token = params.token;
-  const sharedProject = useQuery(api.appState.getSharedProject, { token }) as
-    | SharedProject
-    | null
-    | undefined;
+  const sharedProject = useQuery(api.appState.getSharedProject, { token });
   const updateProject = useMutation(api.appState.updateSharedProject);
   const [projectName, setProjectName] = useState("");
   const [error, setError] = useState("");

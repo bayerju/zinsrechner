@@ -63,13 +63,6 @@ type Project = {
   lastActiveLiquidityScenarioId?: string;
 };
 
-type RemoteState = {
-  userIdentifier: string;
-  state: SyncedState;
-  updatedAt: number;
-  needsMigration: boolean;
-};
-
 type SharedProjectResult = NonNullable<
   ReturnType<typeof useQuery<typeof api.appState.getSharedProject>>
 >;
@@ -601,11 +594,11 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const remoteResult = useQuery(
     api.appState.getForCurrentUser,
     isAuthenticated && shareToken === undefined ? {} : "skip",
-  ) as RemoteState | null | undefined;
+  );
   const sharedProject = useQuery(
     api.appState.getSharedProject,
     shareToken ? { token: shareToken } : "skip",
-  ) as SharedProjectResult | null | undefined;
+  );
 
   const replaceState = useMutation(api.appState.replaceForCurrentUser);
   const saveProjectMutation = useMutation(api.appState.saveProject);

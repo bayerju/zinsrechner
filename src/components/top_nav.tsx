@@ -120,7 +120,7 @@ export function TopNav() {
 }
 
 function getShareBase(pathname: string) {
-  const match = pathname.match(/^\/projekt\/share\/[^/]+/);
+  const match = /^\/projekt\/share\/[^/]+/.exec(pathname);
   return match?.[0] ?? null;
 }
 
