@@ -656,6 +656,58 @@ function calculateScenarioMonthlyRateSeries(
   });
 }
 
+function calculateScenarioPresentValueCost(
+  values: ScenarioValues,
+  opportunityRate: number,
+  options: CalculationOptions,
+) {
+  const credits = Object.values(values.credits ?? {});
+  const nettoDarlehensbetragBank =
+    values.kaufpreis +
+    values.modernisierungskosten +
+    values.kaufpreis * 0.1207 -
+    values.eigenkapital -
+    credits.reduce((acc, credit) => acc + credit.summeDarlehen, 0);
+  const totalBorrowed =
+    nettoDarlehensbetragBank +
+    credits.reduce((acc, credit) => acc + credit.summeDarlehen, 0);
+  const result = calculateScenarioFinanzplan(values, options);
+  const horizonYears = Math.max(
+    1,
+    ...result.finanzplanRows.map((row) => row.stichtag),
+  );
+  const monthlyRates = calculateScenarioMonthlyRateSeries(
+    values,
+    horizonYears,
+    options,
+  );
+  const monthlyDiscountRate = Math.pow(1 + opportunityRate / 100, 1 / 12) - 1;
+  const discountFactor = (months: number) =>
+    Math.pow(1 + monthlyDiscountRate, months);
+  const presentValueOfRates = monthlyRates.reduce((sum, row, yearIndex) => {
+    let yearValue = 0;
+    for (let month = 1; month <= 12; month += 1) {
+      yearValue += row.monthlyRate / discountFactor(yearIndex * 12 + month);
+    }
+    return sum + yearValue;
+  }, 0);
+  const presentValueOfResidualDebt = options.includeRefinancing
+    ? (() => {
+        const finalRow = result.finanzplanRows[result.finanzplanRows.length - 1];
+        if (!finalRow) return 0;
+        return (
+          finalRow.restschuldGesamt / discountFactor(finalRow.stichtag * 12)
+        );
+      })()
+    : result.maturityEvents.reduce(
+        (sum, event) =>
+          sum + event.dueAmount / discountFactor(event.dueYear * 12),
+        0,
+      );
+
+  return presentValueOfRates + presentValueOfResidualDebt - totalBorrowed;
+}
+
 function calculateDetailRestschuldStack(
   values: ScenarioValues,
   maxYears: number,
@@ -1059,6 +1111,28 @@ export default function FinanzplanPage() {
     });
   }, [calculationOptions, comparisonRows, maxComparisonYears, scenarioValues]);
 
+  const presentValueCostChartData = useMemo(() => {
+    const opportunityRates = Array.from(
+      { length: 17 },
+      (_, index) => index * 0.5,
+    );
+
+    return opportunityRates.map((opportunityRate) => {
+      const row: Record<string, number> & { opportunityRate: number } = {
+        opportunityRate,
+      };
+      comparisonRows.forEach((scenario) => {
+        const values = scenarioValues[scenario.id] ?? defaultScenarioValues;
+        row[scenario.id] = calculateScenarioPresentValueCost(
+          values,
+          opportunityRate,
+          calculationOptions,
+        );
+      });
+      return row;
+    });
+  }, [calculationOptions, comparisonRows, scenarioValues]);
+
   const comparisonBaseId = useMemo(() => {
     if (selectedScenarioIds.includes(defaultScenarioId))
       return defaultScenarioId;
@@ -1181,6 +1255,7 @@ export default function FinanzplanPage() {
           <ScenarioMonthlyRateChart
             chartConfig={chartConfig}
             chartData={chartData}
+            presentValueCostData={presentValueCostChartData}
             scenarioIds={comparisonRows.map((scenario) => scenario.id)}
           />
 

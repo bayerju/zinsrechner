@@ -20,6 +20,7 @@ import {
 } from "~/components/ui/chart";
 
 type YearRow = Record<string, number> & { year: number };
+type OpportunityRateRow = Record<string, number> & { opportunityRate: number };
 
 function useMobileChart() {
   const [isMobile, setIsMobile] = React.useState(false);
@@ -53,21 +54,55 @@ function formatAxisEuro(
 export function ScenarioMonthlyRateChart({
   chartConfig,
   chartData,
+  presentValueCostData,
   scenarioIds,
 }: {
   chartConfig: ChartConfig;
   chartData: YearRow[];
+  presentValueCostData: OpportunityRateRow[];
   scenarioIds: string[];
 }) {
+  const [mode, setMode] = React.useState<"monthlyRate" | "presentValueCost">(
+    "monthlyRate",
+  );
   const isMobile = useMobileChart();
   const { chartRef, tooltipActive, reactivateTooltip } =
     useDismissibleChartTooltip();
+  const activeData = mode === "monthlyRate" ? chartData : presentValueCostData;
 
   return (
     <div className="rounded-md border border-neutral-700 bg-neutral-800 p-2 sm:p-3">
-      <p className="mb-2 text-sm font-medium text-neutral-100">
-        Monatliche Gesamt-Rate im Zeitverlauf
-      </p>
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm font-medium text-neutral-100">
+          {mode === "monthlyRate"
+            ? "Monatliche Gesamt-Rate im Zeitverlauf"
+            : "Barwertkosten nach Opportunitaetszins"}
+        </p>
+        <div className="inline-flex items-center rounded-md border border-neutral-600 bg-neutral-900 p-0.5 text-xs">
+          <button
+            type="button"
+            className={`rounded px-2 py-1 ${
+              mode === "monthlyRate"
+                ? "bg-neutral-100 text-black"
+                : "text-neutral-200"
+            }`}
+            onClick={() => setMode("monthlyRate")}
+          >
+            Monatsrate
+          </button>
+          <button
+            type="button"
+            className={`rounded px-2 py-1 ${
+              mode === "presentValueCost"
+                ? "bg-neutral-100 text-black"
+                : "text-neutral-200"
+            }`}
+            onClick={() => setMode("presentValueCost")}
+          >
+            Barwertkosten
+          </button>
+        </div>
+      </div>
       <ChartContainer
         ref={chartRef}
         config={chartConfig}
@@ -76,7 +111,7 @@ export function ScenarioMonthlyRateChart({
         onTouchStart={reactivateTooltip}
       >
         <LineChart
-          data={chartData}
+          data={activeData}
           margin={{
             left: isMobile ? 0 : 8,
             right: isMobile ? 2 : 8,
@@ -86,13 +121,20 @@ export function ScenarioMonthlyRateChart({
         >
           <CartesianGrid vertical={false} />
           <XAxis
-            dataKey="year"
+            dataKey={mode === "monthlyRate" ? "year" : "opportunityRate"}
             tickLine={false}
             axisLine={false}
             tickMargin={8}
             minTickGap={isMobile ? 20 : 8}
             tick={{ fontSize: isMobile ? 11 : 12 }}
-            label={{ value: "Jahr", position: "insideBottom", offset: -5 }}
+            tickFormatter={(value) =>
+              mode === "monthlyRate" ? String(value) : `${value} %`
+            }
+            label={{
+              value: mode === "monthlyRate" ? "Jahr" : "Opportunitaetszins",
+              position: "insideBottom",
+              offset: -5,
+            }}
           />
           <YAxis
             width={isMobile ? 54 : 96}
