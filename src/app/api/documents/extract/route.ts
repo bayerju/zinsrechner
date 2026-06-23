@@ -10,6 +10,7 @@ export const runtime = "nodejs";
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
 const MAX_MARKDOWN_LENGTH = 120_000;
 const CONVERSION_TIMEOUT_MS = 30_000;
+const PROXY_TIMEOUT_MS = 120_000;
 
 const allowedExtensions = new Set([
   ".csv",
@@ -35,6 +36,40 @@ function getExtension(filename: string) {
 
 function errorResponse(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
+}
+
+async function proxyDocumentExtraction(file: File) {
+  const extractUrl = process.env.DOCUMENT_EXTRACT_URL?.trim();
+  if (!extractUrl) return null;
+
+  const proxyFormData = new FormData();
+  proxyFormData.append("file", file, file.name);
+
+  const headers = new Headers();
+  const token = process.env.DOCUMENT_EXTRACT_TOKEN?.trim();
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), PROXY_TIMEOUT_MS);
+  try {
+    const response = await fetch(extractUrl, {
+      method: "POST",
+      body: proxyFormData,
+      headers,
+      signal: controller.signal,
+    });
+    const body = (await response.json()) as unknown;
+    return NextResponse.json(body, { status: response.status });
+  } catch (error) {
+    return errorResponse(
+      error instanceof Error && error.name === "AbortError"
+        ? "Document extraction proxy timed out"
+        : "Document extraction proxy failed",
+      502,
+    );
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number) {
@@ -75,6 +110,9 @@ export async function POST(request: Request) {
     return errorResponse("Unsupported file type", 415);
   }
 
+  const proxiedResponse = await proxyDocumentExtraction(file);
+  if (proxiedResponse !== null) return proxiedResponse;
+
   const buffer = Buffer.from(await file.arrayBuffer());
   const tmpPath = join(tmpdir(), `zinsrechner-${randomUUID()}${extension}`);
   const warnings: string[] = [];
@@ -83,7 +121,10 @@ export async function POST(request: Request) {
     if (textExtensions.has(extension)) {
       const markdown = buffer.toString("utf8").trim();
       if (!markdown) {
-        return errorResponse("No text could be extracted from the document", 422);
+        return errorResponse(
+          "No text could be extracted from the document",
+          422,
+        );
       }
 
       return NextResponse.json({

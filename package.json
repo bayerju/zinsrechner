@@ -19,7 +19,7 @@
     "lint": "next lint",
     "lint:fix": "next lint --fix",
     "preview": "next build && next start",
-    "start": "next start",
+    "start": "next start -p 3050",
     "test:unit": "vitest run",
     "test:e2e": "playwright test",
     "test:e2e:webserver": "bash scripts/e2e-webserver.sh",

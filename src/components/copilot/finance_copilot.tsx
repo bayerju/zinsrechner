@@ -24,7 +24,7 @@ import {
   calculateNettodarlehensbetragBank,
   calculateRestschuldFromSollzins,
 } from "~/lib/calculations";
-import { createCredit } from "~/lib/credit";
+import { createCredit, type Credit } from "~/lib/credit";
 import { getNextScenarioColor } from "~/lib/scenario_colors";
 import { evaluateScenario } from "~/lib/scenario_evaluation";
 import { simulateLiquidity } from "~/lib/liquidity";
@@ -199,11 +199,7 @@ function createBridgeCredit(credit: z.infer<typeof bridgeCreditSchema>) {
   });
 }
 
-function creditDeduplicationKey(
-  credit:
-    | ReturnType<typeof createStandardCredit>
-    | ReturnType<typeof createBridgeCredit>,
-) {
+function creditDeduplicationKey(credit: Credit) {
   return [
     credit.kreditart ?? "standard",
     credit.summeDarlehen,
@@ -234,11 +230,7 @@ function applyScenarioChanges(
     Object.values(next.credits).map((credit) => creditDeduplicationKey(credit)),
   );
 
-  const addCredit = (
-    credit:
-      | ReturnType<typeof createStandardCredit>
-      | ReturnType<typeof createBridgeCredit>,
-  ) => {
+  const addCredit = (credit: Credit) => {
     const key = creditDeduplicationKey(credit);
     if (creditKeys.has(key)) return;
     creditKeys.add(key);
