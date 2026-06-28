@@ -359,7 +359,6 @@ function toConvexSnapshot(state: SyncedState) {
       return [
         {
           scenarioId: scenario.id,
-          projectId,
           name: scenario.name,
           createdAt: scenario.createdAt,
           color: scenario.color,
@@ -375,7 +374,6 @@ function toConvexSnapshot(state: SyncedState) {
     ([scenarioId, values]) =>
       values.items.map((data, position) => ({
         scenarioId,
-        projectId,
         itemId: data.id,
         position,
         data,
@@ -559,13 +557,11 @@ function scenarioMutationPayload(
 }
 
 function liquidityMutationPayload(
-  projectId: string,
   scenario: LiquidityScenario,
   values: LiquidityScenarioValues,
 ) {
   return {
     scenario: {
-      projectId,
       scenarioId: scenario.id,
       name: scenario.name,
       createdAt: scenario.createdAt,
@@ -863,7 +859,6 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       if (shareToken !== undefined) return;
       await saveLiquidityScenarioMutation(
         liquidityMutationPayload(
-          state.activeProjectId,
           scenario,
           normalizeLiquidityScenarioValues(values),
         ),
@@ -1097,7 +1092,6 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
           (scenario) => scenario.id !== scenarioId,
         );
         await deleteLiquidityScenarioMutation({
-          projectId: state.activeProjectId,
           scenarioId,
         });
         await setSettings({

@@ -47,8 +47,8 @@ after sign-in. Signed-out usage remains local to the browser.
 3. Set the Better Auth environment variables on the Convex deployment:
 
    ```bash
-   pnpm convex env set SITE_URL http://localhost:3010
-   pnpm convex env set TRUSTED_ORIGINS http://localhost:3010,http://127.0.0.1:3010,http://192.168.178.27:3010,http://10.100.100.3:3010
+   pnpm convex env set SITE_URL http://localhost:3011
+   pnpm convex env set TRUSTED_ORIGINS http://localhost:3011,http://127.0.0.1:3011,http://192.168.178.27:3011,http://10.100.100.3:3011
    pnpm convex env set BETTER_AUTH_SECRET "$(openssl rand -base64 32)"
    ```
 
@@ -64,7 +64,7 @@ after sign-in. Signed-out usage remains local to the browser.
    pnpm dev
    ```
 
-Open `http://localhost:3010`.
+Open `http://localhost:3011`.
 
 ## Coolify production
 

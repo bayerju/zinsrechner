@@ -8,10 +8,10 @@ import "./src/env.js";
 const config = {
   serverExternalPackages: ["@copilotkit/runtime", "express", "officeparser"],
   allowedDevOrigins: [
-    "http://localhost:3010",
-    "http://127.0.0.1:3010",
-    "http://192.168.178.27:3010",
-    "http://10.100.100.3:3010",
+    "http://localhost:3011",
+    "http://127.0.0.1:3011",
+    "http://192.168.178.27:3011",
+    "http://10.100.100.3:3011",
   ],
   async rewrites() {
     return [

@@ -3,8 +3,8 @@ set -euo pipefail
 
 export CONVEX_AGENT_MODE="${CONVEX_AGENT_MODE:-anonymous}"
 export DATABASE_URL="${DATABASE_URL:-file:./db.sqlite}"
-export SITE_URL="${SITE_URL:-http://localhost:3010}"
-export TRUSTED_ORIGINS="${TRUSTED_ORIGINS:-http://localhost:3010,http://127.0.0.1:3010}"
+export SITE_URL="${SITE_URL:-http://localhost:3011}"
+export TRUSTED_ORIGINS="${TRUSTED_ORIGINS:-http://localhost:3011,http://127.0.0.1:3011}"
 export BETTER_AUTH_SECRET="${BETTER_AUTH_SECRET:-e2e-better-auth-secret-at-least-32-chars}"
 
 convex_env_file="$(mktemp)"
