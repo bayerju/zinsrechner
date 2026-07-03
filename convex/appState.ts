@@ -1315,6 +1315,109 @@ export const getProjectOverview = query({
   },
 });
 
+export const getCopilotProjectContext = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (identity === null) return null;
+    const userIdentifier = identity.tokenIdentifier;
+    const [settings, projectRows, scenarioRows, creditRows, liquidityRows] =
+      await Promise.all([
+        ctx.db
+          .query("userSettings")
+          .withIndex("by_userIdentifier", (q) =>
+            q.eq("userIdentifier", userIdentifier),
+          )
+          .unique(),
+        ctx.db
+          .query("projects")
+          .withIndex("by_userIdentifier", (q) =>
+            q.eq("userIdentifier", userIdentifier),
+          )
+          .take(500),
+        ctx.db
+          .query("financingScenarios")
+          .withIndex("by_userIdentifier", (q) =>
+            q.eq("userIdentifier", userIdentifier),
+          )
+          .take(500),
+        ctx.db
+          .query("credits")
+          .withIndex("by_userIdentifier", (q) =>
+            q.eq("userIdentifier", userIdentifier),
+          )
+          .take(2000),
+        ctx.db
+          .query("liquidityScenarios")
+          .withIndex("by_userIdentifier", (q) =>
+            q.eq("userIdentifier", userIdentifier),
+          )
+          .take(500),
+      ]);
+
+    const projects = (projectRows.length > 0 ? projectRows : [defaultProject()])
+      .map((project) => ({
+        id: project.projectId,
+        name: project.name,
+        createdAt: project.createdAt,
+        isActive: project.projectId === settings?.activeProjectId,
+        financingScenarios: scenarioRows
+          .filter((scenario) => belongsToProject(scenario, project.projectId))
+          .map((scenario) => ({
+            id: scenario.scenarioId,
+            name: scenario.name,
+            createdAt: scenario.createdAt,
+            color: scenario.color,
+            values: {
+              sollzins: scenario.sollzins ?? scenario.effzins,
+              effzins: scenario.effzins,
+              kaufpreis: scenario.kaufpreis,
+              modernisierungskosten: scenario.modernisierungskosten,
+              eigenkapital: scenario.eigenkapital,
+              tilgungssatz: scenario.tilgungssatz,
+              zinsbindung: scenario.zinsbindung,
+              credits: Object.fromEntries(
+                creditRows
+                  .filter(
+                    (credit) =>
+                      belongsToProject(credit, project.projectId) &&
+                      credit.scenarioId === scenario.scenarioId,
+                  )
+                  .map((credit) => [credit.creditId, credit.data]),
+              ),
+            },
+          })),
+        liquidityScenarios: liquidityRows
+          .filter((scenario) => belongsToProject(scenario, project.projectId))
+          .map((scenario) => ({
+            id: scenario.scenarioId,
+            name: scenario.name,
+            createdAt: scenario.createdAt,
+            color: scenario.color,
+            creditScenarioId: scenario.creditScenarioId,
+            startCapital: scenario.startCapital,
+            startMonth: scenario.startMonth,
+            horizonMonths: scenario.horizonMonths,
+          })),
+      }))
+      .sort((left, right) => left.createdAt - right.createdAt);
+
+    const activeProjectId = projects.some(
+      (project) => project.id === settings?.activeProjectId,
+    )
+      ? settings?.activeProjectId
+      : projects[0]?.id;
+
+    return {
+      activeProjectId,
+      projects: projects.map((project) => ({
+        ...project,
+        isActive: project.id === activeProjectId,
+      })),
+    };
+  },
+});
+
 export const moveFinancingScenarioToProject = mutation({
   args: {
     scenarioId: v.string(),

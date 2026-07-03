@@ -17,8 +17,10 @@ import {
   useAgentContext,
   useFrontendTool,
 } from "@copilotkit/react-core/v2";
+import { useQuery } from "convex/react";
 import { FileText, Plus, X } from "lucide-react";
 import { z } from "zod";
+import { api } from "../../../convex/_generated/api";
 import {
   calculateMonthlyRateFromSollzins,
   calculateNettodarlehensbetragBank,
@@ -165,9 +167,28 @@ function createCreditId() {
   return `copilot-credit-${Date.now()}-${Math.round(Math.random() * 1_000_000)}`;
 }
 
+function createProjectId() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+  return `copilot-project-${Date.now()}-${Math.round(Math.random() * 1_000_000)}`;
+}
+
 function buildUniqueName(name: string, takenNames: Set<string>) {
   const trimmed = name.trim().slice(0, 80);
   const baseName = trimmed || "Copilot Szenario";
+  if (!takenNames.has(baseName.toLowerCase())) return baseName;
+
+  let i = 2;
+  while (takenNames.has(`${baseName} ${i}`.toLowerCase())) {
+    i += 1;
+  }
+  return `${baseName} ${i}`;
+}
+
+function buildUniqueProjectName(name: string, takenNames: Set<string>) {
+  const trimmed = name.trim().slice(0, 80);
+  const baseName = trimmed || "Neues Projekt";
   if (!takenNames.has(baseName.toLowerCase())) return baseName;
 
   let i = 2;
@@ -265,6 +286,7 @@ function applyScenarioChanges(
 
 export function FinanceCopilot({ children }: { children: React.ReactNode }) {
   const app = useAppState();
+  const copilotProjectContext = useQuery(api.appState.getCopilotProjectContext);
   const [uploadedBankOffer, setUploadedBankOffer] =
     useState<UploadedBankOffer | null>(null);
   const [uploadStatus, setUploadStatus] = useState<string | null>(null);
@@ -324,7 +346,42 @@ export function FinanceCopilot({ children }: { children: React.ReactNode }) {
       ],
       dataModel:
         "Ein Finanzierungsszenario hat genau ein implizites Haupt-Bankdarlehen. Dieses Hauptdarlehen wird nicht in credits gespeichert, sondern aus kaufpreis, modernisierungskosten, eigenkapital, sollzins, effzins, tilgungssatz und zinsbindung berechnet. Das Feld credits enthaelt ausschliesslich zusaetzliche Kreditbausteine, die neben dem Haupt-Bankdarlehen existieren.",
+      activeProject: {
+        id: app.activeProject.id,
+        name: app.activeProject.name,
+      },
+      allProjects:
+        copilotProjectContext?.projects.map((project) => ({
+          id: project.id,
+          name: project.name,
+          isActive: project.isActive,
+          financingScenarios: project.financingScenarios,
+          liquidityScenarios: project.liquidityScenarios,
+        })) ??
+        app.projectList.map((project) => ({
+          id: project.id,
+          name: project.name,
+          isActive: project.id === app.activeProjectId,
+          financingScenarios:
+            project.id === app.activeProjectId
+              ? app.scenarioList.map((scenario) => ({
+                  id: scenario.id,
+                  name: scenario.name,
+                  values: app.scenarioValues[scenario.id] ?? null,
+                }))
+              : [],
+          liquidityScenarios:
+            project.id === app.activeProjectId
+              ? app.liquidityScenarioList.map((scenario) => ({
+                  id: scenario.id,
+                  name: scenario.name,
+                  values: app.liquidityScenarioValues[scenario.id] ?? null,
+                }))
+              : [],
+        })),
       toolUsageRules: [
+        "Beziehe dich bei projektuebergreifenden Fragen auf allProjects. Das aktuell geoeffnete Projekt ist activeProject und in allProjects mit isActive=true markiert.",
+        "Wenn der Nutzer Werte in einem anderen Projekt bearbeiten will, wechsle zuerst mit switchProject in dieses Projekt oder frage nach, falls das Zielprojekt unklar ist.",
         "Wenn ein Bankangebot ein normales Annuitaetendarlehen als Hauptfinanzierung nennt, setze nur die Top-Level-Felder sollzins, effzins, tilgungssatz und zinsbindung. Lege dafuer keinen standardCreditsToAdd-Eintrag an.",
         "standardCreditsToAdd nur nutzen, wenn das Dokument einen separaten weiteren Kreditbaustein nennt, zum Beispiel KfW, Foerderdarlehen, Modernisierungsdarlehen oder ein zweites langfristiges Darlehen.",
         "bridgeCreditsToAdd nur fuer kurzfristige Zwischenfinanzierungen nutzen, zum Beispiel wenn ein spaeter Verkaufserloes oder Eigenkapitalzufluss vorfinanziert wird.",
@@ -551,6 +608,83 @@ export function FinanceCopilot({ children }: { children: React.ReactNode }) {
       </button>
     ),
     [openFilePicker],
+  );
+
+  useFrontendTool(
+    {
+      name: "switchProject",
+      description:
+        "Aktiviert ein vorhandenes Projekt anhand seiner ID. Nutze dieses Tool, bevor Szenarien in einem anderen Projekt erstellt oder bearbeitet werden.",
+      parameters: z.object({
+        projectId: z.string().describe("ID des zu aktivierenden Projekts"),
+      }),
+      handler: async ({ projectId }) => {
+        const project = app.projects[projectId];
+        if (!project) {
+          return `Das Projekt ${projectId} existiert nicht. Es wurde nichts geaendert.`;
+        }
+        await app.setActiveProjectId(projectId);
+        return `Projekt "${project.name}" wurde aktiviert.`;
+      },
+    },
+    [app],
+  );
+
+  useFrontendTool(
+    {
+      name: "createProject",
+      description:
+        "Erstellt ein neues Projekt und aktiviert es. Nutze dieses Tool nur, wenn der Nutzer ein neues Projekt anlegen moechte.",
+      parameters: z.object({
+        name: z.string().min(1).max(80).describe("Name des neuen Projekts"),
+      }),
+      handler: async ({ name }) => {
+        const safeName = buildUniqueProjectName(
+          name,
+          new Set(app.projectList.map((project) => project.name.toLowerCase())),
+        );
+        await app.createProject({
+          id: createProjectId(),
+          name: safeName,
+          createdAt: Date.now(),
+        });
+        return `Projekt "${safeName}" wurde erstellt und aktiviert.`;
+      },
+    },
+    [app],
+  );
+
+  useFrontendTool(
+    {
+      name: "renameProject",
+      description:
+        "Benennt ein vorhandenes Projekt um. Veraendert keine Szenarien oder Rechenwerte.",
+      parameters: z.object({
+        projectId: z.string().describe("ID des umzubenennenden Projekts"),
+        name: z.string().min(1).max(80).describe("Neuer Projektname"),
+      }),
+      handler: async ({ projectId, name }) => {
+        const project = app.projects[projectId];
+        if (!project) {
+          return `Das Projekt ${projectId} existiert nicht. Es wurde nichts geaendert.`;
+        }
+        const nextName = name.trim();
+        if (!nextName) {
+          return "Der Projektname darf nicht leer sein. Es wurde nichts geaendert.";
+        }
+        const duplicate = app.projectList.some(
+          (candidate) =>
+            candidate.id !== projectId &&
+            candidate.name.toLowerCase() === nextName.toLowerCase(),
+        );
+        if (duplicate) {
+          return `Ein Projekt mit dem Namen "${nextName}" existiert bereits. Es wurde nichts geaendert.`;
+        }
+        await app.renameProject(projectId, nextName);
+        return `Projekt "${project.name}" wurde in "${nextName}" umbenannt.`;
+      },
+    },
+    [app],
   );
 
   useFrontendTool(
