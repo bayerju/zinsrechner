@@ -1,0 +1,20 @@
+[coast]
+name = "zinsrechner"
+compose = "./docker-compose.coast.yml"
+runtime = "dind"
+primary_port = "web"
+private_paths = [".next", ".convex"]
+worktree_dir = [".worktrees", "~/.t3/worktrees/zinsrechner"]
+default_worktree_dir = ".worktrees"
+
+[ports]
+web = 3011
+convex_cloud = 3212
+convex_site = 3213
+
+[assign]
+default = "none"
+
+[assign.services]
+convex = "restart"
+web = "hot"

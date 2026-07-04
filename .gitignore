@@ -44,5 +44,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 
+# coast
+/.worktrees/
+/.pnpm-store/
+
 # idea files
 .idea

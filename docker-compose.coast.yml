@@ -1,0 +1,51 @@
+services:
+  convex:
+    build:
+      context: .
+      dockerfile: Dockerfile.coast
+    working_dir: /workspace
+    command: bash /workspace/scripts/coast-convex-dev.sh
+    ports:
+      - "3212:3212"
+      - "3213:3213"
+    volumes:
+      - /workspace:/workspace
+      - node_modules:/workspace/node_modules
+    env_file:
+      - /workspace/.env
+    environment:
+      CONVEX_AGENT_MODE: anonymous
+      CONVEX_ALLOW_ANONYMOUS: "true"
+      CONVEX_LOCAL_BACKEND_STARTUP_TIMEOUT_SECS: "120"
+      WEB_DYNAMIC_PORT: "${WEB_DYNAMIC_PORT:-3011}"
+      CONVEX_CLOUD_DYNAMIC_PORT: "${CONVEX_CLOUD_DYNAMIC_PORT:-3212}"
+      CONVEX_SITE_DYNAMIC_PORT: "${CONVEX_SITE_DYNAMIC_PORT:-3213}"
+      BETTER_AUTH_SECRET: "${BETTER_AUTH_SECRET:-coast-better-auth-secret-at-least-32-chars}"
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.coast
+    working_dir: /workspace
+    command: bash /workspace/scripts/coast-web-dev.sh
+    ports:
+      - "3011:3011"
+    volumes:
+      - /workspace:/workspace
+      - node_modules:/workspace/node_modules
+    env_file:
+      - /workspace/.env
+    environment:
+      WEB_DYNAMIC_PORT: "${WEB_DYNAMIC_PORT:-3011}"
+      CONVEX_CLOUD_DYNAMIC_PORT: "${CONVEX_CLOUD_DYNAMIC_PORT:-3212}"
+      CONVEX_SITE_DYNAMIC_PORT: "${CONVEX_SITE_DYNAMIC_PORT:-3213}"
+      NEXT_PUBLIC_CONVEX_URL: "http://localhost:${CONVEX_CLOUD_DYNAMIC_PORT:-3212}"
+      NEXT_PUBLIC_CONVEX_SITE_URL: "http://localhost:${CONVEX_SITE_DYNAMIC_PORT:-3213}"
+      SITE_URL: "http://localhost:${WEB_DYNAMIC_PORT:-3011}"
+      TRUSTED_ORIGINS: "http://localhost:${WEB_DYNAMIC_PORT:-3011},http://127.0.0.1:${WEB_DYNAMIC_PORT:-3011},http://localhost:3011,http://127.0.0.1:3011"
+      BETTER_AUTH_SECRET: "${BETTER_AUTH_SECRET:-coast-better-auth-secret-at-least-32-chars}"
+    depends_on:
+      - convex
+
+volumes:
+  node_modules:
