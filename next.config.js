@@ -7,12 +7,7 @@ import "./src/env.js";
 /** @type {import("next").NextConfig} */
 const config = {
   serverExternalPackages: ["@copilotkit/runtime", "express", "officeparser"],
-  allowedDevOrigins: [
-    "http://localhost:3011",
-    "http://127.0.0.1:3011",
-    "http://192.168.178.27:3011",
-    "http://10.100.100.3:3011",
-  ],
+  allowedDevOrigins: ["127.0.0.1", "10.100.100.*", "192.168.*.*"],
   async rewrites() {
     return [
       {

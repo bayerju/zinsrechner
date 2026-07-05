@@ -45,7 +45,7 @@ printf 'CONVEX_DEPLOYMENT=anonymous-agent\n' > "$convex_env_file"
 
 {
   printf 'SITE_URL=http://localhost:%s\n' "$web_dynamic"
-  printf 'TRUSTED_ORIGINS=http://localhost:%s,http://127.0.0.1:%s,http://localhost:3011,http://127.0.0.1:3011\n' "$web_dynamic" "$web_dynamic"
+  printf 'TRUSTED_ORIGINS=http://localhost:%s,http://127.0.0.1:%s,http://10.100.100.*:%s,http://localhost:3011,http://127.0.0.1:3011\n' "$web_dynamic" "$web_dynamic" "$web_dynamic"
   printf 'BETTER_AUTH_SECRET=%s\n' "${BETTER_AUTH_SECRET:-coast-better-auth-secret-at-least-32-chars}"
 } > "$auth_env_file"
 
