@@ -701,23 +701,16 @@ function NewCreditDialog({
               <>
                 {selectedTemplate === "endfaellig" && (
                   <div>
-                    <label className="mb-1 block text-sm font-medium">
-                      Laufzeit
-                    </label>
-                    <select
-                      className="w-full rounded-md border border-neutral-700 bg-neutral-800 px-3 py-1 text-white"
+                    <NumberInput
+                      label="Laufzeit"
+                      unit="Jahre"
+                      className="pr-14"
                       value={creditZinsbindung}
-                      onChange={(event) => {
-                        const years = Number(event.target.value);
+                      onChange={(years) => {
                         setCreditZinsbindung(years);
                         setCreditTilgungsfreieZeit(years);
                       }}
-                    >
-                      <option value={5}>5 Jahre</option>
-                      <option value={10}>10 Jahre</option>
-                      <option value={15}>15 Jahre</option>
-                      <option value={20}>20 Jahre</option>
-                    </select>
+                    />
                     <p className="mt-1 text-xs text-neutral-400">
                       Während der Laufzeit werden nur Zinsen gezahlt.
                     </p>
@@ -780,22 +773,13 @@ function NewCreditDialog({
                 {/* Sollzinsbindung */}
                 {selectedTemplate !== "endfaellig" && (
                   <div>
-                    <label className="mb-1 block text-sm font-medium">
-                      Sollzinsbindung
-                      {/* <span title="Info">ⓘ</span> */}
-                    </label>
-                    <select
-                      className="w-full rounded-md border border-neutral-700 bg-neutral-800 px-3 py-1 text-white"
+                    <NumberInput
+                      label="Sollzinsbindung"
+                      unit="Jahre"
+                      className="pr-14"
                       value={creditZinsbindung}
-                      onChange={(e) =>
-                        setCreditZinsbindung(Number(e.target.value))
-                      }
-                    >
-                      <option value={5}>5 Jahre</option>
-                      <option value={10}>10 Jahre</option>
-                      <option value={15}>15 Jahre</option>
-                      <option value={20}>20 Jahre</option>
-                    </select>
+                      onChange={(value) => setCreditZinsbindung(value)}
+                    />
                   </div>
                 )}
 

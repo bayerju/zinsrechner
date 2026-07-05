@@ -38,7 +38,7 @@ export DATABASE_URL="${DATABASE_URL:?DATABASE_URL must be set in .env}"
 export NEXT_PUBLIC_CONVEX_URL="http://localhost:${CONVEX_CLOUD_DYNAMIC_PORT:-3212}"
 export NEXT_PUBLIC_CONVEX_SITE_URL="http://localhost:${CONVEX_SITE_DYNAMIC_PORT:-3213}"
 export SITE_URL="http://localhost:${WEB_DYNAMIC_PORT:-3011}"
-export TRUSTED_ORIGINS="http://localhost:${WEB_DYNAMIC_PORT:-3011},http://127.0.0.1:${WEB_DYNAMIC_PORT:-3011},http://localhost:3011,http://127.0.0.1:3011"
+export TRUSTED_ORIGINS="http://localhost:${WEB_DYNAMIC_PORT:-3011},http://127.0.0.1:${WEB_DYNAMIC_PORT:-3011},http://10.100.100.*:${WEB_DYNAMIC_PORT:-3011},http://localhost:3011,http://127.0.0.1:3011"
 export BETTER_AUTH_SECRET="${BETTER_AUTH_SECRET:-coast-better-auth-secret-at-least-32-chars}"
 
 pnpm exec next dev --turbo -p 3011 --hostname 0.0.0.0 &

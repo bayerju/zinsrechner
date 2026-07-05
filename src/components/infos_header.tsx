@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { Card, CardContent } from "~/components/ui/card";
 import { formatNumber } from "~/lib/number_fromat";
+import { NumberInput } from "./ui/number_input";
 import { PercentInput } from "./ui/percent_input";
 import {
   calculateNettodarlehensbetragBank,
@@ -681,16 +682,15 @@ export default function InfosHeader() {
               </div>
               <div className="flex w-full flex-col gap-1.5 py-2 text-sm sm:flex-row sm:items-center sm:justify-between">
                 <span className="flex items-center gap-1">Zinsbindung</span>
-                <select
-                  className="h-10 w-full rounded-md border border-neutral-700 bg-neutral-800 px-3 py-1 text-white sm:h-auto sm:w-32"
-                  value={zinsbindung}
-                  onChange={(e) => setzinsbindung(Number(e.target.value))}
-                >
-                  <option value={5}>5 Jahre</option>
-                  <option value={10}>10 Jahre</option>
-                  <option value={15}>15 Jahre</option>
-                  <option value={20}>20 Jahre</option>
-                </select>
+                <div className="w-full sm:w-32">
+                  <NumberInput
+                    aria-label="Zinsbindung in Jahren"
+                    className="h-10 pr-14 sm:h-9"
+                    unit="Jahre"
+                    value={zinsbindung}
+                    onChange={(value) => setzinsbindung(value)}
+                  />
+                </div>
               </div>
               <div className="flex w-full flex-col gap-1.5 py-2 text-sm sm:flex-row sm:items-center sm:justify-between">
                 <span className="flex items-center gap-1">Tilgungssatz</span>

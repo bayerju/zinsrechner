@@ -99,7 +99,11 @@ checkout is running before the final response:
 
 6. When feasible, verify the app responds with `curl -fsSI
    http://localhost:<web-dynamic-port>`.
-7. In the final response after code changes, include `Test URL:
+7. Open the app in the T3 preview browser using the same URL that will be
+   reported to the user. Prefer the preview browser tools over a separate
+   Playwright/browser session, and inspect the page for load failures, blocked
+   resources, console errors, or auth/origin errors before finishing.
+8. In the final response after code changes, include `Test URL:
    http://<10.100.100.x>:<web-dynamic-port>` so the user can test the change.
    If no `10.100.100.x` address is available, say that explicitly and include
    the localhost URL instead.
