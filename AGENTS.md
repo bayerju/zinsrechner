@@ -59,6 +59,8 @@ Use `coast exec` for:
 - Anything that talks to databases, caches, or other container services
 
 Run directly on the host:
+- The normal worktree-local development stack (`pnpm dev`), which starts its
+  own local Convex backend and Next.js process
 - Linting, typechecking, formatting
 - Git operations
 - Playwright and browser tests; run the browser on the host, pointed at the
@@ -157,4 +159,5 @@ section of the relevant harness doc:
   app/service container.
 - Run linting, typechecking, formatting, and git on the host directly.
 - Use `coast docs` or `coast search-docs` before guessing about Coast behavior.
-- Do not run services directly on the host when the project expects Coast.
+- Do not run services directly on the host when the project expects Coast,
+  except for the supported worktree-local `pnpm dev` stack.

@@ -35,36 +35,53 @@ after sign-in. Signed-out usage remains local to the browser.
   versions are preserved instead of silently overwriting the local version.
 
 1. Use Node.js 20.9 or newer.
-2. Add the local environment variables to `.env`:
+2. Optionally add local secrets and service configuration to `.env`:
 
    ```env
    DATABASE_URL="file:./db.sqlite"
    ```
 
-   Convex reads `CONVEX_DEPLOYMENT`, `NEXT_PUBLIC_CONVEX_URL`, and
-   `NEXT_PUBLIC_CONVEX_SITE_URL` from `.env` via `pnpm convex:dev`.
+   The development runner provides local defaults for the required variables.
+   Values from the shell or `.env` remain available to Next.js.
 
-3. Set the Better Auth environment variables on the Convex deployment:
-
-   ```bash
-   pnpm convex env set SITE_URL http://localhost:3011
-   pnpm convex env set TRUSTED_ORIGINS http://localhost:3011,http://127.0.0.1:3011,http://192.168.178.27:3011,http://10.100.100.3:3011
-   pnpm convex env set BETTER_AUTH_SECRET "$(openssl rand -base64 32)"
-   ```
-
-4. Start Convex in the first terminal:
-
-   ```bash
-   pnpm convex:dev
-   ```
-
-5. Start Next.js in a second terminal:
+3. Start the complete application:
 
    ```bash
    pnpm dev
    ```
 
-Open `http://localhost:3011`.
+   This starts a worktree-local Convex backend and Next.js server together.
+   Ports are selected deterministically from the absolute worktree path and
+   automatically move as a group if another process is already using them.
+   The startup line prints the URL for the current worktree.
+
+   Fresh worktrees only need their dependencies installed first:
+
+   ```bash
+   pnpm install --frozen-lockfile
+   pnpm dev
+   ```
+
+4. Inspect or override the resolved development configuration when needed:
+
+   ```bash
+   pnpm dev --dry-run
+   pnpm dev --port-offset 20
+   pnpm dev --home-dir .local-dev
+   pnpm dev --instance my-stable-name
+   ```
+
+   CLI options take precedence over `DEV_WORKTREE_HOME`,
+   `DEV_WORKTREE_PORT_OFFSET`, and `DEV_WORKTREE_INSTANCE`. Generated runner
+   configuration is stored in `.dev`; Convex keeps its database in the
+   worktree-local `.convex` directory. Stop both processes with `Ctrl+C`.
+   On T3 Code hosts, the runner automatically publishes the `10.100.100.x`
+   address; set `DEV_WORKTREE_HOST` to override it.
+   Running `pnpm dev` again for the same worktree stops the existing stack and
+   restarts it on the same ports.
+
+The Coast configuration remains available for containerized runtime checks, but
+it is not required for the normal `pnpm dev` workflow.
 
 ## Coolify production
 

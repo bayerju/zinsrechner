@@ -48,5 +48,9 @@ yarn-error.log*
 /.worktrees/
 /.pnpm-store/
 
+# worktree development runtime
+/.dev/
+/.convex/
+
 # idea files
 .idea
