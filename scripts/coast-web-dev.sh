@@ -34,7 +34,6 @@ start_loopback_forward() {
 start_loopback_forward "${CONVEX_CLOUD_DYNAMIC_PORT:-3212}" convex 3212
 start_loopback_forward "${CONVEX_SITE_DYNAMIC_PORT:-3213}" convex 3213
 
-export DATABASE_URL="${DATABASE_URL:?DATABASE_URL must be set in .env}"
 export NEXT_PUBLIC_CONVEX_URL="http://localhost:${CONVEX_CLOUD_DYNAMIC_PORT:-3212}"
 export NEXT_PUBLIC_CONVEX_SITE_URL="http://localhost:${CONVEX_SITE_DYNAMIC_PORT:-3213}"
 export SITE_URL="http://localhost:${WEB_DYNAMIC_PORT:-3011}"

@@ -24,7 +24,6 @@ export default defineConfig({
         reuseExistingServer: !process.env.CI,
         env: {
           SKIP_ENV_VALIDATION: "1",
-          DATABASE_URL: "file:./db.sqlite",
         },
       },
   projects: [
