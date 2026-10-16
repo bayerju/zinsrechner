@@ -9,7 +9,11 @@ export function AppCopilotProvider({
   children: React.ReactNode;
 }) {
   return (
-    <CopilotKit runtimeUrl="/api/copilotkit" showDevConsole={false}>
+    <CopilotKit
+      runtimeUrl="/api/copilotkit"
+      showDevConsole={false}
+      enableInspector={false}
+    >
       {children}
     </CopilotKit>
   );

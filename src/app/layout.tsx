@@ -3,7 +3,6 @@ import "~/styles/globals.css";
 import { type Metadata } from "next";
 import { Geist } from "next/font/google";
 
-import { TRPCReactProvider } from "~/trpc/react";
 import { AppStateProvider } from "~/state/app_state";
 import { PostHogProvider } from "~/components/PostHogProvider";
 import { AppCopilotProvider } from "~/components/copilot/copilot_provider";
@@ -41,13 +40,11 @@ export default async function RootLayout({
       <body>
         <ConvexClientProvider initialToken={token}>
           <PostHogProvider>
-            <TRPCReactProvider>
-              <AppCopilotProvider>
-                <AppStateProvider>
-                  <FinanceCopilot>{children}</FinanceCopilot>
-                </AppStateProvider>
-              </AppCopilotProvider>
-            </TRPCReactProvider>
+            <AppCopilotProvider>
+              <AppStateProvider>
+                <FinanceCopilot>{children}</FinanceCopilot>
+              </AppStateProvider>
+            </AppCopilotProvider>
           </PostHogProvider>
         </ConvexClientProvider>
       </body>

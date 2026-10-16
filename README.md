@@ -35,11 +35,7 @@ after sign-in. Signed-out usage remains local to the browser.
   versions are preserved instead of silently overwriting the local version.
 
 1. Use Node.js 20.9 or newer.
-2. Add the local environment variables to `.env`:
-
-   ```env
-   DATABASE_URL="file:./db.sqlite"
-   ```
+2. Copy `.env.example` to `.env` and configure the app environment.
 
    Convex reads `CONVEX_DEPLOYMENT`, `NEXT_PUBLIC_CONVEX_URL`, and
    `NEXT_PUBLIC_CONVEX_SITE_URL` from `.env` via `pnpm convex:dev`.
@@ -77,7 +73,6 @@ pnpm build:coolify
 Set these Coolify environment variables:
 
 ```env
-DATABASE_URL=postgres://...
 NEXT_PUBLIC_CONVEX_URL=https://<prod-deployment>.convex.cloud
 NEXT_PUBLIC_CONVEX_SITE_URL=https://<prod-deployment>.convex.site
 NEXT_PUBLIC_POSTHOG_KEY=...
@@ -106,10 +101,8 @@ If you are not familiar with the different technologies used in this project, pl
 
 - [Next.js](https://nextjs.org)
 - [NextAuth.js](https://next-auth.js.org)
-- [Prisma](https://prisma.io)
 - [Drizzle](https://orm.drizzle.team)
 - [Tailwind CSS](https://tailwindcss.com)
-- [tRPC](https://trpc.io)
 
 ## Learn More
 
