@@ -15,7 +15,7 @@
     "lint:fix": "next lint --fix",
     "preview": "next build && next start",
     "start": "next start",
-    "test:unit": "vitest run",
+    "test:unit": "vitest run && node --test tests/deployment.test.mjs",
     "test:e2e": "playwright test",
     "test:e2e:webserver": "bash scripts/e2e-webserver.sh",
     "test:e2e:update-screenshots": "playwright test --update-snapshots",

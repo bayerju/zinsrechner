@@ -21,6 +21,8 @@ export default defineConfig({
     : {
         command: "pnpm test:e2e:webserver",
         url: baseURL,
+        // Fresh CI runners download and initialize the local Convex backend.
+        timeout: 180_000,
         reuseExistingServer: !process.env.CI,
         env: {
           SKIP_ENV_VALIDATION: "1",

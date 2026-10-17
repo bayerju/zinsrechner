@@ -3,6 +3,10 @@ import { expect, test, type Page } from "@playwright/test";
 async function expectApprovedScreenshot(page: Page, name: string) {
   await page.addStyleTag({
     content: `
+      /* Baselines use Noto Sans for Copilot's OS-dependent system font. */
+      [data-copilotkit] {
+        --cpk-default-font-family: "Noto Sans", sans-serif;
+      }
       nextjs-portal,
       [data-nextjs-toast],
       [data-nextjs-dialog],
