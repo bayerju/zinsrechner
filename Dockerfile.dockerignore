@@ -1,0 +1,14 @@
+# Overrides .dockerignore only for the production Dockerfile, not Coast builds.
+**
+!Dockerfile
+!.next/
+!.next/standalone/
+!.next/standalone/**
+!.next/static/
+!.next/static/**
+!public/
+!public/**
+**/.env*
+**/.git
+**/.next/cache
+**/*.tsbuildinfo

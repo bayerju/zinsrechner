@@ -1,4 +1,5 @@
-FROM node:20-bookworm-slim
+# Current local Convex binaries require glibc >= 2.39.
+FROM node:22-trixie-slim
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
