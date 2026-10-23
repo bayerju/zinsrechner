@@ -1,6 +1,6 @@
 # GitHub Actions builds and sanitizes .next/standalone before packaging.
 # No compiler, source checkout, package installation or build cache at runtime.
-FROM node:22-bookworm-slim
+FROM node:22.23.4-bookworm-slim
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     PORT=3000 \
